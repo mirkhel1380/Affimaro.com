@@ -4,10 +4,10 @@ import {deploymentSettings,verifiedEmailSettings} from '../self-hosted/preflight
 try{
   const settings=deploymentSettings(process.env),mode=process.argv[2]||'--check';
   if(!['--check','--dry-run','--deploy'].includes(mode))throw new Error('Choose --check, --dry-run or --deploy.');
-  await verifiedEmailSettings(settings,process.env.SUPABASE_PUBLISHABLE_KEY);
+  await verifiedEmailSettings(settings,settings.publishableKey);
   if(mode==='--check'){console.log('Independent deployment settings passed validation. No changes made.');process.exit(0);}
   const path='dist-self-hosted/server/wrangler.json',config=JSON.parse(await readFile(path,'utf8'));
-  if(config.vars.APP_ORIGIN!==settings.origin||config.vars.SUPABASE_URL!==settings.supabaseUrl||config.vars.SUPABASE_PUBLISHABLE_KEY!==process.env.SUPABASE_PUBLISHABLE_KEY||config.d1_databases[0].database_id!==settings.databaseId||config.account_id!==process.env.CLOUDFLARE_ACCOUNT_ID)throw new Error('Rebuild the independent package with these exact deployment settings.');
+  if(config.vars.APP_ORIGIN!==settings.origin||config.vars.SUPABASE_URL!==settings.supabaseUrl||config.vars.SUPABASE_PUBLISHABLE_KEY!==settings.publishableKey||config.d1_databases[0].database_id!==settings.databaseId||config.account_id!==process.env.CLOUDFLARE_ACCOUNT_ID)throw new Error('Rebuild the independent package with these exact deployment settings.');
   const run=(args,input)=>{const result=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js',...args,'--config',path],{stdio:input?['pipe','inherit','inherit']:'inherit',input,env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_WRITE_LOGS:'false'}});if(result.status!==0)throw new Error('Cloudflare command did not complete. Review its result before retrying.');};
   if(mode==='--dry-run'){run(['deploy','--dry-run']);process.exit(0);}
   if(process.env.AFFIMARO_DATA_MIGRATION_CONFIRMED!=='true')throw new Error('Complete the documented database/key migration and identity mapping before deployment.');

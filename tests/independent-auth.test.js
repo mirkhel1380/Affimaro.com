@@ -25,7 +25,7 @@ async function fixture(t){
     if(path.startsWith('/logout?'))return new Response(null,{status:204});
     if(path==='/signup')return Response.json(response());
     if(path==='/recover'||path==='/resend')return Response.json({});
-    if(path==='/verify'&&body.token!=='123456')return new Response('PRIVATE_CODE_ERROR',{status:403});
+    if(path==='/verify'&&body.token!==(state.code||'123456'))return new Response('PRIVATE_CODE_ERROR',{status:403});
     if(path==='/token?grant_type=refresh_token'){state.refreshes++;assert.equal(body.refresh_token,'FIXTURE_REFRESH_TOKEN_'+state.generation);state.generation++;}
     const data=response();return Response.json(state.mutate?state.mutate(data,'token'):data);
   };
@@ -77,6 +77,12 @@ test('flow cookies are authenticated, expire, and retain only a safe return path
   const f=await fixture(t),next=await f.api.newFlow('login','//evil.example'),flow=await f.api.flow(request('/',cookie(next.cookie)));
   assert.equal(flow.returnTo,'/account');assert.match(flow.nonce,/^[a-f0-9]{64}$/);assert.equal(await f.api.flow(request('/',cookie(next.cookie)+'f')),null);
   const expired=await sealAuth({...flow,expires:1},config.encryptionKey,'auth-flow/'+config.origin);assert.equal(await f.api.flow(request('/',FLOW_COOKIE+'='+expired)),null);
+});
+test('email verification accepts longer provider codes without lowering the provider policy',async t=>{
+  const f=await fixture(t),next=await f.api.newFlow('verify-signup','/account',email);f.state.code='12345678';
+  for(const code of ['12345','12345678901','1234abcd','123 45678'])await assert.rejects(f.api.verify(next.flow,{code},'one'),fails(400));assert.equal(f.state.calls.length,0);
+  await assert.rejects(f.api.verify(next.flow,{code:'123456'},'one'),fails(401));
+  const signed=await f.api.verify(next.flow,{code:' 12345678 '},'one');assert.ok(await f.api.resolve(request('/account',cookie(signed.cookie))));assert.equal(f.state.calls.findLast(x=>x.path==='/verify').body.token,'12345678');
 });
 test('recovery sessions cannot open the application and password reset revokes all local sessions',async t=>{
   const f=await fixture(t),signed=await login(f);await assert.rejects(f.api.reset(request('/auth/reset',cookie(signed.cookie)),{password}),fails(403));

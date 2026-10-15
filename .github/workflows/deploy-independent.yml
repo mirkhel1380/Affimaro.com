@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
       email_configured:
-        description: Supabase email verification, six-digit templates and delivery are tested
+        description: Supabase email verification, code templates and delivery are tested
         required: true
         type: boolean
         default: false

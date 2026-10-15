@@ -5,7 +5,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
-- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions.
+- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created Affimaro project is selected and its live email/confirmation/signup policy is verified; email templates, delivery and independent hosting remain pending.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.

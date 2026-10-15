@@ -1,6 +1,6 @@
 # Independent hosting and email sign-in
 
-Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared; no external account, domain, email delivery or production cutover has been configured by this change.
+Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared, and the owner-created Supabase project is selected for the independent build. See the [verified project status](supabase-setup-status.md). The independent domain, hosting, email delivery and production cutover remain unconfigured.
 
 ## Boundaries
 
@@ -11,13 +11,13 @@ Affimaro has two deployment targets. The existing owner-private ChatGPT Site ret
 
 ## Supabase configuration
 
-Choose or create the Affimaro Supabase project in the intended organization. Connect that project before changing settings. This code does not create a project, select a paid plan, or email anyone during setup.
+The owner created the Affimaro project `bhxzkrypfxdheyjtxwqp`. The independent build now uses its URL and active modern publishable key by default, with live verified-email settings confirmed. This code does not create a project, select a paid plan, change provider settings or email anyone during setup.
 
 1. Enable the email/password provider and **Confirm email**. The server checks `/auth/v1/settings` before password login, signup or code verification and refuses access if automatic email confirmation is enabled.
 2. Set the Site URL to the independent `APP_ORIGIN`, with HTTPS and no path. This app does not accept session tokens in callback URLs.
-3. Configure the signup confirmation and password-recovery email templates to show a six-digit `{{ .Token }}`. For example, use `Your Affimaro verification code` / `Your Affimaro password reset code` as the subjects and `<p>Your code is <strong>{{ .Token }}</strong>.</p>` as the body. Do not require a confirmation-link click: users submit the code at `/auth/verify`.
-4. Configure six-digit email OTPs, an appropriate expiry and a real sending identity/SMTP service. Test delivery to the intended users. Provider email quotas, sender verification and any provider costs require the owner's account setup.
-5. Copy the project HTTPS URL and its publishable key (or legacy `anon` key) into the independent deployment settings. Never use a service/admin key in the running web app.
+3. Configure the signup confirmation and password-recovery email templates to show `{{ .Token }}`. For example, use `Your Affimaro verification code` / `Your Affimaro password reset code` as the subjects and `<p>Your code is <strong>{{ .Token }}</strong>.</p>` as the body. Do not require a confirmation-link click: users submit the code at `/auth/verify`.
+4. Keep the provider’s configured OTP length (the app accepts 6–10 digits), set an appropriate expiry and a real sending identity/SMTP service. Test delivery to the intended users. Provider email quotas, sender verification and any provider costs require the owner's account setup.
+5. The selected project URL and active publishable key are already bound in `self-hosted/supabase-project.json`. To intentionally use another project, set both `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` together; partial overrides fail validation. Never use a service/admin key in the running web app.
 
 Passwords are 12–128 characters for signup/reset. Login accepts an existing password up to 128 characters. Forms require an encrypted, short-lived HttpOnly flow cookie, a matching nonce and the exact Origin. The server limits request size and stores salted, shared throttles for the email and Cloudflare client IP. Passwords and provider tokens are never reflected into HTML or URLs.
 
@@ -33,8 +33,8 @@ Use a Cloudflare account, an HTTPS custom domain managed by that account, a new 
 | `CLOUDFLARE_ACCOUNT_ID` | Local setting / GitHub production secret | Intended hosting account |
 | `CLOUDFLARE_D1_DATABASE_ID` | Local setting / GitHub production secret | New independent D1 database |
 | `APP_ORIGIN` | Local setting / GitHub production variable | Exact independent HTTPS origin |
-| `SUPABASE_URL` | Local setting / GitHub production variable | Project origin, `https://PROJECT.supabase.co` |
-| `SUPABASE_PUBLISHABLE_KEY` | Local setting / GitHub production variable | Publishable or legacy anon key |
+| `SUPABASE_URL` | Optional local / GitHub production variable | Paired project override; defaults to the selected Affimaro project |
+| `SUPABASE_PUBLISHABLE_KEY` | Optional local / GitHub production variable | Paired key override; defaults to the active Affimaro publishable key |
 | `AUTH_SESSION_ENCRYPTION_KEY` | Local secret / GitHub production secret | New random 32-byte lowercase hex key, separate from the payment key |
 | `PAYMENT_DATA_KEY_V1` | Existing Worker secret, copied only by the encrypted migration | **Original** payment key; ordinary deployments never overwrite it |
 
