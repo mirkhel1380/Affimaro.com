@@ -46,3 +46,48 @@ export const auditEvents = sqliteTable("audit_events", {
   action: text("action").notNull(),
   createdAt: text("created_at").notNull(),
 }, t => [index("audit_workspace_index").on(t.workspaceId,t.createdAt)]);
+
+// Server-only connection credentials must never be selected into page props.
+export const storeConnections = sqliteTable("store_connections", {
+  id:text("id").primaryKey(),
+  workspaceId:text("workspace_id").notNull().references(()=>workspaces.id),
+  storeUrl:text("store_url").notNull(),
+  signingKey:text("signing_key").notNull(),
+  active:integer("active").notNull(),
+  lastSeen:text("last_seen"),
+  createdAt:text("created_at").notNull(),
+},t=>[uniqueIndex("store_workspace_unique").on(t.workspaceId),check("store_active_boolean",sql`${t.active} IN (0,1)`)]);
+export const referrals = sqliteTable("referrals", {
+  id:text("id").primaryKey(),
+  storeId:text("store_id").notNull().references(()=>storeConnections.id),
+  applicationId:text("application_id").notNull().references(()=>applications.id),
+  rateBps:integer("rate_bps").notNull(),
+  createdAt:text("created_at").notNull(),
+  expiresAt:text("expires_at").notNull(),
+},t=>[index("referrals_application_index").on(t.applicationId),index("referrals_store_index").on(t.storeId)]);
+export const orders = sqliteTable("orders", {
+  id:text("id").primaryKey(),
+  storeId:text("store_id").notNull().references(()=>storeConnections.id),
+  referralId:text("referral_id").notNull().references(()=>referrals.id),
+  applicationId:text("application_id").notNull().references(()=>applications.id),
+  externalId:text("external_id").notNull(),
+  revision:integer("revision").notNull(),
+  currency:text("currency").notNull(),
+  decimals:integer("decimals").notNull(),
+  basis:integer("basis").notNull(),
+  refundedBasis:integer("refunded_basis").notNull(),
+  rateBps:integer("rate_bps").notNull(),
+  commission:integer("commission").notNull(),
+  status:text("status").notNull(),
+  commissionState:text("commission_state").notNull(),
+  needsReview:integer("needs_review").notNull(),
+  createdAt:text("created_at").notNull(),
+  receivedAt:text("received_at").notNull(),
+},t=>[uniqueIndex("orders_store_external_unique").on(t.storeId,t.externalId),index("orders_application_index").on(t.applicationId),check("orders_amounts_valid",sql`${t.basis} >= 0 AND ${t.refundedBasis} >= 0 AND ${t.refundedBasis} <= ${t.basis} AND ${t.commission} >= 0`),check("orders_precision_valid",sql`${t.decimals} BETWEEN 0 AND 6`)]);
+export const storeEvents = sqliteTable("store_events", {
+  storeId:text("store_id").notNull().references(()=>storeConnections.id),
+  eventId:text("event_id").notNull(),
+  payloadHash:text("payload_hash").notNull(),
+  response:text("response").notNull(),
+  createdAt:text("created_at").notNull(),
+},t=>[uniqueIndex("store_event_unique").on(t.storeId,t.eventId)]);
