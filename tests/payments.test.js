@@ -62,6 +62,13 @@ test('payout requests reserve available money once, remain idempotent and reject
   await assert.rejects(f.partner.request(request(f)),fails(409));await assert.rejects(f.partner.request({...body,currency:'AFN'}),fails(409));await assert.rejects(f.partner.request({...request(f),amount:999999}),fails(400));
   await assert.rejects(payments(f.db,identity('stranger'),dataKey).request(body),fails(409));assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM payout_requests').get().n,1);
 });
+test('completed Wise transfers can be manually recorded without treating a Stripe transfer as bank settlement',async t=>{
+  const f=await fixture(t);await approve(f);const req=await f.partner.request(request(f));await f.merchant.review({requestId:req.id,status:'approved',reason:''});
+  await assert.rejects(f.merchant.recordPaid({requestId:req.id,receipt:{...receipt(),method:'stripe'}}),fails(400));
+  await f.merchant.recordPaid({requestId:req.id,receipt:{...receipt('WISE-EXAMPLE-TRANSFER-1'),method:'wise'}});
+  const details=await f.partner.details({requestId:req.id});assert.equal(details.receipt.method,'wise');assert.equal(details.destination.account,bank.account);assert.equal((await f.partner.partnerDashboard()).wallets[0].paid,1200);
+  const stored=f.db.sqlite.prepare('SELECT encrypted_receipt FROM payout_requests').get();assert.ok(!stored.encrypted_receipt.includes('WISE-EXAMPLE-TRANSFER-1'));
+});
 test('cancel and decline release reservations; paid records cannot be cancelled or declined',async t=>{
   const f=await fixture(t);await approve(f);let req=await f.partner.request(request(f));await f.partner.cancel({requestId:req.id});assert.equal((await f.partner.partnerDashboard()).wallets[0].available,1200);
   req=await f.partner.request(request(f));await assert.rejects(f.merchant.review({requestId:req.id,status:'rejected',reason:''}),fails(400));await f.merchant.review({requestId:req.id,status:'rejected',reason:'Please correct the bank details.'});assert.equal((await f.partner.partnerDashboard()).wallets[0].available,1200);

@@ -168,3 +168,22 @@ export const programRuleRevisions=sqliteTable('program_rule_revisions',{
   active:integer('active').notNull(),
   effectiveAt:text('effective_at').notNull(),
 },t=>[index('program_rule_time_index').on(t.programId,t.effectiveAt),check('rule_rate_valid',sql`${t.rateBps} BETWEEN 100 AND 5000`),check('rule_window_valid',sql`${t.windowDays} BETWEEN 1 AND 90`)]);
+
+export const paymentConnections=sqliteTable('payment_connections',{
+  id:text('id').primaryKey(),
+  workspaceId:text('workspace_id').notNull().references(()=>workspaces.id),
+  provider:text('provider').notNull(),
+  mode:text('mode').notNull(),
+  externalId:text('external_id').notNull(),
+  label:text('label').notNull(),
+  country:text('country'),
+  currency:text('currency'),
+  payoutsEnabled:integer('payouts_enabled'),
+  status:text('status').notNull(),
+  lastError:text('last_error'),
+  encryptedCredential:text('encrypted_credential').notNull(),
+  lastVerifiedAt:text('last_verified_at').notNull(),
+  lastCheckedAt:text('last_checked_at').notNull(),
+  createdAt:text('created_at').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('payment_connection_workspace_provider').on(t.workspaceId,t.provider),check('payment_connection_provider',sql`${t.provider} IN ('stripe','wise')`),check('payment_connection_mode',sql`${t.mode} IN ('test','live')`),check('payment_connection_status',sql`${t.status} IN ('verified','attention')`)]);
