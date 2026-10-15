@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#153b32">
+  <meta name="description" content="Explore Affimaro: an affiliate management product by Highlink, with an interactive sample workspace for businesses and affiliates.">
+  <title>Affimaro — Make every referral count</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6h12v12"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-3-5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 13 4-4m-5 6-2 2a4.2 4.2 0 0 1-6-6l4-4a4.2 4.2 0 0 1 6 0m2 2 2-2a4.2 4.2 0 0 1 6 6l-4 4a4.2 4.2 0 0 1-6 0"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 3v17h17M8 14l4-5 4 3 5-7"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 8V5H5a2 2 0 0 1 0-4m0 0h13v4M3 3v16a2 2 0 0 0 2 2h15V8H5a2 2 0 0 1-2-2m17 6h-5v5h5"/><path d="M16 14.5h.1"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5m6-5v5M6 8h12v3a6 6 0 0 1-12 0V8m6 9v5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5m-11 5v-5h5m-4-3a8 8 0 0 1 14-4l1 2M4 17l1 2a8 8 0 0 0 14-4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="m4 3-2 6a3 3 0 0 0 5 2 3 3 0 0 0 5 0 3 3 0 0 0 5 0 3 3 0 0 0 5-2l-2-6H4Zm0 9v9h16v-9M9 21v-7h6v7"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="m4 3 6 18 3-7 7-3L4 3Zm10 11 6 6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6l8-4Zm-4 10 3 3 5-6"/></symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></symbol>
+  </svg>
+  <a class="skip-link" href="#main" data-action="skip-content">Skip to content</a>
+  <header class="site-header" id="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#" aria-label="Affimaro home"><span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 22V13a8 8 0 0 1 16 0v9M8 17h16M16 17v8"/></svg></span><span>affimaro<span class="brand-period">.</span></span></a>
+      <nav class="main-nav" aria-label="Main navigation" id="main-nav"><a href="#product">Platform</a><a href="#workflow">How it works</a><a href="#plans">Packages</a></nav>
+      <div class="header-actions"><span class="preview-pill">Preview</span><a class="btn btn-dark btn-small" href="#/demo/merchant/overview">Explore demo <svg class="icon"><use href="#i-arrow"/></svg></a><button class="icon-button mobile-nav-toggle" data-action="toggle-nav" aria-label="Toggle navigation" aria-expanded="false" aria-controls="main-nav"><svg class="icon"><use href="#i-menu"/></svg></button></div>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <div id="website">
+      <section class="hero container">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="tiny-line"></span> YOUR PARTNERS. YOUR GROWTH.</div>
+          <h1>Good referrals<br>deserve a<br><span>better system.</span></h1>
+          <p class="hero-text">Partner links, sales and commissions. One clear workspace for businesses growing with affiliates.</p>
+          <div class="hero-buttons"><a class="btn btn-dark" href="#/demo/merchant/overview">Explore the dashboard <svg class="icon"><use href="#i-arrow"/></svg></a><a class="text-link" href="#workflow">See how it works <span>↗</span></a></div>
+          <div class="hero-note"><span class="woo-icon">W</span><span>WooCommerce first<span class="note-secondary">Planned integration · product preview</span></span></div>
+        </div>
+        <div class="hero-visual" aria-label="Illustrative Affimaro sample dashboard">
+          <div class="visual-label"><span class="status-dot"></span> A LITTLE CLARITY GOES A LONG WAY</div>
+          <div class="mini-dashboard">
+            <div class="mini-sidebar"><div class="mini-mark">a<span>·</span></div><div class="mini-side-active"><svg class="icon"><use href="#i-grid"/></svg></div><svg class="icon"><use href="#i-users"/></svg><svg class="icon"><use href="#i-link"/></svg><svg class="icon"><use href="#i-chart"/></svg><svg class="icon"><use href="#i-wallet"/></svg><div class="mini-side-avatar">N</div></div>
+            <div class="mini-main">
+              <div class="mini-header"><span>Overview</span><span class="mini-sample">SAMPLE WORKSPACE</span></div>
+              <div class="mini-welcome"><span class="mini-sub">NORTHLINE STORE</span><h3>Growth, at a glance.</h3><span class="mini-date">October sample data <svg class="icon"><use href="#i-chevron"/></svg></span></div>
+              <div class="mini-stats"><div><span>Referred revenue</span><strong>$2,509<span class="decimal">.00</span></strong><small>8 attributed sales</small></div><div><span>Commission to pay</span><strong>$105<span class="decimal">.90</span></strong><small>Approved commissions</small></div></div>
+              <div class="mini-chart-head"><strong>Referral performance</strong><span><i></i> Sales</span></div>
+              <div class="mini-chart"><span class="chart-y">$800<br>$400<br>$0</span><svg viewBox="0 0 390 125" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="mini-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#bddca1" stop-opacity=".6"/><stop offset="100%" stop-color="#bddca1" stop-opacity=".03"/></linearGradient></defs><path d="M0 90H390M0 45H390M0 2H390" class="chart-grid"/><path d="M0 88 48 66 97 92 146 55 195 100 244 10 292 82 341 62 390 121V125H0Z" fill="url(#mini-fill)"/><path d="M0 88 48 66 97 92 146 55 195 100 244 10 292 82 341 62 390 121" stroke="#528348" stroke-width="2.7" fill="none" stroke-linejoin="round"/><circle cx="244" cy="10" r="4" fill="#528348" stroke="white" stroke-width="2"/></svg><div class="mini-chart-dates"><span>Oct 06</span><span>Oct 10</span><span>Oct 14</span></div></div>
+              <div class="mini-table"><div class="mini-table-title"><strong>Your partners</strong><span>View all ↗</span></div><div class="mini-partner"><span class="avatar lilac">SB</span><span>Sofia Bennett<small>Content creator</small></span><span>$850.00</span><span class="mini-status">Approved</span></div><div class="mini-partner"><span class="avatar peach">AR</span><span>Alex Rivera<small>Newsletter</small></span><span>$1,000.00</span><span class="mini-status">Approved</span></div></div>
+            </div>
+          </div>
+          <div class="floating-commission"><span class="floating-icon"><svg class="icon"><use href="#i-check"/></svg></span><div><strong>A referral. A sale. A reward.</strong><span>$100 sale → $10 commission at 10%</span></div></div>
+          <span class="visual-decoration decoration-one"></span><span class="visual-decoration decoration-two"></span>
+        </div>
+      </section>
+      <div class="promise-strip container"><span>A simpler way to work with partners</span><div><svg class="icon"><use href="#i-link"/></svg> Clear attribution</div><div><svg class="icon"><use href="#i-chart"/></svg> Visible commissions</div><div><svg class="icon"><use href="#i-users"/></svg> Shared progress</div></div>
+
+      <section class="product-section container section-space" id="product">
+        <div class="section-heading"><div><span class="eyebrow">ONE PLATFORM, TWO PERSPECTIVES</span><h2>Less spreadsheet.<br>More partnership.</h2></div><p>A business needs control. An affiliate needs clarity. Affimaro’s product starts with both.</p></div>
+        <div class="product-block">
+          <div class="product-copy"><div class="segment" role="group" aria-label="Product perspective"><button class="active" data-action="perspective" data-role="merchant" aria-pressed="true">For businesses</button><button data-action="perspective" data-role="affiliate" aria-pressed="false">For affiliates</button></div><div id="perspective-copy"><h3>Your program.<br>Your rules.</h3><p>Set the commission, review your partners and keep every sale connected to the person behind it.</p><ul class="check-list"><li><svg class="icon"><use href="#i-check"/></svg> Manage affiliate applications</li><li><svg class="icon"><use href="#i-check"/></svg> Review commissions and refunds</li><li><svg class="icon"><use href="#i-check"/></svg> Record payments you make directly</li></ul><a class="text-link" href="#/demo/merchant/affiliates">Try the business workspace <svg class="icon"><use href="#i-arrow"/></svg></a></div></div>
+          <div class="product-example" id="perspective-visual"><div class="example-topline"><span class="small-label">PROGRAM SETTINGS · SAMPLE</span><svg class="icon"><use href="#i-link"/></svg></div><h4>Store partners</h4><div class="example-rate"><strong>10<span>%</span></strong><span>commission on<br>net merchandise sales</span></div><div class="example-detail"><span>Attribution window</span><strong>30 days</strong></div><div class="example-detail"><span>Commission approval</span><strong>Manual review</strong></div><div class="example-detail"><span>Full refund</span><strong>Commission cancelled</strong></div><div class="example-footer"><span class="status-dot"></span> A rule everyone can understand.</div></div>
+        </div>
+      </section>
+
+      <section class="workflow-section" id="workflow"><div class="container section-space"><div class="workflow-heading"><span class="eyebrow">THE AFFILIATE JOURNEY</span><h2>From a shared link<br>to a clear commission.</h2><p>A straightforward workflow, with the details in the right place.</p></div><div class="workflow-steps"><article><span class="step-number">01</span><span class="step-icon"><svg class="icon"><use href="#i-users"/></svg></span><h3>Welcome a partner</h3><p>Review an application and approve the people who fit your program.</p></article><article><span class="step-number">02</span><span class="step-icon"><svg class="icon"><use href="#i-link"/></svg></span><h3>Give them a link</h3><p>Each affiliate gets a referral link for sharing your store.</p></article><article><span class="step-number">03</span><span class="step-icon"><svg class="icon"><use href="#i-store"/></svg></span><h3>Connect the sale</h3><p>The planned store integration connects eligible orders to their referrals.</p></article><article><span class="step-number">04</span><span class="step-icon"><svg class="icon"><use href="#i-wallet"/></svg></span><h3>Approve & record</h3><p>Review the commission, pay your affiliate directly and record the payment.</p></article></div><a class="btn btn-lime" href="#/demo/merchant/transactions">Try a sample sale <svg class="icon"><use href="#i-arrow"/></svg></a></div></section>
+
+      <section class="plans-section container section-space" id="plans"><div class="section-heading"><div><span class="eyebrow">ROOM TO GROW</span><h2>A package for<br>your next chapter.</h2></div><p>Suggested packages for the first release. Final prices and limits will follow pilot testing.</p></div><div class="plans-grid"><article class="plan"><span class="plan-index">01 / STARTER</span><h3>Start your program.</h3><p>For a store taking its first steps with affiliates.</p><div class="plan-price">Pricing to be announced</div><ul><li><svg class="icon"><use href="#i-check"/></svg> 1 website · 1 program</li><li><svg class="icon"><use href="#i-check"/></svg> 1 business user</li><li><svg class="icon"><use href="#i-check"/></svg> Referral & commission tracking</li><li><svg class="icon"><use href="#i-check"/></svg> Payment records & reports</li></ul><a class="btn btn-outline" href="#/demo/merchant/overview">Explore the preview <svg class="icon"><use href="#i-arrow"/></svg></a></article><article class="plan plan-featured"><span class="plan-index">02 / GROWTH <span class="plan-tag">NEXT STEP</span></span><h3>Build your momentum.</h3><p>For a growing partner program and a small team.</p><div class="plan-price">Pricing to be announced</div><ul><li><svg class="icon"><use href="#i-check"/></svg> 1 website · 3 programs</li><li><svg class="icon"><use href="#i-check"/></svg> 3 business users</li><li><svg class="icon"><use href="#i-check"/></svg> Everything proposed in Starter</li><li><svg class="icon"><use href="#i-check"/></svg> Coupon attribution & richer reports</li></ul><a class="btn btn-dark" href="#/demo/merchant/overview">Explore the preview <svg class="icon"><use href="#i-arrow"/></svg></a></article><article class="plan"><span class="plan-index">03 / BUSINESS</span><h3>Bring it all together.</h3><p>For teams managing more stores and programs.</p><div class="plan-price">Pricing to be announced</div><ul><li><svg class="icon"><use href="#i-check"/></svg> 5 websites · 5 programs</li><li><svg class="icon"><use href="#i-check"/></svg> 10 business users</li><li><svg class="icon"><use href="#i-check"/></svg> Everything proposed in Growth</li><li><svg class="icon"><use href="#i-check"/></svg> Team permissions & API access</li></ul><a class="btn btn-outline" href="#/demo/merchant/overview">Explore the preview <svg class="icon"><use href="#i-arrow"/></svg></a></article></div></section>
+
+      <section class="faq-section container"><div><span class="eyebrow">A FEW GOOD QUESTIONS</span><h2>Clear from<br>the beginning.</h2><p>Affimaro is a product of Highlink.</p></div><div class="faq-list"><details><summary>Who pays the affiliate?<svg class="icon"><use href="#i-plus"/></svg></summary><p>The business pays its affiliates directly. Affimaro is designed to calculate commissions and keep payment records. It does not hold or transfer commission funds.</p></details><details><summary>Can I connect my store today?<svg class="icon"><use href="#i-plus"/></svg></summary><p>This first version is an interactive product preview using sample data. A live WooCommerce integration, account system and backend still need to be built before real tracking can start.</p></details><details><summary>What can I try in the demo?<svg class="icon"><use href="#i-plus"/></svg></summary><p>Add sample affiliates and orders, edit program rules, approve commissions, apply refunds and record example payments. Changes stay in your browser and you can reset them at any time.</p></details><details><summary>Will there be a mobile app?<svg class="icon"><use href="#i-plus"/></svg></summary><p>A mobile app is planned to share the same account system for sales, commissions and notifications. You can already explore the responsive website and sample dashboards on your phone.</p></details></div></section>
+
+      <section class="bottom-cta container"><div><span class="eyebrow">MAKE EVERY REFERRAL COUNT</span><h2>Meet your new<br>partner workspace.</h2></div><a class="btn btn-dark" href="#/demo/merchant/overview">Take a look inside <svg class="icon"><use href="#i-arrow"/></svg></a><span class="cta-orbit" aria-hidden="true"></span></section>
+      <footer class="site-footer container"><div><a class="brand" href="#"><span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 22V13a8 8 0 0 1 16 0v9M8 17h16M16 17v8"/></svg></span><span>affimaro<span class="brand-period">.</span></span></a><span class="highlink-credit">A product of <strong>Highlink</strong></span></div><nav aria-label="Footer navigation"><a href="#product">Platform</a><a href="#plans">Packages</a><a href="#/demo/affiliate/overview">Affiliate demo</a></nav><span class="footer-meta">© 2026 Affimaro · Product preview</span></footer>
+    </div>
+    <div id="app" hidden></div>
+  </main>
+  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript><div class="noscript-note">Enable JavaScript to use the interactive dashboard demo. The product website is still available above.</div></noscript>
+</body>
+</html>
