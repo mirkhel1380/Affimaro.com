@@ -1,0 +1,1 @@
+export default function NotFound(){return <main className="a-recovery"><span className="a-eyebrow">AFFIMARO</span><h1>This page was not found.</h1><p>Check the program link or return to your account.</p><a href="/account" className="a-btn a-btn-dark">Open account →</a></main>;}

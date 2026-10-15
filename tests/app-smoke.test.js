@@ -1,7 +1,7 @@
 // Exercise routing and demo actions without a browser or preview server.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {summary,validState} from '../dist/model.js';
+import {summary,validState} from '../public/demo/model.js';
 
 test('all workspace views render and sale → approval → refund → payment flows persist correctly',async()=>{
   const elements=new Map(),listeners={},windowListeners={},storage=new Map();
@@ -18,7 +18,7 @@ test('all workspace views render and sale → approval → refund → payment fl
   globalThis.localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
   globalThis.requestAnimationFrame=fn=>fn();
   globalThis.FormData=class {constructor(form){this.values=form.values;}get(key){return this.values[key]??null;}};
-  await import('../dist/app.js');
+  await import('../public/demo/app.js');
   function route(role,view){location.hash=`#/demo/${role}/${view}`;windowListeners.hashchange();return element('#app').innerHTML;}
   function submit(id,values){listeners.submit({target:{id,values},preventDefault(){}});}
   function click(dataset){listeners.click({target:{closest:()=>({dataset})},preventDefault(){}});}

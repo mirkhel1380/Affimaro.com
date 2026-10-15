@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialState, validState, commission, summary, createOrder, approveOrder, refundOrder, recordPayout, updateProgram, addAffiliate, setAffiliateStatus} from '../dist/model.js';
+import {initialState, validState, commission, summary, createOrder, approveOrder, refundOrder, recordPayout, updateProgram, addAffiliate, setAffiliateStatus} from '../public/demo/model.js';
 
 test('sample data balances, and each affiliate sees only their own totals',()=>{
   const s=initialState();

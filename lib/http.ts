@@ -1,0 +1,21 @@
+import { getChatGPTUser } from "../app/chatgpt-auth";
+import { getRawDb } from "../db";
+import { AppError,service } from "./service";
+
+import { assertSameOrigin,readJson } from "./request";
+
+type Service=ReturnType<typeof service>;
+export async function action(request:Request,operation:(s:Service,body:unknown)=>Promise<unknown>) {
+  try {
+    const user=await getChatGPTUser();
+    if(!user)throw new AppError(401,'Sign in with ChatGPT to continue.');
+    assertSameOrigin(request);
+    const body=await readJson(request);
+    const data=await operation(service(getRawDb(),user),body);
+    return Response.json({ok:true,data},{headers:{'Cache-Control':'no-store','Vary':'Cookie'}});
+  }catch(error){
+    const known=error instanceof AppError;
+    if(!known)console.error('Affimaro request failed.',error instanceof Error?error.name:'UnknownError');
+    return Response.json({ok:false,error:known?error.message:'We could not save this change. Please try again.'},{status:known?error.status:500,headers:{'Cache-Control':'no-store','Vary':'Cookie'}});
+  }
+}

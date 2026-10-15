@@ -1,23 +1,53 @@
-# Affimaro product preview
+# Affimaro
 
-A private, buildless website and interactive business/affiliate demo for Affimaro, a product of Highlink.
+Affimaro is an affiliate management product by Highlink. This private pilot includes a marketing website, an interactive sample dashboard, and database-backed account and program workflows.
 
-The static entry point is `dist/index.html`. All assets are local. No package install or build is needed. The hosting manifest is `.openai/hosting.json`.
+## Available now
 
-## Available in the demo
+- ChatGPT sign-in through Sites, with a saved Affimaro profile.
+- One business workspace and one editable affiliate program per account.
+- Business settings, commission-rate and attribution-window settings, and application pause/resume.
+- Affiliate profiles, program application pages, duplicate-safe applications, and owner review.
+- Business-scoped activity records and affiliate-scoped application history.
+- The original browser-local demo for sample orders, refunds, commissions, payment records and CSV exports.
 
-- Marketing website, planned packages and an honest integration roadmap.
-- Business and affiliate dashboards with a shared browser-local sample workspace.
-- Sample applications, approvals and suspensions; searchable/filterable tables.
-- Sample sales with unique order IDs, commission rate snapshots and referral-window validation.
-- Partial/full refunds for unpaid orders; commission approval and payment records.
-- Affiliate-specific earnings and payment views, sample link copying and CSV exports.
-- Demo reset. Browser storage is scoped to `affimaro.demo.v1`.
+Real workspaces begin empty. No demonstration accounts, sales or partners are seeded into the hosted database.
 
-## Development scope
+## Routes
 
-This is a UI and workflow prototype, not a production affiliate service. Role switching is for demonstration, not access control. Data is saved only in the current browser. All people, stores, clicks, orders and payment records shown are illustrative. Referral links use the reserved placeholder `store.example`.
+- `/`: marketing website; `/#/demo/merchant/overview` opens the sample dashboard.
+- `/account`: create or edit your Affimaro profile and choose a workspace.
+- `/workspace`: business overview, partners, program rules and settings.
+- `/partner`: affiliate profile and your own applications.
+- `/join/[programId]`: application page for a specific program.
+- `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`: authenticated JSON write endpoints.
 
-No live authentication, database, WooCommerce tracking, subscriptions, emails, money transfers or native mobile app are implemented. Coupon attribution, multiple programs, APIs and team permissions on the proposed plan cards are future product scope. Paid-order refunds require a separate adjustment/recovery workflow and are intentionally blocked in this demo.
+## Authentication and access
 
-Run `npm run check` to check JavaScript syntax and verify commission arithmetic, duplicates, refund behavior, payment recording, rate snapshots and affiliate-scoped summaries. A browser-free smoke test also exercises all ten workspace views and the sale-to-payment flow. Responsive and accessibility behavior is implemented in the source; no browser-based visual QA was available in this execution environment.
+Hosted identity comes from the dispatch-owned Sites authentication integration in `app/chatgpt-auth.ts`. It requires a ChatGPT account. Independent email/password login is not implemented. Do not expose this Worker directly outside Sites while trusting client-supplied identity headers; an independent deployment requires a verified identity integration.
+
+The Site remains owner-private. Sharing an application link does not grant access to the private pilot. A user may own a business and maintain an affiliate profile; they cannot apply to their own business program.
+
+Every write derives the acting account from authenticated server headers. Workspace ownership is checked server-side; request data cannot select another owner. Writes require same-origin JSON, request bodies are limited to 16 KiB, SQL values are bound, and related inserts/updates use atomic D1 batches. No secrets are committed.
+
+## Storage
+
+`.openai/hosting.json` preserves the existing Site ID and declares the `DB` D1 binding. The schema is in `db/schema.ts`. Generated SQL and Drizzle metadata live in `drizzle/`; migrations contain schema only. Sites provisions the binding and applies hosted migrations during publication. Applied migrations are immutable.
+
+The browser demo in `public/demo/` remains device-local and uses `affimaro.demo.v1`. Its role switch is a demonstration control and grants no server access.
+
+## Development and verification
+
+Use Node 24 for the test suite. Install and build through the Sites plugin helpers. The locked starter preserves Vinext and Sites deployment integration.
+
+- `npm run check`: sample commission tests, all sample views, and SQLite-backed account, ownership, application, atomicity, validation and request-origin/body-limit tests.
+- `npx tsc --noEmit`: TypeScript checks.
+- `npm run db:generate`: append migrations after schema changes.
+
+The domain service is tested against the generated SQL using Node SQLite and multiple independent test identities. Browser-based visual QA and a complete hosted sign-in-to-submit walkthrough were unavailable in the authoring environment.
+
+## Remaining product work
+
+Live WooCommerce authorization, verified referral/order/refund tracking, real commission and payout records, subscription billing, and the native mobile app still need to be built. The proposed plan limits remain provisional. Affimaro does not hold or transfer affiliate funds; businesses pay their affiliates directly.
+
+The private GitHub repository contains source snapshots. GitHub Pages and automatic GitHub-to-Sites deployment are not configured.

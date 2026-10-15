@@ -1,0 +1,2 @@
+"use client";
+export default function ErrorPage({reset}:{error:Error;reset:()=>void}){return <main className="a-recovery"><span className="a-eyebrow">AFFIMARO</span><h1>Let’s try that again.</h1><p>We could not load this page. Try again or return to your account.</p><button className="a-btn a-btn-dark" onClick={reset}>Try again</button><a href="/account" className="a-btn a-btn-outline">Open account</a></main>;}

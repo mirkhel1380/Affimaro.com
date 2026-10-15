@@ -21,3 +21,5 @@ dialog{padding:0;border:1px solid var(--line);border-radius:13px;box-shadow:0 25
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}.btn:hover{transform:none}}
 @media(max-width:760px) and (min-width:481px){.decoration-one{right:-16px}}
 @media(max-width:380px){.header-inner{gap:10px}.header-actions .btn{padding:10px 9px;font-size:9px}.header-actions .btn>.icon{display:none}}
+
+@media(max-width:760px){.main-nav.open{flex-wrap:wrap;row-gap:18px}}
