@@ -91,3 +91,46 @@ export const storeEvents = sqliteTable("store_events", {
   response:text("response").notNull(),
   createdAt:text("created_at").notNull(),
 },t=>[uniqueIndex("store_event_unique").on(t.storeId,t.eventId)]);
+
+export const bankProfiles=sqliteTable("bank_profiles",{
+  userId:text("user_id").primaryKey().references(()=>accounts.id),
+  encryptedDetails:text("encrypted_details").notNull(),
+  accountHint:text("account_hint").notNull(),
+  currency:text("currency").notNull(),
+  updatedAt:text("updated_at").notNull(),
+});
+export const commissionApprovals=sqliteTable("commission_approvals",{
+  orderId:text("order_id").primaryKey().references(()=>orders.id),
+  amount:integer("amount").notNull(),
+  revision:integer("revision").notNull(),
+  approvedBy:text("approved_by").notNull().references(()=>accounts.id),
+  approvedAt:text("approved_at").notNull(),
+},t=>[check("approval_amount_valid",sql`${t.amount} >= 0`)]);
+export const payoutRequests=sqliteTable("payout_requests",{
+  id:text("id").primaryKey(),
+  workspaceId:text("workspace_id").notNull().references(()=>workspaces.id),
+  applicationId:text("application_id").notNull().references(()=>applications.id),
+  affiliateUserId:text("affiliate_user_id").notNull().references(()=>accounts.id),
+  currency:text("currency").notNull(),
+  decimals:integer("decimals").notNull(),
+  amount:integer("amount").notNull(),
+  status:text("status").notNull(),
+  encryptedDestination:text("encrypted_destination").notNull(),
+  accountHint:text("account_hint").notNull(),
+  reason:text("reason"),
+  encryptedReceipt:text("encrypted_receipt"),
+  referenceHash:text("reference_hash"),
+  paidDate:text("paid_date"),
+  paidBy:text("paid_by").references(()=>accounts.id),
+  createdAt:text("created_at").notNull(),
+  updatedAt:text("updated_at").notNull(),
+},t=>[
+  index("payout_user_index").on(t.affiliateUserId,t.createdAt),
+  index("payout_workspace_index").on(t.workspaceId,t.createdAt),
+  uniqueIndex("payout_reference_unique").on(t.workspaceId,t.referenceHash),
+  uniqueIndex("payout_active_unique").on(t.applicationId,t.currency,t.decimals).where(sql`${t.status} IN ('requested','approved')`),
+  check("payout_status_valid",sql`${t.status} IN ('requested','approved','paid','rejected','cancelled')`),
+  check("payout_amount_valid",sql`${t.amount} BETWEEN 1 AND 1000000000000`),
+  check("payout_decimals_valid",sql`${t.decimals} BETWEEN 0 AND 6`),
+  check("payout_paid_fields",sql`${t.status} <> 'paid' OR (${t.encryptedReceipt} IS NOT NULL AND ${t.referenceHash} IS NOT NULL AND ${t.paidDate} IS NOT NULL AND ${t.paidBy} IS NOT NULL)`),
+]);
