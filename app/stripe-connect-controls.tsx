@@ -28,7 +28,7 @@ export function StripeAffiliateSetup({recipients,returned}:{recipients:Recipient
     {returned==='refresh'&&<p className="a-form-status" role="status">The Stripe link expired or was already used. Open “Continue setup on Stripe” for a fresh link.</p>}
     <p className="a-muted">Set up a receiving account for each participating business. Verification and bank details are entered on Stripe. This pilot supports recipients legally based in the same country as that business’s Stripe account.</p>
     {recipients.length?<div className="a-recipient-grid">{recipients.map(row=><Recipient key={row.application_id} row={row} merchant={false}/>)}</div>:<p className="a-fine-print">Stripe setup will appear when a business you are approved to promote connects its Stripe account.</p>}
-    <p className="a-fine-print">This prepares your receiving account. Commission requests and payments still use the bank/Wise workflow shown below. No commission is transferred by completing Stripe setup.</p>
+    <p className="a-fine-print">This prepares your receiving account. A live receiving account checked within five minutes can be selected for USD commission requests. The business must approve and confirm each transfer. Completing Stripe setup does not itself transfer commission.</p>
   </div>;
 }
 function Recipient({row,merchant}:{row:RecipientCard;merchant:boolean}){

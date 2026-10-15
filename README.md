@@ -1,6 +1,6 @@
 # Affimaro
 
-Affimaro is an affiliate management product by Highlink. This owner-private pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, manual bank/Wise-payment records, and verified Stripe/Wise business account-access setup.
+Affimaro is an affiliate management product by Highlink. This owner-private pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
 
 ## Available now
 
@@ -19,6 +19,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 - Shopify native referral sessions, historical program rules, deferred-data holds and recent-sync gates on financial approvals.
 - Owner-managed Stripe/Wise account-access checks, encrypted credentials, test/live environment validation and audited recheck/removal.
 - Owner-enabled Stripe Express recipient setup, authenticated one-time onboarding links and verified receiving-account readiness.
+- Encrypted Stripe payout destinations, owner-bound transfer review, durable idempotent attempts, explicit sending and manual reconciliation/reversal accounting.
 - Manual transfer-method records for completed bank or Wise payments.
 - The original device-local demo for sample payment records and CSV exports.
 
@@ -36,11 +37,13 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`, `/api/store`: authenticated JSON writes.
 - `/api/payments`: same-origin authenticated bank/profile, approval, request and receipt actions.
 - `/api/payments/export?view=merchant|partner`: authenticated CSV export of the selected role’s latest 100 records.
+- `/api/stripe-transfers`: owner-only USD transfer preview, explicit send and status reconciliation.
 - `/api/stripe-connect`: owner enablement, affiliate-only hosted onboarding and scoped receiving-account checks.
 - `/api/payment-connections`: authenticated owner-only provider connection, access recheck and removal; no money-movement API.
 - `/api/shopify`: authenticated store verification, pause/resume and bounded dashboard sync.
 - `/api/woocommerce/event`: separately authenticated machine endpoint for store ping, referral and order events.
 - `/downloads/affimaro-woocommerce.zip`: generic installable plugin, with no credentials.
+- `/downloads/stripe-transfers-setup.md`: USD Stripe commission-transfer and recovery guide.
 - `/downloads/stripe-connect-setup.md`: Stripe receiving-account onboarding guide.
 - `/downloads/payments-setup.md`: Stripe/Wise account-access setup and manual-payment guide.
 - `/downloads/shopify-setup.md`: merchant-owned Shopify app and sync guide.
@@ -82,11 +85,11 @@ Each request processes three changed orders and two pending retries, with cursor
 
 ## Stripe receiving-account setup
 
-The [Stripe Connect guide](integrations/payments/stripe-connect-setup.md) describes an owner-enabled Express onboarding pilot using each business’s own Stripe platform. Approved affiliates consent before creating or continuing an account and enter verification/bank details on Stripe. The pilot supports recipients legally based in the business Stripe account’s country. Account identity, metadata, environment, transfer capability, payouts and outstanding requirements are checked from Stripe. No commission transfer or payout is implemented. Returning from Stripe does not mark an account ready or a payment paid.
+The [Stripe Connect guide](integrations/payments/stripe-connect-setup.md) describes an owner-enabled Express onboarding pilot using each business’s own Stripe platform. Approved affiliates consent before creating or continuing an account and enter verification/bank details on Stripe. The pilot supports recipients legally based in the business Stripe account’s country. Account identity, metadata, environment, transfer capability, payouts and outstanding requirements are checked from Stripe. USD commission account transfers use the separate [transfer workflow](integrations/payments/stripe-transfers-setup.md). Bank payouts are handled separately by Stripe. Returning from Stripe does not mark an account ready or a payment paid.
 
 ## Manual bank-payment workflow
 
-The business pays affiliates directly outside Affimaro. The product records that process; it does not create a bank transfer, verify settlement, hold funds or offer an automatic cash-out. Stripe and Wise account access can be checked through the owner-only setup described in the [payment setup guide](integrations/payments/README.md). Automatic Stripe Connect and Wise payouts are not implemented. The Shopify adapter uses outgoing dashboard sync; Paddle and custom-site adapters remain pending.
+For bank and Wise payments, the business sends the funds outside Affimaro and records the completed transfer here. Affimaro does not create a bank transfer, verify bank settlement, hold funds or offer an automatic cash-out. Stripe and Wise account access can be checked through the owner-only setup described in the [payment setup guide](integrations/payments/README.md). Owner-confirmed USD Stripe account transfers are implemented separately; Wise API transfers and direct bank payout APIs remain unimplemented. The Shopify adapter uses outgoing dashboard sync; Paddle and custom-site adapters remain pending.
 
 1. The business approves an accrued order’s current revision and amount. A stale or ineligible order cannot be approved.
 2. The affiliate saves a bank destination. Details are encrypted and dashboards show only currency and the last four account characters.
@@ -98,11 +101,11 @@ Refunds immediately lower the payable approved cap. Request approval and payment
 
 Bank destinations and receipt details use AES-256-GCM with random IVs and authenticated owner/request context. The runtime secret is `PAYMENT_DATA_KEY_V1`, configured through Sites as a secret, never in source or client code. Preserve this key: changing/removing it without a versioned re-encryption migration makes existing encrypted records unreadable. Full destination/receipt details are revealed only on an explicit same-origin authenticated request by that affiliate or the business owner, and access is audited. CSV exports exclude full bank details, receipt links and encrypted values, and neutralize spreadsheet formulas.
 
-Partial payments, currency conversion, automated bank validation, provider payouts, returned-transfer adjustments and independent transfer verification are not implemented. The merchant must ensure its bank can send the exact requested amount/currency to the provided destination before recording payment.
+Partial requests, currency conversion, automated bank validation, Wise API payouts and manual-bank returned-transfer adjustments are not implemented. Stripe account transfers and provider-reported reversals are verified through manual status checks; bank settlement is separate. The merchant must ensure its bank can send the exact requested amount/currency to the provided destination before recording payment.
 
 ## Storage
 
-`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines nineteen tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
+`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
 The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch grants no server access, and its sample payments do not create real records.
 
@@ -110,7 +113,7 @@ The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch 
 
 Use Node 24 for tests and the Sites helpers for install/build. Preserve the locked Vinext/Sites integration.
 
-- `npm run check`: 101 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness and audit rollback.
+- `npm run check`: 122 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration.
 - `npx tsc --noEmit`: TypeScript checks.
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.
@@ -121,6 +124,6 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 
 ## Remaining product work
 
-Install/configure a real staging store and supported private service access, verify checkout end to end, then add Paddle/custom-site adapters, approved automated payout integrations, subscription billing and the native mobile app. Proposed subscription limits remain provisional. Affimaro holds/transfers no affiliate funds; each business pays its affiliates directly.
+Install/configure a real staging store and supported private service access, verify checkout end to end, then add Paddle/custom-site adapters, broader currency support and remaining payout integrations, subscription billing and the native mobile app. Proposed subscription limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
 
 The private GitHub repository stores source snapshots. GitHub Pages and automatic GitHub-to-Sites deployment are not configured. The custom domain is not connected.

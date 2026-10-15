@@ -57,6 +57,13 @@
       "when": 1792045858219,
       "tag": "0007_bitter_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792048195363,
+      "tag": "0008_brown_shadow_king",
+      "breakpoints": true
     }
   ]
 }

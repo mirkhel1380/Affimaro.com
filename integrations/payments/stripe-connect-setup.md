@@ -2,7 +2,7 @@
 
 This pilot lets a business enable Stripe-hosted Express receiving-account setup for approved affiliates. The business uses its own Stripe platform and account credentials. Each affiliate consents before opening setup, then supplies verification, bank and agreement information directly on Stripe.
 
-This feature prepares receiving accounts only. It does not transfer commission, debit the business, verify a bank payment, modify payout requests or move funds through Affimaro. The bank/Wise request and manual-payment workflow remains the way to record commission payments.
+This feature prepares receiving accounts. The separate [USD Stripe transfer workflow](stripe-transfers-setup.md) lets the business review and confirm approved commission transfers from its own Stripe balance. Bank/Wise manual records remain available. Completing receiving-account setup does not itself send money.
 
 ## Business owner setup
 
@@ -46,7 +46,7 @@ The API version is pinned to `2026-09-30.endive`. Allowed Stripe operations are:
 - `GET /v1/accounts/{savedAccountId}` to verify a saved receiving account.
 - `POST /v1/account_links` to create a single-use onboarding link.
 
-All requests go to `https://api.stripe.com` with encrypted business credentials decrypted only on the server. Redirects are refused, each request has a ten-second timeout and response bodies are capped at 256 KiB. Errors are sanitized. No transfer, payout, charge, refund or funding endpoint is implemented.
+All requests go to `https://api.stripe.com` with encrypted business credentials decrypted only on the server. Redirects are refused, each request has a ten-second timeout and response bodies are capped at 256 KiB. Errors are sanitized. The onboarding adapter does not invoke transfer, payout, charge, refund or funding endpoints. USD commission transfers use the separate owner-confirmed workflow linked above.
 
 Recipient metadata binds the Stripe account to its stored workspace, application and recipient generation. Account ID, country, controller and metadata must match on each refresh. A newly selected platform account or test/live mode cannot reuse a recipient from another platform/environment.
 
