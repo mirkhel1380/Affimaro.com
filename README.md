@@ -18,6 +18,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 - Verified merchant-owned Shopify app connection, encrypted token refresh and resumable manual GraphQL sync.
 - Shopify native referral sessions, historical program rules, deferred-data holds and recent-sync gates on financial approvals.
 - Owner-managed Stripe/Wise account-access checks, encrypted credentials, test/live environment validation and audited recheck/removal.
+- Owner-enabled Stripe Express recipient setup, authenticated one-time onboarding links and verified receiving-account readiness.
 - Manual transfer-method records for completed bank or Wise payments.
 - The original device-local demo for sample payment records and CSV exports.
 
@@ -35,10 +36,12 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`, `/api/store`: authenticated JSON writes.
 - `/api/payments`: same-origin authenticated bank/profile, approval, request and receipt actions.
 - `/api/payments/export?view=merchant|partner`: authenticated CSV export of the selected role’s latest 100 records.
+- `/api/stripe-connect`: owner enablement, affiliate-only hosted onboarding and scoped receiving-account checks.
 - `/api/payment-connections`: authenticated owner-only provider connection, access recheck and removal; no money-movement API.
 - `/api/shopify`: authenticated store verification, pause/resume and bounded dashboard sync.
 - `/api/woocommerce/event`: separately authenticated machine endpoint for store ping, referral and order events.
 - `/downloads/affimaro-woocommerce.zip`: generic installable plugin, with no credentials.
+- `/downloads/stripe-connect-setup.md`: Stripe receiving-account onboarding guide.
 - `/downloads/payments-setup.md`: Stripe/Wise account-access setup and manual-payment guide.
 - `/downloads/shopify-setup.md`: merchant-owned Shopify app and sync guide.
 
@@ -77,6 +80,10 @@ Program rule history preserves the rate/window active at a recorded native sessi
 
 Each request processes three changed orders and two pending retries, with cursor checkpoints and a short sync lease. Scope limitations, large orders/refund histories, native-attribution availability and cases held for review are documented in the setup guide. Real Shopify credentials and a live installation were not available; API tests use a mocked provider boundary. A real checkout/tax/refund walkthrough is still required.
 
+## Stripe receiving-account setup
+
+The [Stripe Connect guide](integrations/payments/stripe-connect-setup.md) describes an owner-enabled Express onboarding pilot using each business’s own Stripe platform. Approved affiliates consent before creating or continuing an account and enter verification/bank details on Stripe. The pilot supports recipients legally based in the business Stripe account’s country. Account identity, metadata, environment, transfer capability, payouts and outstanding requirements are checked from Stripe. No commission transfer or payout is implemented. Returning from Stripe does not mark an account ready or a payment paid.
+
 ## Manual bank-payment workflow
 
 The business pays affiliates directly outside Affimaro. The product records that process; it does not create a bank transfer, verify settlement, hold funds or offer an automatic cash-out. Stripe and Wise account access can be checked through the owner-only setup described in the [payment setup guide](integrations/payments/README.md). Automatic Stripe Connect and Wise payouts are not implemented. The Shopify adapter uses outgoing dashboard sync; Paddle and custom-site adapters remain pending.
@@ -95,7 +102,7 @@ Partial payments, currency conversion, automated bank validation, provider payou
 
 ## Storage
 
-`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines seventeen tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
+`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines nineteen tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
 The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch grants no server access, and its sample payments do not create real records.
 
@@ -103,7 +110,7 @@ The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch 
 
 Use Node 24 for tests and the Sites helpers for install/build. Preserve the locked Vinext/Sites integration.
 
-- `npm run check`: 84 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records.
+- `npm run check`: 101 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness and audit rollback.
 - `npx tsc --noEmit`: TypeScript checks.
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.

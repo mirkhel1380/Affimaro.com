@@ -187,3 +187,32 @@ export const paymentConnections=sqliteTable('payment_connections',{
   createdAt:text('created_at').notNull(),
   updatedAt:text('updated_at').notNull(),
 },t=>[uniqueIndex('payment_connection_workspace_provider').on(t.workspaceId,t.provider),check('payment_connection_provider',sql`${t.provider} IN ('stripe','wise')`),check('payment_connection_mode',sql`${t.mode} IN ('test','live')`),check('payment_connection_status',sql`${t.status} IN ('verified','attention')`)]);
+
+export const stripeConnectSettings=sqliteTable('stripe_connect_settings',{
+  workspaceId:text('workspace_id').primaryKey().references(()=>workspaces.id),
+  connectionId:text('connection_id').notNull(),
+  enabled:integer('enabled').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[check('stripe_setup_enabled_boolean',sql`${t.enabled} IN (0,1)`)]);
+export const stripeRecipients=sqliteTable('stripe_recipients',{
+  id:text('id').primaryKey(),
+  workspaceId:text('workspace_id').notNull().references(()=>workspaces.id),
+  applicationId:text('application_id').notNull().references(()=>applications.id),
+  affiliateUserId:text('affiliate_user_id').notNull().references(()=>accounts.id),
+  platformId:text('platform_id').notNull(),
+  mode:text('mode').notNull(),
+  country:text('country').notNull(),
+  accountId:text('account_id'),
+  state:text('state').notNull(),
+  detailsSubmitted:integer('details_submitted').notNull().default(0),
+  payoutsEnabled:integer('payouts_enabled').notNull().default(0),
+  transfersActive:integer('transfers_active').notNull().default(0),
+  requirementsCount:integer('requirements_count').notNull().default(0),
+  lastError:text('last_error'),
+  lastCheckedAt:text('last_checked_at'),
+  createStartedAt:text('create_started_at'),
+  leaseId:text('lease_id'),
+  leaseUntil:text('lease_until'),
+  createdAt:text('created_at').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('stripe_recipient_application_platform_mode').on(t.applicationId,t.platformId,t.mode),uniqueIndex('stripe_recipient_external_unique').on(t.platformId,t.mode,t.accountId),check('stripe_recipient_mode',sql`${t.mode} IN ('test','live')`),check('stripe_recipient_state',sql`${t.state} IN ('creating','needs_information','pending','ready','attention')`)]);

@@ -1,6 +1,6 @@
 # Business payment account setup
 
-Affimaro can check access to a business owner's Stripe account or Wise business profile. These connections read account information only. They do not send money, verify settlement, onboard Stripe Connect recipients, create Wise recipients or transfers, or fund payments. Each business continues to pay affiliates directly outside Affimaro.
+Affimaro can check access to a business owner's Stripe account or Wise business profile. These connections read account information only. These account-access checks do not send money, verify settlement, onboard recipients, create Wise transfers or fund payments. The separate owner-enabled Stripe recipient setup is described in the [Stripe Connect guide](stripe-connect-setup.md). Each business continues to pay affiliates directly outside Affimaro.
 
 Open **Payments → Business payments → Payment connections** while signed in as the business owner. Create a business workspace first. The Site remains private; connecting an account does not change who can access it.
 
@@ -15,7 +15,7 @@ The card shows the provider account ID, business label, country, default currenc
 
 The outbound calls are `GET https://api.stripe.com/v1/account` and `GET https://api.stripe.com/v1/balance`, pinned with `Stripe-Version: 2026-09-30.endive`. The request does not accept an arbitrary host, account context header or endpoint from a browser. Balance amounts are discarded rather than displayed or treated as commission funds.
 
-Affiliate payouts through Stripe still require a suitable Stripe Connect setup, recipient onboarding, provider eligibility and a complete transfer/payout reconciliation implementation. An ordinary Stripe account or a pasted affiliate account ID is insufficient. No Connect account creation, onboarding callback, transfer, payout or webhook is implemented here.
+Affiliate payouts through Stripe still require a suitable Stripe Connect setup, recipient onboarding, provider eligibility and a complete transfer/payout reconciliation implementation. An ordinary Stripe account or a pasted affiliate account ID is insufficient. A separate owner-enabled Stripe recipient setup supports Express account creation, hosted onboarding and verified status checks. Commission transfers, payouts and webhooks remain unimplemented; see the [Stripe Connect guide](stripe-connect-setup.md).
 
 ## Wise business profile access
 
