@@ -1,17 +1,17 @@
 import { getChatGPTUser } from "../app/chatgpt-auth";
 import { getRawDb } from "../db";
-import { AppError,service } from "./service";
+import { AppError,service,type Identity } from "./service";
 
 import { assertSameOrigin,readJson } from "./request";
 
 type Service=ReturnType<typeof service>;
-export async function action(request:Request,operation:(s:Service,body:unknown)=>Promise<unknown>) {
+export async function action(request:Request,operation:(s:Service,body:unknown,identity:Identity)=>Promise<unknown>) {
   try {
     const user=await getChatGPTUser();
     if(!user)throw new AppError(401,'Sign in with ChatGPT to continue.');
     assertSameOrigin(request);
     const body=await readJson(request);
-    const data=await operation(service(getRawDb(),user),body);
+    const data=await operation(service(getRawDb(),user),body,user);
     return Response.json({ok:true,data},{headers:{'Cache-Control':'no-store','Vary':'Cookie'}});
   }catch(error){
     const known=error instanceof AppError;

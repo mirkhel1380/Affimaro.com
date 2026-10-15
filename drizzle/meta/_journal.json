@@ -64,6 +64,13 @@
       "when": 1792048195363,
       "tag": "0008_brown_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792056280332,
+      "tag": "0009_slim_venom",
+      "breakpoints": true
     }
   ]
 }

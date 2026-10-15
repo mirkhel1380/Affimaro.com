@@ -244,3 +244,43 @@ export const stripeTransferAttempts=sqliteTable('stripe_transfer_attempts',{
   createdAt:text('created_at').notNull(),
   updatedAt:text('updated_at').notNull(),
 },t=>[index('stripe_attempt_request_index').on(t.requestId,t.createdAt),uniqueIndex('stripe_attempt_active_unique').on(t.requestId).where(sql`${t.state} IN ('processing','review')`),uniqueIndex('stripe_attempt_remote_unique').on(t.platformId,t.stripeTransferId),check('stripe_attempt_state',sql`${t.state} IN ('processing','review','failed','succeeded')`),check('stripe_attempt_amount',sql`${t.amount} BETWEEN 1 AND 99999999`)]);
+
+// Affimaro software subscriptions are separate from merchant affiliate payouts.
+export const billingAccounts=sqliteTable('billing_accounts',{
+  id:text('id').primaryKey(),
+  workspaceId:text('workspace_id').notNull().references(()=>workspaces.id),
+  platformId:text('platform_id').notNull(),
+  mode:text('mode').notNull(),
+  customerId:text('customer_id'),
+  subscriptionId:text('subscription_id'),
+  priceId:text('price_id'),
+  amount:integer('amount'),
+  status:text('status').notNull().default('none'),
+  invoicePaid:integer('invoice_paid').notNull().default(0),
+  periodStart:integer('period_start'),
+  periodEnd:integer('period_end'),
+  cancelAtPeriodEnd:integer('cancel_at_period_end').notNull().default(0),
+  lastVerifiedAt:text('last_verified_at'),
+  lastError:text('last_error'),
+  leaseId:text('lease_id'),
+  leaseUntil:text('lease_until'),
+  createdAt:text('created_at').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('billing_workspace_platform_mode').on(t.workspaceId,t.platformId,t.mode),uniqueIndex('billing_remote_subscription').on(t.platformId,t.mode,t.subscriptionId),check('billing_account_mode',sql`${t.mode} IN ('test','live')`),check('billing_status',sql`${t.status} IN ('none','incomplete','incomplete_expired','trialing','active','past_due','canceled','unpaid','paused')`),check('billing_flags',sql`${t.invoicePaid} IN (0,1) AND ${t.cancelAtPeriodEnd} IN (0,1)`),check('billing_amount',sql`${t.amount} IS NULL OR ${t.amount} BETWEEN 1 AND 99999999`)]);
+
+export const billingCheckouts=sqliteTable('billing_checkouts',{
+  id:text('id').primaryKey(),
+  accountId:text('account_id').notNull().references(()=>billingAccounts.id),
+  workspaceId:text('workspace_id').notNull().references(()=>workspaces.id),
+  priceId:text('price_id').notNull(),
+  amount:integer('amount').notNull(),
+  customerSnapshot:text('customer_snapshot'),
+  state:text('state').notNull(),
+  sessionId:text('session_id'),
+  encryptedUrl:text('encrypted_url'),
+  expiresAt:integer('expires_at'),
+  firstSubmittedAt:text('first_submitted_at').notNull(),
+  lastError:text('last_error'),
+  createdAt:text('created_at').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[index('billing_checkout_workspace').on(t.workspaceId,t.createdAt),uniqueIndex('billing_checkout_active').on(t.accountId).where(sql`${t.state} IN ('creating','open','review')`),uniqueIndex('billing_checkout_session').on(t.sessionId),check('billing_checkout_state',sql`${t.state} IN ('creating','open','review','expired','completed')`),check('billing_checkout_amount',sql`${t.amount} BETWEEN 1 AND 99999999`)]);
