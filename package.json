@@ -1,0 +1,6 @@
+{
+  "name": "affimaro-preview",
+  "private": true,
+  "type": "module",
+  "scripts": {"check": "node --check dist/app.js && node --test tests/*.test.js"}
+}
