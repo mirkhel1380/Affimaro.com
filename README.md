@@ -21,6 +21,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 - Owner-enabled Stripe Express recipient setup, authenticated one-time onboarding links and verified receiving-account readiness.
 - Encrypted Stripe payout destinations, owner-bound transfer review, durable idempotent attempts, explicit sending and manual reconciliation/reversal accounting.
 - Manual transfer-method records for completed bank or Wise payments.
+- Authenticated business/affiliate reports with UTC date and partnership filters, full-order aggregates, daily counts, separate currencies, current balances and scoped CSV exports.
 - The original device-local demo for sample payment records and CSV exports.
 
 Real workspaces begin empty. No demonstration accounts, sales or partners are seeded into hosted storage. Building/downloading the adapter does not connect a store.
@@ -37,6 +38,8 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`, `/api/store`: authenticated JSON writes.
 - `/api/payments`: same-origin authenticated bank/profile, approval, request and receipt actions.
 - `/api/payments/export?view=merchant|partner`: authenticated CSV export of the selected role’s latest 100 records.
+- `/reports`: dated business/affiliate performance, complete aggregates and explicitly all-time commission balances.
+- `/api/reports/export`: private CSV export using the same report scope and date filters.
 - `/api/stripe-transfers`: owner-only USD transfer preview, explicit send and status reconciliation.
 - `/api/stripe-connect`: owner enablement, affiliate-only hosted onboarding and scoped receiving-account checks.
 - `/api/payment-connections`: authenticated owner-only provider connection, access recheck and removal; no money-movement API.
@@ -103,6 +106,10 @@ Bank destinations and receipt details use AES-256-GCM with random IVs and authen
 
 Partial requests, currency conversion, automated bank validation, Wise API payouts and manual-bank returned-transfer adjustments are not implemented. Stripe account transfers and provider-reported reversals are verified through manual status checks; bank settlement is separate. The merchant must ensure its bank can send the exact requested amount/currency to the provided destination before recording payment.
 
+## Performance reports
+
+The [report guide](docs/reports-guide.md) defines UTC date filters, role/partnership scope and current-state order performance. Reports aggregate every matching order, display currencies and precision separately, and provide daily counts and a bounded partnership table with explicit truncation. Current balances are labeled all time and preserve each partnership's reservations, net Stripe reversals and carry-forward debt before totals are combined. Reports are read-only; they do not sync stores, check Stripe or send funds. CSV exports use exact minor units, neutralize spreadsheet formulas and omit payment destinations, credentials and receipt details. No schema migration or new runtime secret is required.
+
 ## Storage
 
 `.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
@@ -113,7 +120,7 @@ The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch 
 
 Use Node 24 for tests and the Sites helpers for install/build. Preserve the locked Vinext/Sites integration.
 
-- `npm run check`: 122 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration.
+- `npm run check`: 134 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration, dated reporting scope, full aggregates, balances, export privacy, truncation and exact monetary formatting.
 - `npx tsc --noEmit`: TypeScript checks.
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.
