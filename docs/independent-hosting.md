@@ -23,6 +23,14 @@ For new Free projects, template editing requires custom SMTP under Supabase's [2
 
 Passwords are 12–128 characters for signup/reset. Login accepts an existing password up to 128 characters. Forms require an encrypted, short-lived HttpOnly flow cookie, a matching nonce and the exact Origin. The server limits request size and stores salted, shared throttles for the email and Cloudflare client IP. Passwords and provider tokens are never reflected into HTML or URLs.
 
+### Confirm the setup email before the independent host exists
+
+The owner-private native Site provides `/setup/confirm-email`. Open it with the existing ChatGPT account, choose **ارسال کود تازه** to explicitly request a signup-confirmation resend, and enter the latest code. This avoids requiring a working independent host just to confirm the provider email. Resend still uses the configured SMTP sender and its delivery restrictions.
+
+The server requires a native authenticated identity whose stable ID and email match an existing D1 account. It selects the Supabase project from source, accepts no client-selected email, checks the verified-email policy, and sends the code directly to Supabase. Requests require the exact Origin and JSON, have bounded bodies/responses and shared resend/attempt limits. Provider credentials never reach the browser or become app sessions; the temporary verification session is signed out with local scope on a best-effort basis. The route is unavailable in the independent build. Merely opening the page sends no email.
+
+This confirms the provider email only. It does not migrate business rows, link legacy identities, deploy Cloudflare or enable either deployment-readiness confirmation. Preserve all existing source data and the payment key while completing the migration below.
+
 The browser receives an opaque `__Host-affimaro_session` cookie: Secure, HttpOnly, SameSite=Lax, Path=/, with a maximum 30-day lifetime. Only its SHA-256 hash is stored in D1. Provider access/refresh tokens are separately encrypted with `AUTH_SESSION_ENCRYPTION_KEY`. Authenticated requests verify the current provider user; refresh rotation uses a D1 lease. Provider outages fail closed. Recovery sessions last ten minutes and cannot access business pages. A successful password reset removes all local sessions and attempts global provider sign-out. Logout revokes the local session even during a provider outage.
 
 ## Cloudflare and deployment settings

@@ -36,3 +36,5 @@ The following setup is still pending:
 5. Verify real signup, email receipt, recovery and session behavior on the independent host before opening traffic.
 
 The initial project verification and later status queries were read-only. The test user, SMTP/template changes and recovery email were performed by the owner in their dashboard. No database rows have been migrated and no independent deployment has been published. The current Site remains owner-private and uses its native authentication.
+
+The owner-private Site now includes `/setup/confirm-email` to enter a confirmation code before the independent host is deployed. It is limited to the current native account's registered email, offers an explicit resend, and retains no provider credentials or app sessions. The latest live query still showed one unconfirmed provider user before this helper was implemented; successful end-to-end confirmation awaits the owner's code submission. Receiving emails and saving the Cloudflare authentication secret do not complete data/key migration or legacy identity linking.
