@@ -23,7 +23,7 @@ The independent build and deployment preflight use `self-hosted/supabase-project
 - The owner created one test Auth user with automatic confirmation disabled, then used **Send password recovery** in Supabase. They confirmed receiving the recovery email with a code. This verifies that tested recovery delivery path, not a completed application login or signup confirmation.
 - A subsequent read-only query found one Auth user and zero email-verified users. Receiving a code alone does not confirm the account.
 - No Affimaro domain has been purchased yet. The temporary `onboarding@resend.dev` sender can deliver only to the email address associated with the Resend account. Customer delivery still needs a verified owned domain.
-- The owner opened their Cloudflare Workers & Pages account. Git connection, independent D1, credentials, migration and deployment remain pending. See [Cloudflare GitHub setup](cloudflare-github-setup.md).
+- The owner connected GitHub to the Cloudflare Worker project `affimaro-com`. Its first deployment used the native build defaults and failed on a placeholder D1 ID. The owner then supplied the new independent D1 ID `9b4539f6-dd2a-4ce7-85c5-4733f799ed11`; its public account/database/origin selection is in source. Authenticated Cloudflare ownership checks, build credential permissions, migration and a successful independent deployment remain pending. See [Cloudflare GitHub setup](cloudflare-github-setup.md).
 
 New Free Supabase projects using default SMTP cannot edit Auth email templates under the [2026-06-03 change](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier). Configuring custom SMTP restores customization without changing the Supabase plan.
 
@@ -31,7 +31,7 @@ The following setup is still pending:
 
 1. Test actual signup confirmation and code verification. The app accepts provider codes from 6–10 digits. See the prepared HTML under `supabase/templates/` and the [independent-hosting guide](independent-hosting.md).
 2. Verify an owned sending domain and test delivery to intended users before customer signup. Provider quotas and sender setup are not verified by the public settings endpoint.
-3. Configure the independent application origin and Cloudflare account/D1 deployment settings.
+3. Apply the independent Cloudflare build/deploy commands and complete credential/secret setup for the selected account, D1 and intended origin.
 4. Preserve and migrate existing data/payment keys and explicitly map verified Supabase identities.
 5. Verify real signup, email receipt, recovery and session behavior on the independent host before opening traffic.
 

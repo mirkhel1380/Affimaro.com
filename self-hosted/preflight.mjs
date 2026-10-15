@@ -1,13 +1,13 @@
 import {supabaseSettings} from './provider-settings.mjs';
-import {independentRouting,independentWorkerName} from './routing.mjs';
+import {cloudflareSettings} from './cloudflare-settings.mjs';
+import {independentWorkerName} from './routing.mjs';
 export function deploymentSettings(values){
-  const required=['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','CLOUDFLARE_D1_DATABASE_ID','APP_ORIGIN','AUTH_SESSION_ENCRYPTION_KEY'];
+  const required=['CLOUDFLARE_API_TOKEN','AUTH_SESSION_ENCRYPTION_KEY'];
   const absent=required.filter(key=>!values[key]);
   if(absent.length)throw new Error('Missing deployment settings: '+absent.join(', ')+'.');
-  const routing=independentRouting(values.APP_ORIGIN),provider=supabaseSettings(values);
-  if(!/^[a-f0-9]{32}$/i.test(values.CLOUDFLARE_ACCOUNT_ID)||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(values.CLOUDFLARE_D1_DATABASE_ID)||/^00000000-/.test(values.CLOUDFLARE_D1_DATABASE_ID))throw new Error('Use the real Cloudflare account and D1 database IDs.');
+  const hosting=cloudflareSettings(values),provider=supabaseSettings(values);
   if(!/^[a-f0-9]{64}$/.test(values.AUTH_SESSION_ENCRYPTION_KEY)||(values.PAYMENT_DATA_KEY_V1&&(!/^[a-f0-9]{64}$/.test(values.PAYMENT_DATA_KEY_V1)||values.AUTH_SESSION_ENCRYPTION_KEY===values.PAYMENT_DATA_KEY_V1)))throw new Error('Use separate 32-byte authentication and payment keys; preserve the existing payment key.');
-  return {origin:routing.origin,...provider,databaseId:values.CLOUDFLARE_D1_DATABASE_ID,accountId:values.CLOUDFLARE_ACCOUNT_ID,routing:routing.config,workersSubdomain:routing.workersSubdomain};
+  return {...hosting,...provider};
 }
 async function boundedSettings(response,message){
   if(!response.ok){await response.body?.cancel();throw new Error(message);}
@@ -24,8 +24,12 @@ export async function verifiedWorkersOrigin(settings,apiToken,fetcher=fetch){
   const value=await boundedSettings(await fetcher('https://api.cloudflare.com/client/v4/accounts/'+settings.accountId+'/workers/subdomain',{headers:{Authorization:'Bearer '+apiToken},redirect:'error',signal:AbortSignal.timeout(10000)}),'Cloudflare workers.dev ownership could not be verified.');
   if(value.success!==true||value.result?.subdomain!==settings.workersSubdomain)throw new Error('APP_ORIGIN does not match the selected Cloudflare account workers.dev subdomain.');
 }
+export function verifyCloudflareTarget(config,settings){
+  if(config.name!==independentWorkerName||config.vars?.APP_ORIGIN!==settings.origin||config.account_id!==settings.accountId||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='DB'||config.d1_databases[0].database_id!==settings.databaseId||config.workers_dev!==settings.routing.workers_dev||config.preview_urls!==false||JSON.stringify(config.routes??[])!==JSON.stringify(settings.routing.routes))throw new Error('Rebuild the independent package with these exact deployment settings.');
+}
 export function verifyBuiltDeployment(config,settings){
-  if(config.name!==independentWorkerName||config.vars?.APP_ORIGIN!==settings.origin||config.vars?.SUPABASE_URL!==settings.supabaseUrl||config.vars?.SUPABASE_PUBLISHABLE_KEY!==settings.publishableKey||config.account_id!==settings.accountId||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='DB'||config.d1_databases[0].database_id!==settings.databaseId||config.workers_dev!==settings.routing.workers_dev||config.preview_urls!==false||JSON.stringify(config.routes??[])!==JSON.stringify(settings.routing.routes))throw new Error('Rebuild the independent package with these exact deployment settings.');
+  verifyCloudflareTarget(config,settings);
+  if(config.vars?.SUPABASE_URL!==settings.supabaseUrl||config.vars?.SUPABASE_PUBLISHABLE_KEY!==settings.publishableKey)throw new Error('Rebuild the independent package with these exact deployment settings.');
 }
 export function deploymentAuthorization(values){
   if(values.WORKERS_CI==='1'&&values.WORKERS_CI_BRANCH!=='main')throw new Error('Independent deployment from Workers Builds is restricted to the main branch. Use a dry run for previews.');

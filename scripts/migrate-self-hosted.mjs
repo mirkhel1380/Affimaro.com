@@ -5,11 +5,14 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {decryptMigration,migrationStatements,validateAgainstSchema,mappingStatement} from '../self-hosted/migration-local.mjs';
 import {migrationTables} from '../self-hosted/migration-schema.ts';
+import {cloudflareSettings} from '../self-hosted/cloudflare-settings.mjs';
+import {verifyCloudflareTarget} from '../self-hosted/preflight.mjs';
 const args=process.argv.slice(2),mode=args[0],flag=name=>{const index=args.indexOf(name);return index<0?undefined:args[index+1];};
 const project=process.cwd(),config=flag('--config')||'dist-self-hosted/server/wrangler.json';
 async function target(){
   const value=JSON.parse(await readFile(config,'utf8'));
-  if(value.name!=='affimaro'||!process.env.CLOUDFLARE_API_TOKEN||!process.env.CLOUDFLARE_ACCOUNT_ID||value.account_id!==process.env.CLOUDFLARE_ACCOUNT_ID||!value.vars?.APP_ORIGIN||value.vars.APP_ORIGIN!==process.env.APP_ORIGIN||value.vars.APP_ORIGIN.endsWith('.chatgpt.site')||value.vars.APP_ORIGIN.endsWith('.invalid')||!value.d1_databases?.[0]?.database_id||value.d1_databases[0].database_id.startsWith('00000000-'))throw new Error('Target database configuration must point to the prepared independent deployment.');
+  if(!process.env.CLOUDFLARE_API_TOKEN)throw new Error('Target database configuration must point to the prepared independent deployment.');
+  try{verifyCloudflareTarget(value,cloudflareSettings(process.env));}catch{throw new Error('Target database configuration must point to the prepared independent deployment.');}
 }
 function wrangler(command,input){
   const result=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js',...command,'--config',config],{encoding:'utf8',input,stdio:['pipe','pipe','pipe'],maxBuffer:8*1024*1024,env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_WRITE_LOGS:'false'}});

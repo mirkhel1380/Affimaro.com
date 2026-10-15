@@ -27,16 +27,18 @@ The browser receives an opaque `__Host-affimaro_session` cookie: Secure, HttpOnl
 
 ## Cloudflare and deployment settings
 
-Use a Cloudflare account, a new D1 database named `affimaro`, and a scoped API token permitted to manage that Worker/D1 database. Use either an HTTPS custom domain managed by the account or `https://affimaro.ACCOUNT_SUBDOMAIN.workers.dev` for the initial test. A custom domain produces one exact domain route and disables the `workers.dev` alias. A `workers.dev` origin enables only that Worker address with no custom-domain route; deployment preflight reads the account's registered subdomain and rejects a mismatch. Version preview URLs remain disabled. Do not use the native Site's D1 ID or domain.
+The owner's Cloudflare Worker name `affimaro-com`, account, new D1 ID and intended `https://affimaro-com.m-mirkhel20.workers.dev` origin are selected in `self-hosted/cloudflare-project.json`. These are public identifiers, supplied by the owner; no authenticated Cloudflare D1 check or successful independent deployment is claimed. The build, preflight and migration target check share this selection. Tokens and encryption keys have no source defaults. Intentional public overrides remain supported; changing the account requires an explicit D1 and origin together. Do not add blank overrides.
 
-For direct Cloudflare Git integration, follow [Cloudflare GitHub setup](cloudflare-github-setup.md). Its build and deployment commands target the independent package explicitly; the repository's ordinary `npm run build` is for the private native Site.
+Use a scoped API token permitted to manage that Worker/D1 database. Use either an HTTPS custom domain managed by the account or `https://affimaro-com.ACCOUNT_SUBDOMAIN.workers.dev` for the initial test. A custom domain produces one exact domain route and disables the `workers.dev` alias. A `workers.dev` origin enables only that Worker address with no custom-domain route; deployment preflight reads the account's registered subdomain and rejects a mismatch. Version preview URLs remain disabled. Do not use the native Site's D1 ID or domain.
+
+For direct Cloudflare Git integration, follow [Cloudflare GitHub setup](cloudflare-github-setup.md). Its build and deployment commands target the independent package explicitly; the repository's ordinary `npm run build` is for the private native Site and fails early inside Workers Builds.
 
 | Setting | Where | Purpose |
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Local secret / GitHub production secret | Scoped Cloudflare deployment access |
-| `CLOUDFLARE_ACCOUNT_ID` | Local setting / GitHub production secret | Intended hosting account |
-| `CLOUDFLARE_D1_DATABASE_ID` | Local setting / GitHub production secret | New independent D1 database |
-| `APP_ORIGIN` | Local setting / GitHub production variable | Exact independent HTTPS origin |
+| `CLOUDFLARE_ACCOUNT_ID` | Selected in source; optional local/build override | Intended hosting account |
+| `CLOUDFLARE_D1_DATABASE_ID` | Selected in source; optional local/build override | New independent D1 database |
+| `APP_ORIGIN` | Selected in source; optional local/build override | Exact independent HTTPS origin |
 | `SUPABASE_URL` | Optional local / GitHub production variable | Paired project override; defaults to the selected Affimaro project |
 | `SUPABASE_PUBLISHABLE_KEY` | Optional local / GitHub production variable | Paired key override; defaults to the active Affimaro publishable key |
 | `AUTH_SESSION_ENCRYPTION_KEY` | Local secret / GitHub production secret | New random 32-byte lowercase hex key, separate from the payment key |
@@ -69,7 +71,7 @@ The current native Site is **not** paused and none of these export/import steps 
 
 Once data, original keys and identity mappings are ready, and email delivery/templates have been tested, set `AFFIMARO_DATA_MIGRATION_CONFIRMED=true` and `AFFIMARO_AUTH_CONFIGURATION_CONFIRMED=true` in the deployment process. `npm run deploy:self-hosted -- --deploy` applies append-only migrations, uploads runtime secrets through stdin and deploys the independent package. Do not populate these confirmations until their checks are actually complete. A missing setting or confirmation stops deployment.
 
-GitHub's **Deploy independent Affimaro** workflow is manual (`workflow_dispatch`). Configure the `production` environment's variables/secrets above and optional billing settings first. The workflow requires both data/email readiness inputs, runs tests/type checks/build and a dry run, then deploys. If the owner separately enables Cloudflare Workers Builds, a push to its connected `main` branch can run the configured independent build/deploy commands. The deployment script rejects other Workers Builds branches and still requires both readiness confirmations. Neither path changes the native Site audience. Configure any branch preview command as a dry run, not a public upload.
+GitHub's **Deploy independent Affimaro** workflow is manual (`workflow_dispatch`). Configure the `production` environment's variables/secrets above and optional billing settings first; this existing workflow explicitly passes the account/D1 secrets and origin variable, so populate those with the selected values when using that path. The workflow requires both data/email readiness inputs, runs tests/type checks/build and a dry run, then deploys. If the owner separately enables Cloudflare Workers Builds, a push to its connected `main` branch can run the configured independent build/deploy commands. The deployment script rejects other Workers Builds branches and still requires both readiness confirmations. Neither path changes the native Site audience. Configure any branch preview command as a dry run, not a public upload.
 
 ## Verify before opening customer traffic
 
