@@ -4,3 +4,6 @@ declare namespace Cloudflare {
     BUCKET?: R2Bucket;
   }
 }
+interface ImportMetaEnv {
+  readonly AFFIMARO_SELF_HOSTED: boolean;
+}

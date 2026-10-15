@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {trustedPublicOrigin} from './public-origin.ts';
 import {AppError,service,type Identity} from './service.ts';
 import {openPayment} from './payment-crypto.ts';
 import {STRIPE_VERSION,type PaymentConnection} from './payment-connections.ts';
@@ -28,7 +29,7 @@ async function stripeRequest(fetcher:Fetcher,path:string,secret:string,body?:URL
   const bytes=new Uint8Array(size);let at=0;for(const part of chunks){bytes.set(part,at);at+=part.length;}
   try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)) as unknown;}catch{throw new AppError(502,'Stripe returned an invalid setup response.');}
 }
-export function stripeConnect(db:D1Database,identity:Identity,key?:string,fetcher:Fetcher=fetch){
+export function stripeConnect(db:D1Database,identity:Identity,key?:string,fetcher:Fetcher=fetch,returnOrigin=STRIPE_RETURN_ORIGIN){
   const s=service(db,identity),now=()=>new Date().toISOString();
   const source=(workspaceId:string)=>one<Source>(db,"SELECT * FROM payment_connections WHERE workspace_id=? AND provider='stripe'",workspaceId);
   const settings=(workspaceId:string)=>one<{connection_id:string;enabled:number}>(db,'SELECT connection_id,enabled FROM stripe_connect_settings WHERE workspace_id=?',workspaceId);
@@ -84,7 +85,7 @@ export function stripeConnect(db:D1Database,identity:Identity,key?:string,fetche
           row=await saveAccount(row,await stripeRequest(fetcher,'/v1/accounts',secret,body,`affimaro-recipient-${row.id}`));
         }else row=await saveAccount(row,await stripeRequest(fetcher,`/v1/accounts/${row.account_id}`,secret));
         await allowed(c,value.applicationId);
-        const link=await stripeRequest(fetcher,'/v1/account_links',secret,new URLSearchParams({account:row.account_id!,type:'account_onboarding',return_url:`${STRIPE_RETURN_ORIGIN}/payments?view=affiliate&stripe=return`,refresh_url:`${STRIPE_RETURN_ORIGIN}/payments?view=affiliate&stripe=refresh`}),`affimaro-link-${crypto.randomUUID()}`);
+        const origin=trustedPublicOrigin(returnOrigin),link=await stripeRequest(fetcher,'/v1/account_links',secret,new URLSearchParams({account:row.account_id!,type:'account_onboarding',return_url:`${origin}/payments?view=affiliate&stripe=return`,refresh_url:`${origin}/payments?view=affiliate&stripe=refresh`}),`affimaro-link-${crypto.randomUUID()}`);
         const parsed=z.object({object:z.literal('account_link'),url:z.string().url().max(2048),expires_at:z.number().int().positive()}).safeParse(link);if(!parsed.success)throw new AppError(502,'Stripe returned an invalid onboarding link.');const url=new URL(parsed.data.url);if(url.origin!=='https://connect.stripe.com'||url.username||url.password||!url.pathname.startsWith('/setup/')||parsed.data.expires_at*1000<=Date.now())throw new AppError(502,'Stripe returned an unsupported onboarding link.');
         await allowed(c,value.applicationId);await audit(c.workspace_id,'stripe_onboarding_opened').run();return {url:parsed.data.url,expiresAt:parsed.data.expires_at};
       }catch(e){if(e instanceof AppError)await db.batch([db.prepare("UPDATE stripe_recipients SET state='attention',last_error=?,updated_at=? WHERE id=? AND lease_id=?").bind(e.message,now(),row.id,lease),audit(row.workspace_id,'stripe_recipient_check_failed')]);throw e;}

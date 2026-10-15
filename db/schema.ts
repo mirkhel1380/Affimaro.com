@@ -274,6 +274,7 @@ export const billingCheckouts=sqliteTable('billing_checkouts',{
   workspaceId:text('workspace_id').notNull().references(()=>workspaces.id),
   priceId:text('price_id').notNull(),
   amount:integer('amount').notNull(),
+  returnOrigin:text('return_origin').notNull().default('https://affimaro-preview.kindsky66.chatgpt.site'),
   customerSnapshot:text('customer_snapshot'),
   state:text('state').notNull(),
   sessionId:text('session_id'),
@@ -284,3 +285,27 @@ export const billingCheckouts=sqliteTable('billing_checkouts',{
   createdAt:text('created_at').notNull(),
   updatedAt:text('updated_at').notNull(),
 },t=>[index('billing_checkout_workspace').on(t.workspaceId,t.createdAt),uniqueIndex('billing_checkout_active').on(t.accountId).where(sql`${t.state} IN ('creating','open','review')`),uniqueIndex('billing_checkout_session').on(t.sessionId),check('billing_checkout_state',sql`${t.state} IN ('creating','open','review','expired','completed')`),check('billing_checkout_amount',sql`${t.amount} BETWEEN 1 AND 99999999`)]);
+
+// Used only by the independent deployment. Sites keeps its own authentication.
+export const authIdentities=sqliteTable('auth_identities',{
+  providerId:text('provider_id').primaryKey(),
+  userId:text('user_id').notNull().references(()=>accounts.id),
+  createdAt:text('created_at').notNull(),
+},t=>[uniqueIndex('auth_identity_user_unique').on(t.userId)]);
+export const authSessions=sqliteTable('auth_sessions',{
+  id:text('id').primaryKey(),
+  tokenHash:text('token_hash').notNull(),
+  providerId:text('provider_id').notNull().references(()=>authIdentities.providerId),
+  userId:text('user_id').notNull().references(()=>accounts.id),
+  encryptedTokens:text('encrypted_tokens').notNull(),
+  recoveryOnly:integer('recovery_only').notNull().default(0),
+  expiresAt:integer('expires_at').notNull(),
+  leaseId:text('lease_id'),
+  leaseUntil:integer('lease_until'),
+  createdAt:text('created_at').notNull(),
+},t=>[uniqueIndex('auth_session_token').on(t.tokenHash),index('auth_session_user').on(t.userId),check('auth_recovery_flag',sql`${t.recoveryOnly} IN (0,1)`)]);
+export const authRateLimits=sqliteTable('auth_rate_limits',{
+  id:text('id').primaryKey(),
+  count:integer('count').notNull(),
+  expiresAt:integer('expires_at').notNull(),
+},t=>[index('auth_rate_expiry').on(t.expiresAt),check('auth_rate_count',sql`${t.count}>0`)]);

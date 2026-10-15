@@ -5,6 +5,8 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
+- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions.
+- Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
 - One-time per-store signing keys, rotation, pause/resume and signed connection verification.
@@ -56,7 +58,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 ## Authentication and private access
 
-Sites owns hosted identity through `app/chatgpt-auth.ts`; visitors need ChatGPT accounts. Independent email/password login is not implemented. Do not expose this Worker outside Sites while trusting caller-supplied identity headers; an independent deployment needs verified identity integration.
+Sites owns identity for the current owner-private deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts. The separate independent target implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. It is not deployed or configured yet. Follow the [independent-hosting guide](docs/independent-hosting.md) for provider setup, original-data/key migration, explicit legacy identity linking and manual deployment. Never expose the native Sites Worker outside its own dispatch integration.
 
 The Site remains owner-private. Sharing an application link does not grant private-pilot access. A business owner can maintain an affiliate profile but cannot apply to their own program.
 
@@ -115,11 +117,11 @@ The [report guide](docs/reports-guide.md) defines UTC date filters, role/partner
 
 ## Software subscriptions
 
-The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter package, dedicated Affimaro billing configuration, owner-confirmed recurring Checkout, invoice/customer/price verification, optional new-business-action enforcement and Stripe customer portals. Checkout is disabled until its dedicated account/key/Price are configured; no final price or real payment has been supplied. Existing private-pilot access remains available by default. Growth/Business packages and independent email/password sign-in remain unimplemented; Sites authentication is preserved. This path does not use merchants' affiliate payout credentials.
+The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter package, dedicated Affimaro billing configuration, owner-confirmed recurring Checkout, invoice/customer/price verification, optional new-business-action enforcement and Stripe customer portals. Checkout is disabled until its dedicated account/key/Price are configured; no final price or real payment has been supplied. Existing private-pilot access remains available by default. Growth/Business packages remain unimplemented. Sites authentication is preserved; email/password sign-in is implemented only in the separate, not-yet-deployed independent target. This path does not use merchants' affiliate payout credentials.
 
 ## Storage
 
-`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty-two tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. `0009` adds separate software billing accounts/checkouts. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
+`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty-five tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. `0009` adds separate software billing accounts/checkouts. `0010` adds external identity mappings, encrypted server sessions, shared authentication throttles and frozen Checkout return origins. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
 The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch grants no server access, and its sample payments do not create real records.
 
@@ -127,8 +129,10 @@ The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch 
 
 Use Node 24 for tests and the Sites helpers for install/build. Preserve the locked Vinext/Sites integration.
 
-- `npm run check`: 151 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration, dated reporting scope, full aggregates, balances, export privacy, truncation and exact monetary formatting, subscription pricing/consent, idempotent Checkout attempts, customer/invoice identity, test/live entitlements, portal boundaries, renewal changes and stale checks.
+- `npm run check`: automated Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration, dated reporting scope, full aggregates, balances, export privacy, truncation and exact monetary formatting, subscription pricing/consent, idempotent Checkout attempts, customer/invoice identity, test/live entitlements, portal boundaries, renewal changes and stale checks, external auth/CSRF/verification/recovery/session isolation, provider policy checks, migration encryption/constraints/key preservation, maintenance gates and deployment preflight.
 - `npx tsc --noEmit`: TypeScript checks.
+- `npm run build:self-hosted`: isolated independent build in `dist-self-hosted/`.
+- `npm run deploy:self-hosted -- --check`: read-only independent deployment/provider validation (requires configured account settings).
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.
 - `node scripts/check-woocommerce.mjs`: executable isolated plugin checks with native PHP.
@@ -138,6 +142,6 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 
 ## Remaining product work
 
-Install/configure a real staging store and supported private service access, verify checkout end to end, then add Paddle/custom-site adapters, broader currency support and remaining payout integrations, independent hosting/email-password authentication, live subscription configuration, broader subscription tiers and the native mobile app. Starter currently follows the existing one-store/program/owner limits; future package limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
+Install/configure a real staging store and supported private service access, verify checkout end to end, then add Paddle/custom-site adapters, broader currency support and remaining payout integrations, configured independent hosting/email delivery and live authentication walkthrough, live subscription configuration, broader subscription tiers and the native mobile app. Starter currently follows the existing one-store/program/owner limits; future package limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
 
 The private GitHub repository stores source snapshots. GitHub Pages and automatic GitHub-to-Sites deployment are not configured. The custom domain is not connected.

@@ -8,7 +8,7 @@ type Service=ReturnType<typeof service>;
 export async function action(request:Request,operation:(s:Service,body:unknown,identity:Identity)=>Promise<unknown>) {
   try {
     const user=await getChatGPTUser();
-    if(!user)throw new AppError(401,'Sign in with ChatGPT to continue.');
+    if(!user)throw new AppError(401,'Sign in to continue.');
     assertSameOrigin(request);
     const body=await readJson(request);
     const data=await operation(service(getRawDb(),user),body,user);

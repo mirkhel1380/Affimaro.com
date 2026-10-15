@@ -49,6 +49,12 @@ test('missing billing configuration preserves pilot access and does not contact 
   assert.equal(billingConfigured({...f.config,liveEnabled:false}),false);assert.equal(billingConfigured({...f.config,secret:'pk_live_NOTASECRET'}),false);
 });
 
+test('independent checkout freezes its return origin so retries keep the original idempotent payload',async t=>{
+  const f=await fixture(t);f.config.origin='https://affimaro.example';f.state.lose=true;await assert.rejects(start(f),fails(502));assert.equal(checkout(f).return_origin,'https://affimaro.example');
+  const first=posts(f)[0].body.toString();f.config.origin='https://new.affimaro.example';await start(f);assert.equal(posts(f)[1].body.toString(),first);assert.equal(posts(f)[1].body.get('success_url'),'https://affimaro.example/billing?checkout_return=1');
+  complete(f);await f.api.refresh({});await f.api.portal({});assert.equal(f.state.calls.findLast(call=>call.path==='/v1/billing_portal/sessions').body.get('return_url'),'https://new.affimaro.example/billing');
+});
+
 test('subscription reviews derive owner/workspace and reject tenant or amount injection',async t=>{
   const f=await fixture(t),quote=await f.api.preview({});
   const other=billing(f.db,identity('other'),f.config,key,f.fetcher);await assert.rejects(other.checkout({reviewToken:quote.reviewToken,confirmed:true}),fails(400));

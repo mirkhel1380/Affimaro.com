@@ -1,0 +1,53 @@
+name: Deploy independent Affimaro
+on:
+  workflow_dispatch:
+    inputs:
+      data_migrated:
+        description: Existing data, original payment key and verified identity mappings are ready
+        required: true
+        type: boolean
+        default: false
+      email_configured:
+        description: Supabase email verification, six-digit templates and delivery are tested
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: affimaro-independent-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: inputs.data_migrated && inputs.email_configured
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      AUTH_SESSION_ENCRYPTION_KEY: ${{ secrets.AUTH_SESSION_ENCRYPTION_KEY }}
+      AFFIMARO_BILLING_STRIPE_KEY: ${{ secrets.AFFIMARO_BILLING_STRIPE_KEY }}
+      AFFIMARO_BILLING_ACCOUNT_ID: ${{ vars.AFFIMARO_BILLING_ACCOUNT_ID }}
+      AFFIMARO_STARTER_PRICE_ID: ${{ vars.AFFIMARO_STARTER_PRICE_ID }}
+      AFFIMARO_BILLING_MODE: ${{ vars.AFFIMARO_BILLING_MODE }}
+      AFFIMARO_BILLING_LIVE_ENABLED: ${{ vars.AFFIMARO_BILLING_LIVE_ENABLED }}
+      AFFIMARO_BILLING_REQUIRED: ${{ vars.AFFIMARO_BILLING_REQUIRED }}
+      AFFIMARO_DATA_MIGRATION_CONFIRMED: 'true'
+      AFFIMARO_AUTH_CONFIGURATION_CONFIRMED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsc --noEmit
+      - run: npm run deploy:self-hosted -- --check
+      - run: npm run build:self-hosted
+      - run: npm run deploy:self-hosted -- --dry-run
+      - run: npm run deploy:self-hosted -- --deploy

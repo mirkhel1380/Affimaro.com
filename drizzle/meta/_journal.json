@@ -71,6 +71,13 @@
       "when": 1792056280332,
       "tag": "0009_slim_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792058219122,
+      "tag": "0010_fixed_virginia_dare",
+      "breakpoints": true
     }
   ]
 }

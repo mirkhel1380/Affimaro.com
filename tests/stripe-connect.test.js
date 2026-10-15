@@ -35,6 +35,9 @@ async function fixture(t){
 }
 const row=f=>f.db.sqlite.prepare('SELECT * FROM stripe_recipients ORDER BY rowid DESC LIMIT 1').get();
 const posts=f=>f.state.calls.filter(c=>c.method==='POST');
+test('independent receiving-account links return only to the server-configured origin',async t=>{
+  const f=await fixture(t);await f.enable();const api=stripeConnect(f.db,identity('partner'),key,f.fetcher,'https://affimaro.example');await api.start({applicationId:f.application.id,country:'US',consent:true});const link=posts(f).find(call=>call.path==='/v1/account_links');assert.equal(link.params.get('return_url'),'https://affimaro.example/payments?view=affiliate&stripe=return');assert.equal(link.params.get('refresh_url'),'https://affimaro.example/payments?view=affiliate&stripe=refresh');
+});
 test('Stripe recipient setup defaults off and requires the owner to confirm its displayed connection',async t=>{
   const f=await fixture(t);assert.equal((await f.merchant.merchant()).enabled,false);await assert.rejects(f.start(),fails(409));
   await assert.rejects(f.merchant.configure({enabled:true,confirmed:false,connectionId:f.connection.id}),fails(400));await assert.rejects(f.merchant.configure({enabled:true,confirmed:true,connectionId:crypto.randomUUID()}),fails(409));

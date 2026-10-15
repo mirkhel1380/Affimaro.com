@@ -1,6 +1,6 @@
 {
   "name": "affimaro",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,7 +13,9 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "check": "node --check public/demo/app.js && node --experimental-strip-types --test tests/*.test.js",
-    "plugin:package": "python3 scripts/package-woocommerce.py"
+    "plugin:package": "python3 scripts/package-woocommerce.py",
+    "build:self-hosted": "node scripts/build-self-hosted.mjs",
+    "deploy:self-hosted": "node scripts/deploy-self-hosted.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
