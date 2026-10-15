@@ -1,0 +1,1 @@
+ALTER TABLE `shopify_pending` ADD `source_revision` integer DEFAULT 0 NOT NULL;

@@ -56,6 +56,7 @@ export const storeConnections = sqliteTable("store_connections", {
   active:integer("active").notNull(),
   lastSeen:text("last_seen"),
   createdAt:text("created_at").notNull(),
+  platform:text("platform").notNull().default('woocommerce'),
 },t=>[uniqueIndex("store_workspace_unique").on(t.workspaceId),check("store_active_boolean",sql`${t.active} IN (0,1)`)]);
 export const referrals = sqliteTable("referrals", {
   id:text("id").primaryKey(),
@@ -134,3 +135,36 @@ export const payoutRequests=sqliteTable("payout_requests",{
   check("payout_decimals_valid",sql`${t.decimals} BETWEEN 0 AND 6`),
   check("payout_paid_fields",sql`${t.status} <> 'paid' OR (${t.encryptedReceipt} IS NOT NULL AND ${t.referenceHash} IS NOT NULL AND ${t.paidDate} IS NOT NULL AND ${t.paidBy} IS NOT NULL)`),
 ]);
+
+export const shopifyAccounts=sqliteTable('shopify_accounts',{
+  storeId:text('store_id').primaryKey().references(()=>storeConnections.id),
+  shopDomain:text('shop_domain').notNull(),
+  shopId:text('shop_id').notNull(),
+  clientId:text('client_id').notNull(),
+  encryptedSecret:text('encrypted_secret').notNull(),
+  encryptedToken:text('encrypted_token').notNull(),
+  tokenExpiresAt:text('token_expires_at').notNull(),
+  scopes:text('scopes').notNull(),
+  syncedThrough:text('synced_through'),
+  syncSince:text('sync_since'),
+  syncUntil:text('sync_until'),
+  syncCursor:text('sync_cursor'),
+  leaseId:text('lease_id'),
+  leaseUntil:text('lease_until'),
+  lastResult:text('last_result'),
+});
+export const shopifyPending=sqliteTable('shopify_pending',{
+  storeId:text('store_id').notNull().references(()=>storeConnections.id),
+  orderId:text('order_id').notNull(),
+  reason:text('reason').notNull(),
+  sourceRevision:integer('source_revision').notNull().default(0),
+  updatedAt:text('updated_at').notNull(),
+},t=>[uniqueIndex('shopify_pending_order_unique').on(t.storeId,t.orderId)]);
+export const programRuleRevisions=sqliteTable('program_rule_revisions',{
+  id:text('id').primaryKey(),
+  programId:text('program_id').notNull().references(()=>programs.id),
+  rateBps:integer('rate_bps').notNull(),
+  windowDays:integer('window_days').notNull(),
+  active:integer('active').notNull(),
+  effectiveAt:text('effective_at').notNull(),
+},t=>[index('program_rule_time_index').on(t.programId,t.effectiveAt),check('rule_rate_valid',sql`${t.rateBps} BETWEEN 100 AND 5000`),check('rule_window_valid',sql`${t.windowDays} BETWEEN 1 AND 90`)]);

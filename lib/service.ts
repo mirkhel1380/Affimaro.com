@@ -60,6 +60,7 @@ export function service(db:D1Database,identity:Identity) {
         await db.batch([
           db.prepare("INSERT INTO workspaces (id,owner_id,name,website,created_at) VALUES (?,?,?,?,?)").bind(workspaceId,identity.userId,value.name,value.website,created),
           db.prepare("INSERT INTO programs (id,workspace_id,name,rate_bps,window_days,active,created_at) VALUES (?,?,?,?,?,?,?)").bind(programId,workspaceId,'Store partners',1000,30,1,created),
+          db.prepare('INSERT INTO program_rule_revisions (id,program_id,rate_bps,window_days,active,effective_at) VALUES (?,?,1000,30,1,?)').bind(id(),programId,created),
           event(workspaceId,'workspace_created'),
         ]);
       }catch(error){if(await workspace())return workspace();throw error;}
@@ -87,8 +88,10 @@ export function service(db:D1Database,identity:Identity) {
     },
     async saveProgram(input:unknown) {
       const value=parse(schemas.program,input);const business=await requireWorkspace();
+      if(value.windowDays>30&&await one("SELECT id FROM store_connections WHERE workspace_id=? AND platform='shopify'",business.id))throw new AppError(400,'Shopify native referral sessions support a maximum 30-day window.');
       await db.batch([
         db.prepare("UPDATE programs SET name=?,rate_bps=?,window_days=?,active=? WHERE workspace_id=? AND EXISTS (SELECT 1 FROM workspaces WHERE id=? AND owner_id=?)").bind(value.name,Math.round(value.rate*100),value.windowDays,value.active?1:0,business.id,business.id,identity.userId),
+        db.prepare('INSERT INTO program_rule_revisions (id,program_id,rate_bps,window_days,active,effective_at) SELECT ?,id,?,?,?,? FROM programs WHERE workspace_id=?').bind(id(),Math.round(value.rate*100),value.windowDays,value.active?1:0,now(),business.id),
         event(business.id,'program_updated'),
       ]);
       return one<Program>("SELECT * FROM programs WHERE workspace_id = ?",business.id);

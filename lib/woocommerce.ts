@@ -1,7 +1,8 @@
 import {z} from 'zod';
+import {effectiveCommission,shopifyHold,trackedOrderColumns} from './commission-query.ts';
 import {AppError,service,type Identity} from './service.ts';
 
-export type Connection={id:string;store_url:string;active:number;last_seen:string|null;created_at:string};
+export type Connection={id:string;store_url:string;active:number;last_seen:string|null;created_at:string;platform:'woocommerce'|'shopify'};
 type PrivateConnection=Connection&{workspace_id:string;signing_key:string};
 export type TrackedOrder={id:string;store_id:string;referral_id:string;application_id:string;external_id:string;revision:number;currency:string;decimals:number;basis:number;refunded_basis:number;rate_bps:number;commission:number;status:string;commission_state:string;needs_review:number;created_at:string;received_at:string;partner_name?:string;business_name?:string};
 type Referral={id:string;store_id:string;application_id:string;rate_bps:number;created_at:string;expires_at:string};
@@ -44,6 +45,7 @@ export function commerce(db:D1Database,identity:Identity){
     async configure(input:unknown){
       const value=parse(inputSchema,input),w=await workspace();
       const existing=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at FROM store_connections WHERE workspace_id=?',w.id);
+      if(existing){const kind=await one<{platform:string}>(db,'SELECT platform FROM store_connections WHERE id=?',existing.id);if(kind?.platform!=='woocommerce')throw new AppError(409,'Manage this store through its Shopify connection settings.');}
       const at=new Date().toISOString();let key:string|undefined;
       if(value.action==='connect'){
         if(existing)throw new AppError(409,'This workspace already has a store. Resume or rotate its key instead.');
@@ -60,23 +62,23 @@ export function commerce(db:D1Database,identity:Identity){
           db.prepare('UPDATE store_connections SET active=? WHERE id=? AND workspace_id=?').bind(value.action==='resume'?1:0,existing.id,w.id);
         await db.batch([statement,db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),w.id,identity.userId,`store_${value.action}`,at)]);
       }
-      const connection=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at FROM store_connections WHERE workspace_id=?',w.id);
+      const connection=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at,platform FROM store_connections WHERE workspace_id=?',w.id);
       return {connection,...(key?{key}:{})};
     },
     async dashboard(){
       const w=await workspace();
-      const connection=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at FROM store_connections WHERE workspace_id=?',w.id);
+      const connection=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at,platform FROM store_connections WHERE workspace_id=?',w.id);
       if(!connection)return {connection:null,visits:0,orders:[] as TrackedOrder[],totals:[] as {currency:string;decimals:number;commission:number;count:number}[]};
       const visits=await one<{n:number}>(db,'SELECT count(*) AS n FROM referrals WHERE store_id=?',connection.id);
-      const orders=await all<TrackedOrder>(db,'SELECT o.*,f.display_name AS partner_name FROM orders o JOIN applications a ON a.id=o.application_id JOIN affiliate_profiles f ON f.user_id=a.affiliate_user_id WHERE o.store_id=? ORDER BY o.received_at DESC LIMIT 100',connection.id);
-      const totals=await all<{currency:string;decimals:number;commission:number;count:number}>(db,'SELECT currency,decimals,sum(commission) AS commission,count(*) AS count FROM orders WHERE store_id=? GROUP BY currency,decimals',connection.id);
+      const orders=await all<TrackedOrder>(db,`SELECT ${trackedOrderColumns()},f.display_name AS partner_name FROM orders o JOIN applications a ON a.id=o.application_id JOIN affiliate_profiles f ON f.user_id=a.affiliate_user_id WHERE o.store_id=? ORDER BY o.received_at DESC LIMIT 100`,connection.id);
+      const totals=await all<{currency:string;decimals:number;commission:number;count:number}>(db,`SELECT o.currency,o.decimals,sum(${effectiveCommission()}) AS commission,count(*) AS count FROM orders o WHERE o.store_id=? GROUP BY o.currency,o.decimals`,connection.id);
       return {connection,visits:visits?.n||0,orders,totals};
     },
     async partnerTracking(){
-      const links=await all<{application_id:string;store_url:string;business_name:string}>(db,"SELECT a.id AS application_id,c.store_url,w.name AS business_name FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id JOIN store_connections c ON c.workspace_id=w.id WHERE a.affiliate_user_id=? AND a.status='approved' AND p.active=1 AND c.active=1 AND c.last_seen IS NOT NULL",identity.userId);
-      const orders=await all<TrackedOrder>(db,'SELECT o.*,w.name AS business_name FROM orders o JOIN applications a ON a.id=o.application_id JOIN store_connections c ON c.id=o.store_id JOIN workspaces w ON w.id=c.workspace_id WHERE a.affiliate_user_id=? ORDER BY o.received_at DESC LIMIT 100',identity.userId);
-      const totals=await all<{currency:string;decimals:number;commission:number;count:number}>(db,'SELECT o.currency,o.decimals,sum(o.commission) AS commission,count(*) AS count FROM orders o JOIN applications a ON a.id=o.application_id WHERE a.affiliate_user_id=? GROUP BY o.currency,o.decimals',identity.userId);
-      return {links:links.map(l=>({...l,url:`${l.store_url}/?affimaro_ref=${l.application_id}`})),orders,totals};
+      const links=await all<{application_id:string;program_id:string;platform:string;store_url:string;business_name:string}>(db,"SELECT a.id AS application_id,p.id AS program_id,c.platform,c.store_url,w.name AS business_name FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id JOIN store_connections c ON c.workspace_id=w.id WHERE a.affiliate_user_id=? AND a.status='approved' AND p.active=1 AND c.active=1 AND c.last_seen IS NOT NULL",identity.userId);
+      const orders=await all<TrackedOrder>(db,`SELECT ${trackedOrderColumns()},w.name AS business_name FROM orders o JOIN applications a ON a.id=o.application_id JOIN store_connections c ON c.id=o.store_id JOIN workspaces w ON w.id=c.workspace_id WHERE a.affiliate_user_id=? ORDER BY o.received_at DESC LIMIT 100`,identity.userId);
+      const totals=await all<{currency:string;decimals:number;commission:number;count:number}>(db,`SELECT o.currency,o.decimals,sum(${effectiveCommission()}) AS commission,count(*) AS count FROM orders o JOIN applications a ON a.id=o.application_id WHERE a.affiliate_user_id=? GROUP BY o.currency,o.decimals`,identity.userId);
+      return {links:links.map(l=>({...l,url:l.platform==='shopify'?`${l.store_url}/?ref=af_${l.application_id}&utm_source=affimaro&utm_medium=affiliate&utm_campaign=${l.program_id}&utm_content=${l.application_id}`:`${l.store_url}/?affimaro_ref=${l.application_id}`})),orders,totals};
     },
   };
 }
@@ -90,11 +92,11 @@ async function rawBody(request:Request){
   const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}
   try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new AppError(400,'Invalid UTF-8.');}
 }
-export async function receiveStoreEvent(db:D1Database,request:Request,clock=new Date()){
+export async function receiveStoreEvent(db:D1Database,request:Request,clock=new Date(),expectedPlatform:'woocommerce'|'shopify'='woocommerce'){
   const storeId=request.headers.get('x-affimaro-store')||'',eventId=request.headers.get('x-affimaro-event')||'',timestamp=request.headers.get('x-affimaro-timestamp')||'',signature=request.headers.get('x-affimaro-signature')||'';
   if(!uuid.safeParse(storeId).success||!uuid.safeParse(eventId).success||!/^\d{10}$/.test(timestamp)||Math.abs(clock.getTime()/1000-Number(timestamp))>300)throw new AppError(401,'Invalid or expired store signature.');
   const connection=await one<PrivateConnection>(db,'SELECT * FROM store_connections WHERE id=?',storeId);
-  if(!connection?.active)throw new AppError(401,'Store connection is unavailable.');
+  if(!connection?.active||connection.platform!==expectedPlatform)throw new AppError(401,'Store connection is unavailable.');
   const raw=await rawBody(request);
   if(!await verifySignature(connection.signing_key,`${timestamp}.${eventId}.${raw}`,signature))throw new AppError(401,'Invalid store signature.');
   const hash=hex(await crypto.subtle.digest('SHA-256',encoder.encode(raw)));

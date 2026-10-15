@@ -1,11 +1,11 @@
 # Affimaro
 
-Affimaro is an affiliate management product by Highlink. This owner-private pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, and manual bank-payment request workflows.
+Affimaro is an affiliate management product by Highlink. This owner-private pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, and manual bank-payment request workflows.
 
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
-- One business workspace, editable program and WooCommerce connection per owner.
+- One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
 - One-time per-store signing keys, rotation, pause/resume and signed connection verification.
 - Consent-based store referral capture and approved affiliates’ referral links after verification.
@@ -15,6 +15,8 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 - Owner approval of earned commission, encrypted affiliate bank details and destination snapshots.
 - Duplicate-safe payment requests, reservations, review, cancellation and recorded bank-transfer references/receipt links.
 - Refund adjustments carried into future commission, masked payment history and CSV exports.
+- Verified merchant-owned Shopify app connection, encrypted token refresh and resumable manual GraphQL sync.
+- Shopify native referral sessions, historical program rules, deferred-data holds and recent-sync gates on financial approvals.
 - The original device-local demo for sample payment records and CSV exports.
 
 Real workspaces begin empty. No demonstration accounts, sales or partners are seeded into hosted storage. Building/downloading the adapter does not connect a store.
@@ -31,8 +33,10 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`, `/api/store`: authenticated JSON writes.
 - `/api/payments`: same-origin authenticated bank/profile, approval, request and receipt actions.
 - `/api/payments/export?view=merchant|partner`: authenticated CSV export of the selected role’s latest 100 records.
+- `/api/shopify`: authenticated store verification, pause/resume and bounded dashboard sync.
 - `/api/woocommerce/event`: separately authenticated machine endpoint for store ping, referral and order events.
 - `/downloads/affimaro-woocommerce.zip`: generic installable plugin, with no credentials.
+- `/downloads/shopify-setup.md`: merchant-owned Shopify app and sync guide.
 
 ## Authentication and private access
 
@@ -42,7 +46,7 @@ The Site remains owner-private. Sharing an application link does not grant priva
 
 User writes derive identity server-side, check ownership, require same-origin JSON and cap bodies at 16 KiB. The machine endpoint does not use browser identity or Origin as authorization: each request requires a store-scoped HMAC-SHA256 over the exact timestamp, event ID and raw body. Signatures expire after five minutes. Duplicate event IDs replay their original result and cannot change payload. Accounting and receipts commit together in atomic D1 batches.
 
-The private dispatch gate runs before machine authentication. This pilot therefore also needs supported Sites service access installed only in the merchant server configuration. The plugin supports an optional credential bound to one exact Affimaro origin, follows no redirects and never exposes it to browsers. No platform credential is included in code/downloads. Do not change the Site audience just to make a webhook work. The plugin setup guide describes the remaining connection steps.
+WooCommerce: the private dispatch gate runs before machine authentication. This pilot therefore also needs supported Sites service access installed only in the merchant server configuration. The plugin supports an optional credential bound to one exact Affimaro origin, follows no redirects and never exposes it to browsers. No platform credential is included in code/downloads. Do not change the Site audience just to make a webhook work. The plugin setup guide describes the remaining connection steps.
 
 Per-store signing keys are confidential server-side D1 values. They are returned once to the authenticated owner on creation/rotation and excluded from all dashboard queries. Rotation preserves recorded referral IDs so later order/refund corrections still work after the store updates its key.
 
@@ -59,9 +63,19 @@ Primary implementation references:
 - [HPOS extension recipe book](https://developer.woocommerce.com/docs/features/orders/high-performance-order-storage/recipe-book/)
 - [WordPress PHP-WASM tooling](https://developer.wordpress.org/playground/developers/local-development/php-wasm-node/)
 
+## Shopify dashboard sync
+
+Source/setup: [Shopify adapter guide](integrations/shopify/README.md). The adapter uses the merchant-owned app client-credentials flow and Admin GraphQL API `2026-10`. The app and store must belong to the same Shopify organization. This is not an App Store app or multi-merchant OAuth installation flow.
+
+The Site remains private: each merchant-triggered sync makes outgoing Shopify API requests. No public webhook, app proxy, storefront script or unattended schedule is deployed. Native Shopify conversion sessions carry the affiliate referral/UTM fields. Only sessions attached to imported conversions are counted; full storefront click analytics are not available. Shopify's native 30-day history caps the program window for this connection.
+
+Program rule history preserves the rate/window active at a recorded native session. Current partner/program eligibility is checked on first order ingestion. Missing session data is retried; incomplete monetary pages, source conflicts and unreadable imported orders hold payable commission at zero across reports and financial operations, while retaining the last verified source snapshot. A complete Shopify sync within five minutes is required to approve its commission/payment requests or record its bank payment. Currencies and merchant/affiliate ownership remain isolated.
+
+Each request processes three changed orders and two pending retries, with cursor checkpoints and a short sync lease. Scope limitations, large orders/refund histories, native-attribution availability and cases held for review are documented in the setup guide. Real Shopify credentials and a live installation were not available; API tests use a mocked provider boundary. A real checkout/tax/refund walkthrough is still required.
+
 ## Manual bank-payment workflow
 
-The business pays affiliates directly outside Affimaro. The product records that process; it does not create a bank transfer, verify settlement, hold funds or offer an automatic cash-out. Stripe Connect and Wise are not integrated. Shopify/Paddle tracking adapters are also pending.
+The business pays affiliates directly outside Affimaro. The product records that process; it does not create a bank transfer, verify settlement, hold funds or offer an automatic cash-out. Stripe Connect and Wise are not integrated. The Shopify adapter uses outgoing dashboard sync; Paddle and custom-site adapters remain pending.
 
 1. The business approves an accrued order’s current revision and amount. A stale or ineligible order cannot be approved.
 2. The affiliate saves a bank destination. Details are encrypted and dashboards show only currency and the last four account characters.
@@ -77,7 +91,7 @@ Partial payments, currency conversion, automated bank validation, provider payou
 
 ## Storage
 
-`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines thirteen tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. Earlier migrations are unchanged. SQL values are bound and related writes use D1 batches.
+`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines sixteen tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
 The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch grants no server access, and its sample payments do not create real records.
 
@@ -85,7 +99,7 @@ The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch 
 
 Use Node 24 for tests and the Sites helpers for install/build. Preserve the locked Vinext/Sites integration.
 
-- `npm run check`: 46 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races and CSV safety.
+- `npm run check`: 69 Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates.
 - `npx tsc --noEmit`: TypeScript checks.
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.
@@ -96,6 +110,6 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 
 ## Remaining product work
 
-Install/configure a real staging store and supported private service access, verify checkout end to end, then add Shopify/Paddle/custom-site adapters, approved automated payout integrations, subscription billing and the native mobile app. Proposed subscription limits remain provisional. Affimaro holds/transfers no affiliate funds; each business pays its affiliates directly.
+Install/configure a real staging store and supported private service access, verify checkout end to end, then add Paddle/custom-site adapters, approved automated payout integrations, subscription billing and the native mobile app. Proposed subscription limits remain provisional. Affimaro holds/transfers no affiliate funds; each business pays its affiliates directly.
 
 The private GitHub repository stores source snapshots. GitHub Pages and automatic GitHub-to-Sites deployment are not configured. The custom domain is not connected.
