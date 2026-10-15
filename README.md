@@ -5,7 +5,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
-- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created Affimaro project is selected and its live email/confirmation/signup policy is verified; email templates, delivery and independent hosting remain pending.
+- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project is selected and its live email/confirmation/signup policy is verified. The owner received a recovery code through Resend; signup, application sessions and independent hosting remain pending. Both custom domains and an account-verified `workers.dev` test origin are supported.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
@@ -58,7 +58,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 ## Authentication and private access
 
-Sites owns identity for the current owner-private deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts. The separate independent target implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. It is not deployed or configured yet. Follow the [independent-hosting guide](docs/independent-hosting.md) for provider setup, original-data/key migration, explicit legacy identity linking and manual deployment. Never expose the native Sites Worker outside its own dispatch integration.
+Sites owns identity for the current owner-private deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts. The separate independent target implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. It is not deployed yet. Follow the [independent-hosting guide](docs/independent-hosting.md) for provider setup, original-data/key migration, explicit legacy identity linking and deployment, or [Cloudflare GitHub setup](docs/cloudflare-github-setup.md) for the direct Git integration fields. Never expose the native Sites Worker outside its own dispatch integration.
 
 The Site remains owner-private. Sharing an application link does not grant private-pilot access. A business owner can maintain an affiliate profile but cannot apply to their own program.
 
@@ -132,6 +132,7 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 - `npm run check`: automated Node tests covering demo behavior, SQL migrations, identity/tenant isolation, applications, atomicity, input validation, request limits, machine authentication, deduplication, accounting, refunds, encrypted payment data, authorization, reservation/payment races CSV safety, Shopify identity/scope checks, attribution, historical rules, sync checkpointing, retry holds and source-freshness approval gates, provider credential isolation, environment validation, connection check races and manual Wise records, Stripe setup ownership/consent, account creation idempotency, environment separation, recipient readiness, Stripe financial reservations/attempts, source and refund races, unknown-result recovery, verified reversals, audit rollback and legacy payout migration, dated reporting scope, full aggregates, balances, export privacy, truncation and exact monetary formatting, subscription pricing/consent, idempotent Checkout attempts, customer/invoice identity, test/live entitlements, portal boundaries, renewal changes and stale checks, external auth/CSRF/verification/recovery/session isolation, provider policy checks, migration encryption/constraints/key preservation, maintenance gates and deployment preflight.
 - `npx tsc --noEmit`: TypeScript checks.
 - `npm run build:self-hosted`: isolated independent build in `dist-self-hosted/`.
+- `npm run build:cloudflare`: automated checks, TypeScript and independent build for Cloudflare Workers Builds.
 - `npm run deploy:self-hosted -- --check`: read-only independent deployment/provider validation (requires configured account settings).
 - `npm run db:generate`: generate a new migration after schema changes; inspect SQL/metadata.
 - `npm run plugin:package`: deterministically rebuild the generic ZIP and setup download after plugin changes.

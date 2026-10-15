@@ -15,6 +15,7 @@
     "check": "node --check public/demo/app.js && node --experimental-strip-types --test tests/*.test.js",
     "plugin:package": "python3 scripts/package-woocommerce.py",
     "build:self-hosted": "node scripts/build-self-hosted.mjs",
+    "build:cloudflare": "node scripts/build-cloudflare.mjs",
     "deploy:self-hosted": "node scripts/deploy-self-hosted.mjs"
   },
   "dependencies": {

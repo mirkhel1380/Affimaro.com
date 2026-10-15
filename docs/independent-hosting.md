@@ -1,6 +1,6 @@
 # Independent hosting and email sign-in
 
-Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared, and the owner-created Supabase project is selected for the independent build. See the [verified project status](supabase-setup-status.md). The independent domain, hosting, email delivery and production cutover remain unconfigured.
+Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared, and the owner-created Supabase project is selected for the independent build. See the [verified project status](supabase-setup-status.md). The owner has received a recovery code through Resend; application sign-in, customer sending-domain verification, independent hosting and production cutover remain pending. A `workers.dev` address can be used for the initial hosting test before buying a domain.
 
 ## Boundaries
 
@@ -19,13 +19,17 @@ The owner created the Affimaro project `bhxzkrypfxdheyjtxwqp`. The independent b
 4. Keep the provider’s configured OTP length (the app accepts 6–10 digits), set an appropriate expiry and a real sending identity/SMTP service. Test delivery to the intended users. Provider email quotas, sender verification and any provider costs require the owner's account setup.
 5. The selected project URL and active publishable key are already bound in `self-hosted/supabase-project.json`. To intentionally use another project, set both `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` together; partial overrides fail validation. Never use a service/admin key in the running web app.
 
+For new Free projects, template editing requires custom SMTP under Supabase's [2026-06-03 change](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier). With Resend, the temporary `onboarding@resend.dev` sender is limited to the email associated with the Resend account. It is suitable for the owner's test; customer traffic needs a verified owned sending domain. Receiving a recovery email is not proof that signup, OTP verification, password reset or application sessions work end to end.
+
 Passwords are 12–128 characters for signup/reset. Login accepts an existing password up to 128 characters. Forms require an encrypted, short-lived HttpOnly flow cookie, a matching nonce and the exact Origin. The server limits request size and stores salted, shared throttles for the email and Cloudflare client IP. Passwords and provider tokens are never reflected into HTML or URLs.
 
 The browser receives an opaque `__Host-affimaro_session` cookie: Secure, HttpOnly, SameSite=Lax, Path=/, with a maximum 30-day lifetime. Only its SHA-256 hash is stored in D1. Provider access/refresh tokens are separately encrypted with `AUTH_SESSION_ENCRYPTION_KEY`. Authenticated requests verify the current provider user; refresh rotation uses a D1 lease. Provider outages fail closed. Recovery sessions last ten minutes and cannot access business pages. A successful password reset removes all local sessions and attempts global provider sign-out. Logout revokes the local session even during a provider outage.
 
 ## Cloudflare and deployment settings
 
-Use a Cloudflare account, an HTTPS custom domain managed by that account, a new D1 database named `affimaro`, and a scoped API token permitted to manage that Worker/D1 database and attach the intended domain. Independent `workers.dev` and preview URLs are disabled. Do not use the native Site's D1 ID or domain.
+Use a Cloudflare account, a new D1 database named `affimaro`, and a scoped API token permitted to manage that Worker/D1 database. Use either an HTTPS custom domain managed by the account or `https://affimaro.ACCOUNT_SUBDOMAIN.workers.dev` for the initial test. A custom domain produces one exact domain route and disables the `workers.dev` alias. A `workers.dev` origin enables only that Worker address with no custom-domain route; deployment preflight reads the account's registered subdomain and rejects a mismatch. Version preview URLs remain disabled. Do not use the native Site's D1 ID or domain.
+
+For direct Cloudflare Git integration, follow [Cloudflare GitHub setup](cloudflare-github-setup.md). Its build and deployment commands target the independent package explicitly; the repository's ordinary `npm run build` is for the private native Site.
 
 | Setting | Where | Purpose |
 | --- | --- | --- |
@@ -65,7 +69,7 @@ The current native Site is **not** paused and none of these export/import steps 
 
 Once data, original keys and identity mappings are ready, and email delivery/templates have been tested, set `AFFIMARO_DATA_MIGRATION_CONFIRMED=true` and `AFFIMARO_AUTH_CONFIGURATION_CONFIRMED=true` in the deployment process. `npm run deploy:self-hosted -- --deploy` applies append-only migrations, uploads runtime secrets through stdin and deploys the independent package. Do not populate these confirmations until their checks are actually complete. A missing setting or confirmation stops deployment.
 
-GitHub's **Deploy independent Affimaro** workflow is manual (`workflow_dispatch`). Configure the `production` environment's variables/secrets above and optional billing settings first. The workflow requires both data/email readiness inputs, runs tests/type checks/build and a dry run, then deploys. Pushing source does not publish the independent target or change the native Site audience.
+GitHub's **Deploy independent Affimaro** workflow is manual (`workflow_dispatch`). Configure the `production` environment's variables/secrets above and optional billing settings first. The workflow requires both data/email readiness inputs, runs tests/type checks/build and a dry run, then deploys. If the owner separately enables Cloudflare Workers Builds, a push to its connected `main` branch can run the configured independent build/deploy commands. The deployment script rejects other Workers Builds branches and still requires both readiness confirmations. Neither path changes the native Site audience. Configure any branch preview command as a dry run, not a public upload.
 
 ## Verify before opening customer traffic
 
