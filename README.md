@@ -5,7 +5,7 @@ Affimaro is an affiliate management product by Highlink. This owner-private pilo
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
-- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project is selected and its live email/confirmation/signup policy is verified. The owner received a recovery code through Resend; signup, application sessions and independent hosting remain pending. Both custom domains and an account-verified `workers.dev` test origin are supported.
+- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project and verified-email policy are selected. The original data/key migration and verified legacy mapping are complete, and the independent host is online for the owner's pilot. Authenticated browser walkthrough and customer sending-domain verification remain pending. Both custom domains and an account-verified `workers.dev` origin are supported.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
@@ -58,7 +58,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 ## Authentication and private access
 
-Sites owns identity for the current owner-private deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts. The separate independent target implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. It is not deployed yet. Follow the [independent-hosting guide](docs/independent-hosting.md) for provider setup, original-data/key migration, explicit legacy identity linking and deployment, or [Cloudflare GitHub setup](docs/cloudflare-github-setup.md) for the direct Git integration fields. Never expose the native Sites Worker outside its own dispatch integration.
+Sites owns identity for the owner-private native deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts and that source is paused for cutover. The independent target at `https://affimaro-com.m-mirkhel20.workers.dev` implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. Original data/key import and verified legacy mapping are complete; the owner's authenticated walkthrough remains pending. Follow the [independent-hosting guide](docs/independent-hosting.md) for the preserved migration record and remaining checks, or [Cloudflare GitHub setup](docs/cloudflare-github-setup.md) for the direct Git integration fields. Never expose the native Sites Worker outside its own dispatch integration.
 
 The Site remains owner-private. Sharing an application link does not grant private-pilot access. A business owner can maintain an affiliate profile but cannot apply to their own program.
 
@@ -117,7 +117,7 @@ The [report guide](docs/reports-guide.md) defines UTC date filters, role/partner
 
 ## Software subscriptions
 
-The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter package, dedicated Affimaro billing configuration, owner-confirmed recurring Checkout, invoice/customer/price verification, optional new-business-action enforcement and Stripe customer portals. Checkout is disabled until its dedicated account/key/Price are configured; no final price or real payment has been supplied. Existing private-pilot access remains available by default. Growth/Business packages remain unimplemented. Sites authentication is preserved; email/password sign-in is implemented only in the separate, not-yet-deployed independent target. This path does not use merchants' affiliate payout credentials.
+The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter package, dedicated Affimaro billing configuration, owner-confirmed recurring Checkout, invoice/customer/price verification, optional new-business-action enforcement and Stripe customer portals. Checkout is disabled until its dedicated account/key/Price are configured; no final price or real payment has been supplied. Existing pilot access remains available by default. Growth/Business packages remain unimplemented. Sites authentication is preserved; email/password sign-in is implemented only in the separate independent target. This path does not use merchants' affiliate payout credentials.
 
 ## Storage
 

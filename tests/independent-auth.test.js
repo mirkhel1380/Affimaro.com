@@ -115,9 +115,21 @@ test('authentication throttles are shared, salted and contain no raw email or IP
 test('provider auto-confirm cannot silently bypass verified-email policy',async t=>{
   const f=await fixture(t);f.state.autoconfirm=true;await assert.rejects(login(f),fails(503));await assert.rejects(f.api.signup({email,password,name:'Owner'},'other-ip'),fails(503));assert.ok(f.state.calls.every(x=>x.path==='/settings'));assert.equal(count(f,'auth_sessions'),0);assert.equal(count(f,'accounts'),0);
 });
+test('HTML sign-in navigation preserves Origin and keeps referrers on the application domain',async t=>{
+  const f=await fixture(t),page=await authPage(request('/auth/login?return_to=%2Fworkspace'),f.api,config.origin);
+  const cookies=cookie(page.headers.getSetCookie()[0]),flow=await f.api.flow(request('/auth/login',cookies));
+  // Fetch's append-a-request-origin-header algorithm sends Origin: null for
+  // non-CORS HTML form navigation under Referrer-Policy: no-referrer.
+  const origin=page.headers.get('referrer-policy')==='no-referrer'?'null':config.origin;
+  const result=await authPage(request('/auth/login',cookies,{method:'POST',headers:{Origin:origin,'Sec-Fetch-Site':'same-origin','Sec-Fetch-Mode':'navigate','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({nonce:flow.nonce,email,password})}),f.api,config.origin);
+  assert.equal(result.status,303,'A same-origin HTML form must reach sign-in with the policy served by its page.');
+  assert.equal(result.headers.get('location'),'/workspace');
+  assert.equal(page.headers.get('referrer-policy'),'same-origin');
+  assert.equal(result.headers.get('referrer-policy'),'same-origin');
+});
 test('forms enforce same-origin CSRF, purpose binding, unique fields, method and size limits',async t=>{
   const f=await fixture(t),next=await f.api.newFlow('login','/workspace'),cookies=cookie(next.cookie);
-  for(const extra of [{headers:{Origin:'https://evil.example'}},{headers:{Origin:config.origin,'sec-fetch-site':'cross-site'}},{nonce:'wrong'},{extra:'unexpected'},{body:'nonce='+next.flow.nonce+'&nonce='+next.flow.nonce},{body:'nonce='+next.flow.nonce+'&password='+'a'.repeat(9000)}]){
+  for(const extra of [{headers:{Origin:'https://evil.example'}},{headers:{Origin:'null'}},{headers:{Origin:config.origin,'sec-fetch-site':'cross-site'}},{nonce:'wrong'},{extra:'unexpected'},{body:'nonce='+next.flow.nonce+'&nonce='+next.flow.nonce},{body:'nonce='+next.flow.nonce+'&password='+'a'.repeat(9000)}]){
     const headers={Origin:config.origin,'Content-Type':'application/x-www-form-urlencoded',...extra.headers},body=extra.body||new URLSearchParams({nonce:extra.nonce||next.flow.nonce,email,password,...(extra.extra?{unknown:extra.extra}:{})});
     const result=await authPage(request('/auth/login',cookies,{method:'POST',headers,body}),f.api,config.origin);assert.ok([400,403,413].includes(result.status));assert.equal(f.state.calls.length,0);
   }

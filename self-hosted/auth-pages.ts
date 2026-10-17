@@ -4,7 +4,9 @@ import {cookieValue,clearAuthCookie,FLOW_COOKIE,SESSION_COOKIE,safeReturnTo,type
 type Auth=ReturnType<typeof emailAuth>;
 const escape=(value:string)=>value.replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]!));
 const commonHeaders={
-  'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',
+  // HTML POST navigation needs its real Origin for CSRF validation. Keep
+  // referrers on this domain; no-referrer would turn that Origin into null.
+  'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'same-origin','X-Content-Type-Options':'nosniff',
   'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   'Strict-Transport-Security':'max-age=31536000',
 };
