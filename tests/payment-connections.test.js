@@ -16,7 +16,7 @@ async function fixture(t){
   const workspace=await owner.workspace();
   const state={calls:[],error:null,hook:null,account:{object:'account',id:'acct_FIXTURE123456',country:'US',default_currency:'usd',payouts_enabled:false,business_profile:{name:'Example Business'},email:'private-owner@example.com',external_accounts:{data:[{account_number:'123456789'}]}},balance:{object:'balance',livemode:false,available:[{currency:'usd',amount:123456}]},profiles:[{id:13579,type:'PERSONAL',firstName:'Sensitive Person',dateOfBirth:'1990-01-01'},{id:24680,type:'BUSINESS',businessName:'Example Wise Ltd',address:{countryIso2Code:'GB',addressFirstLine:'Sensitive address'},currentState:'VISIBLE'}]};
   const fetcher=async(url,init)=>{
-    state.calls.push({url,init});assert.equal(init.method,'GET');assert.equal(init.redirect,'error');assert.ok(init.signal instanceof AbortSignal);assert.ok(!init.body);assert.ok(!url.includes(secret));assert.ok(!url.includes(wiseSecret));
+    state.calls.push({url,init});assert.equal(init.method,'GET');assert.equal(init.redirect,'manual');assert.ok(init.signal instanceof AbortSignal);assert.ok(!init.body);assert.ok(!url.includes(secret));assert.ok(!url.includes(wiseSecret));
     if(state.hook)await state.hook(url,init);
     if(state.error)return state.error(url,init);
     if(url==='https://api.stripe.com/v1/account')return data(state.account);

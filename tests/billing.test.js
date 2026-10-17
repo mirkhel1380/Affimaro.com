@@ -14,7 +14,7 @@ async function fixture(t,{mode='live',required=false}={}){
   state.price={object:'price',id:config.priceId,active:true,livemode:mode==='live',currency:'usd',type:'recurring',billing_scheme:'per_unit',unit_amount:1900,custom_unit_amount:null,transform_quantity:null,recurring:{interval:'month',interval_count:1,usage_type:'licensed'}};
   const fetcher=async(url,init)=>{
     const u=new URL(url),body=new URLSearchParams(init.body||''),call={url:u,path:u.pathname,body,headers:init.headers,method:init.method};state.calls.push(call);
-    assert.equal(u.origin,'https://api.stripe.com');assert.equal(init.redirect,'error');assert.equal(init.headers['Stripe-Version'],'2026-09-30.endive');assert.ok(!url.includes('FIXTUREBILLINGKEY'));
+    assert.equal(u.origin,'https://api.stripe.com');assert.equal(init.redirect,'manual');assert.equal(init.headers['Stripe-Version'],'2026-09-30.endive');assert.ok(!url.includes('FIXTUREBILLINGKEY'));
     if(state.fault){const response=await state.fault(call);if(response)return response;}
     let result;
     if(u.pathname==='/v1/account')result={object:'account',id:config.platformId};

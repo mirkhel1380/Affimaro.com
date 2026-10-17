@@ -13,7 +13,7 @@ async function fixture(t){
   const program=(await owner.businessDashboard()).program,application=await partner.apply({programId:program.id});await owner.review({applicationId:application.id,status:'approved'});
   const state={calls:[],fault:null,hook:null,lostCreation:false,creations:0,platform:{object:'account',id:'acct_PLATFORM12345',country:'US',default_currency:'usd',payouts_enabled:true,business_profile:{name:'Example Business'}},live:false,accounts:new Map(),idempotent:new Map(),link:'https://connect.stripe.com/setup/s/FIXTURE/ONETIME',lastMetadata:null};
   const fetcher=async(url,init)=>{
-    const path=new URL(url).pathname;assert.equal(new URL(url).origin,'https://api.stripe.com');assert.equal(init.redirect,'error');assert.equal(init.headers['Stripe-Version'],STRIPE_VERSION);assert.ok(init.signal instanceof AbortSignal);assert.ok(!url.includes(secret));
+    const path=new URL(url).pathname;assert.equal(new URL(url).origin,'https://api.stripe.com');assert.equal(init.redirect,'manual');assert.equal(init.headers['Stripe-Version'],STRIPE_VERSION);assert.ok(init.signal instanceof AbortSignal);assert.ok(!url.includes(secret));
     const params=new URLSearchParams(init.body||''),call={path,method:init.method,headers:init.headers,params};state.calls.push(call);
     if(state.hook)await state.hook(call);
     if(state.fault){const response=await state.fault(call);if(response)return response;}

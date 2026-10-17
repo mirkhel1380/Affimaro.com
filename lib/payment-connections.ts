@@ -24,7 +24,7 @@ async function readProvider(fetcher:Fetcher,url:string,secret:string,stripe=fals
   const allowed=['https://api.stripe.com/v1/account','https://api.stripe.com/v1/balance',`https://api.wise.com/${WISE_VERSION}/profiles`,`https://api.wise-sandbox.com/${WISE_VERSION}/profiles`];
   if(!allowed.includes(url))throw new AppError(500,'Unsupported provider endpoint.');
   let response:Response;
-  try{response=await fetcher(url,{method:'GET',redirect:'error',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${secret}`,Accept:'application/json',...(stripe?{'Stripe-Version':STRIPE_VERSION}:{'X-External-Correlation-Id':crypto.randomUUID()})}});}
+  try{response=await fetcher(url,{method:'GET',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${secret}`,Accept:'application/json',...(stripe?{'Stripe-Version':STRIPE_VERSION}:{'X-External-Correlation-Id':crypto.randomUUID()})}});}
   catch{throw new AppError(502,'The provider could not be reached. Check access and try again.');}
   if(!response.ok){await response.body?.cancel();if([401,403].includes(response.status))throw new AppError(409,'The provider did not authorize account access. Check the credential, its read permissions and the selected environment.');if(response.status===429)throw new AppError(429,'The provider is rate limiting requests. Wait a moment before checking again.');throw new AppError(502,'The provider could not complete the account check. Try again later.');}
   const reader=response.body?.getReader();if(!reader)throw new AppError(502,'The provider returned an empty account response.');const chunks:Uint8Array[]=[];let size=0;

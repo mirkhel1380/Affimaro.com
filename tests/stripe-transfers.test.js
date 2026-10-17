@@ -21,7 +21,7 @@ async function fixture(t,{testMode=false}={}){
   f.referral=await event(f,{kind:'referral',applicationId:application.id});f.createdAt=new Date().toISOString();await sale(f);await approve(f);await f.partner.saveBank(bank);
   const state={calls:[],available:100000,live:!testMode,account:null,transfers:new Map(),byKey:new Map(),created:0,fault:null,afterTransfer:null,mutateResponse:null,loseAfter:false,loseBefore:false,insufficient:false,platform:'acct_PLATFORMTRANSFER12345'};
   const fetcher=async(url,init)=>{
-    const u=new URL(url),path=u.pathname,params=new URLSearchParams(init.body||'');assert.equal(u.origin,'https://api.stripe.com');assert.equal(init.redirect,'error');assert.ok(!url.includes('FIXTUREKEY'));const call={path,params,method:init.method,headers:init.headers,url:u};state.calls.push(call);
+    const u=new URL(url),path=u.pathname,params=new URLSearchParams(init.body||'');assert.equal(u.origin,'https://api.stripe.com');assert.equal(init.redirect,'manual');assert.ok(!url.includes('FIXTUREKEY'));const call={path,params,method:init.method,headers:init.headers,url:u};state.calls.push(call);
     if(state.fault){const response=await state.fault(call);if(response)return response;}
     if(path==='/v1/account')return Response.json({object:'account',id:state.platform,country:'US',default_currency:'usd',payouts_enabled:true,business_profile:{name:'Example Business'}});
     if(path==='/v1/balance')return Response.json({object:'balance',livemode:state.live,available:[{currency:'usd',amount:state.available}]});

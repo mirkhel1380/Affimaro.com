@@ -17,7 +17,7 @@ async function fixture(t){
   const response=()=>({access_token:'FIXTURE_ACCESS_TOKEN_'+state.generation+'x'.repeat(40),refresh_token:'FIXTURE_REFRESH_TOKEN_'+state.generation,expires_in:state.expires,token_type:'bearer',user:structuredClone(state.user)});
   const fetcher=async(url,init)=>{
     const path=url.slice(config.supabaseUrl.length+'/auth/v1'.length),body=init.body?JSON.parse(init.body):null;state.calls.push({path,method:init.method,headers:init.headers,body});
-    assert.ok(url.startsWith(config.supabaseUrl+'/auth/v1/'));assert.equal(init.redirect,'error');assert.equal(init.headers.apikey,config.publishableKey);assert.ok(init.signal);
+    assert.ok(url.startsWith(config.supabaseUrl+'/auth/v1/'));assert.equal(init.redirect,'manual');assert.equal(init.headers.apikey,config.publishableKey);assert.ok(init.signal);
     if(state.outage)return new Response('PRIVATE_PROVIDER_ERROR',{status:503});
     if(path==='/settings')return Response.json({external:{email:true},disable_signup:false,mailer_autoconfirm:state.autoconfirm||false});
     if(path==='/user'&&init.method==='GET'){if(state.revoked)return new Response('PRIVATE_ACCESS_TOKEN',{status:401});return Response.json(state.mutate?state.mutate(structuredClone(state.user),'user'):state.user);}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {database} from './support/db.js';
 import {service} from '../lib/service.ts';
-import {nativeEmailConfirmation,nativeConfirmationAccount} from '../self-hosted/native-email-confirmation.ts';
+import {nativeEmailConfirmation,nativeConfirmationAccount,nativeConfirmationStatus} from '../self-hosted/native-email-confirmation.ts';
 
 const owner={userId:'legacy-native-owner',email:'owner@example.com'},uid='11111111-1111-4111-8111-111111111111';
 const provider={supabaseUrl:'https://fixture-project.supabase.co',publishableKey:'sb_publishable_FIXTURE_KEY_123456789012'};
@@ -15,7 +15,7 @@ async function fixture(t){
   const state={calls:[],policy:{mailer_autoconfirm:false,external:{email:true}},user:{id:uid,email:owner.email,email_confirmed_at:new Date().toISOString()},change:null};
   const fetcher=async(url,init)=>{
     const path=url.replace(provider.supabaseUrl+'/auth/v1',''),body=init.body?JSON.parse(init.body):undefined;state.calls.push({path,init,body});
-    assert.equal(init.redirect,'error');assert.equal(init.headers.apikey,provider.publishableKey);
+    assert.equal(init.redirect,'manual');assert.equal(init.headers.apikey,provider.publishableKey);
     if(state.change){const changed=state.change(path,init);if(changed)return changed;}
     if(path==='/settings'){assert.equal(init.method,'GET');return Response.json(state.policy);}
     if(path==='/resend'){assert.equal(init.method,'POST');assert.deepEqual(body,{type:'signup',email:owner.email});return Response.json({});}
@@ -27,6 +27,16 @@ async function fixture(t){
   return {db,state,options:{native:true,db,user:owner,provider,fetcher}};
 }
 const count=(db,table)=>db.sqlite.prepare(`SELECT count(*) n FROM ${table}`).get().n;
+
+test('native connection status reads only provider policy without emails, identity or account writes',async t=>{
+  const f=await fixture(t);
+  assert.equal((await nativeConfirmationStatus({...f.options,native:false})).status,404);assert.equal(f.state.calls.length,0);
+  const response=await nativeConfirmationStatus(f.options);assert.deepEqual(await response.json(),{ok:true});assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+  assert.deepEqual(f.state.calls.map(x=>x.path),['/settings']);assert.equal(count(f.db,'auth_rate_limits'),0);assert.equal(count(f.db,'accounts'),1);
+  for(const change of [()=>new Response(null,{status:302,headers:{Location:'https://foreign.example'}}),()=>Response.json({mailer_autoconfirm:true,external:{email:true}}),()=>{throw new Error('PRIVATE_NETWORK_DETAIL');}]){
+    f.state.change=change;const result=await nativeConfirmationStatus(f.options);assert.equal(result.status,503);assert.deepEqual(await result.json(),{ok:false});
+  }
+});
 
 test('setup email verification is native-only and tied to the existing authenticated account email',async t=>{
   const f=await fixture(t);assert.equal((await nativeConfirmationAccount(true,f.db,owner)).email,owner.email);
@@ -85,6 +95,14 @@ test('network failures do not leak request details, and local revocation failure
   const denied=await nativeEmailConfirmation(request(),f.options);assert.equal(denied.status,503);assert.ok(!(await denied.text()).includes('PRIVATE_NETWORK_DETAIL'));
   f.state.change=path=>{if(path==='/logout?scope=local')throw new Error('PRIVATE_NETWORK_DETAIL');return null;};
   assert.deepEqual(await (await nativeEmailConfirmation(request(),f.options)).json(),{ok:true,confirmed:true});
+});
+test('provider redirects stop verification or resend without forwarding or repeating requests',async t=>{
+  for(const [action,path] of [['send','/settings'],['send','/resend'],['verify','/verify'],['verify','/user']]){
+    const f=await fixture(t);f.state.change=p=>p===path?new Response(null,{status:307,headers:{Location:'https://foreign.example/collect'}}):null;
+    const response=await nativeEmailConfirmation(request(action==='send'?{action}:{action,code:'123456'}),f.options);
+    assert.equal(response.status,503);assert.equal(f.state.calls.filter(x=>x.path===path).length,1);
+    assert.ok(!f.state.calls.some(x=>x.path.includes('foreign.example')));assert.equal(count(f.db,'auth_sessions'),0);
+  }
 });
 test('shared limits cap resends and verification attempts across handler calls',async t=>{
   const f=await fixture(t);for(let i=0;i<4;i++)assert.equal((await nativeEmailConfirmation(request({action:'send'}),f.options)).status,200);
