@@ -1,12 +1,13 @@
 import {spawnSync} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
-import {deploymentSettings,verifiedEmailSettings,verifiedWorkersOrigin,verifyBuiltDeployment,deploymentAuthorization} from '../self-hosted/preflight.mjs';
+import {deploymentSettings,verifiedEmailSettings,verifiedWorkersOrigin,verifiedD1Database,verifyBuiltDeployment,deploymentAuthorization} from '../self-hosted/preflight.mjs';
 try{
   const settings=deploymentSettings(process.env),mode=process.argv[2]||'--check';
   if(!['--check','--dry-run','--deploy'].includes(mode))throw new Error('Choose --check, --dry-run or --deploy.');
   await verifiedEmailSettings(settings,settings.publishableKey);
   await verifiedWorkersOrigin(settings,process.env.CLOUDFLARE_API_TOKEN);
-  if(mode==='--check'){console.log('Independent deployment settings passed validation. No changes made.');process.exit(0);}
+  await verifiedD1Database(settings,process.env.CLOUDFLARE_API_TOKEN);
+  if(mode==='--check'){console.log('Independent deployment settings passed validation. No changes made.');console.log('Email policy, account subdomain and selected D1 database checked. No site published or data migrated.');process.exit(0);}
   const path='dist-self-hosted/server/wrangler.json',config=JSON.parse(await readFile(path,'utf8'));
   verifyBuiltDeployment(config,settings);
   const run=(args,input)=>{const result=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js',...args,'--config',path],{stdio:input?['pipe','inherit','inherit']:'inherit',input,env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_WRITE_LOGS:'false'}});if(result.status!==0)throw new Error('Cloudflare command did not complete. Review its result before retrying.');};

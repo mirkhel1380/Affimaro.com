@@ -75,7 +75,7 @@ The current native Site is **not** paused and none of these export/import steps 
 
 ## Publish the independent target
 
-`npm run deploy:self-hosted -- --check` validates settings and the provider's verified-email policy without changing resources. Then run `npm run build:self-hosted` and `npm run deploy:self-hosted -- --dry-run`. Configuration must match the exact built package.
+`npm run deploy:self-hosted -- --check` validates settings, the provider's verified-email policy, the selected account's workers.dev subdomain and read access to the exact selected D1 database UUID without changing resources. It does not prove D1 write permission, inspect application rows or complete migration. Then run `npm run build:self-hosted` and `npm run deploy:self-hosted -- --dry-run`. Configuration must match the exact built package. If the custom user API token is absent from the Worker build-token selector, use the build Secret and explicit command in [Cloudflare GitHub setup](cloudflare-github-setup.md#owner-setup-custom-token-and-connection-checks).
 
 Once data, original keys and identity mappings are ready, and email delivery/templates have been tested, set `AFFIMARO_DATA_MIGRATION_CONFIRMED=true` and `AFFIMARO_AUTH_CONFIGURATION_CONFIRMED=true` in the deployment process. `npm run deploy:self-hosted -- --deploy` applies append-only migrations, uploads runtime secrets through stdin and deploys the independent package. Do not populate these confirmations until their checks are actually complete. A missing setting or confirmation stops deployment.
 

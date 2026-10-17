@@ -16,6 +16,28 @@ Connect the existing private repository `mirkhel1380/Affimaro.com` through **Con
 
 The build runs the automated checks, TypeScript and isolated independent build. The deploy command checks the selected provider policy, actual Cloudflare account subdomain, exact built configuration and both readiness confirmations before changing resources. Disable non-production branch builds for now. A preview dry run does not publish a preview URL.
 
+### Owner setup: custom token and connection checks
+
+On 2026-10-17, the existing build token's D1 Edit option was disabled in the owner's dashboard. Creating a user token named **Affimaro Deploy** allowed Account / D1 / Edit, with Account / Workers Scripts / Edit and Account / Account Settings / Read. That ordinary user token did not appear in the Worker build-token selector. An ordinary API token is not automatically registered as a Builds token.
+
+Keep its actual secret value in the **Builds** section's **Variables and secrets**, type **Secret**, name `AFFIMARO_DEPLOY_TOKEN`. This is the generated API token, not its label or the longer curl test command. To supply it to the existing deployment helper, use this deploy command:
+
+```sh
+CLOUDFLARE_API_TOKEN="$AFFIMARO_DEPLOY_TOKEN" npm run deploy:self-hosted -- --deploy
+```
+
+Before migration, temporarily use this read-only connection-check command instead:
+
+```sh
+CLOUDFLARE_API_TOKEN="$AFFIMARO_DEPLOY_TOKEN" npm run deploy:self-hosted -- --check
+```
+
+It validates the authentication-key format, confirmed-email policy, account workers.dev subdomain and access to the exact selected D1 database. Only the database UUID is requested; no SQL, schema changes, secret uploads or deployment occurs. A successful check does not prove D1 write permissions, an empty target, data/key migration or legacy identity mapping. Preserve those checks in the migration procedure before restoring `--deploy`.
+
+The owner also corrected `AUTH_SESSION_ENCRYPTION_KEY` after the PowerShell command itself had been pasted into Value. Run key generation in PowerShell, then paste its generated 64-character lowercase hexadecimal result into that build Secret. Never replace the original `PAYMENT_DATA_KEY_V1`.
+
+The 16:47 owner build passed compilation and reached the expected **Complete the documented database/key migration and identity mapping before deployment** gate. This confirms that the key-format and provider/subdomain checks in that version passed; migration and mapping remain outstanding. The log still used the original deploy command, so the custom-token override and new D1 metadata check have not been verified live.
+
 The ordinary `npm run build` and `dist/server/wrangler.json` belong to the owner-private native Site. The ordinary build now stops immediately when `WORKERS_CI=1`, with the correct independent commands in the error. The independent package is `dist-self-hosted/server/wrangler.json`; its entry strips spoofed native identity headers and requires the independent verified session. Use the commands above rather than an automatically inferred framework deployment.
 
 ## Account identified during owner setup
