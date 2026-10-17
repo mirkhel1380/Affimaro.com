@@ -1,6 +1,6 @@
 # Independent hosting and email sign-in
 
-Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared, and the owner-created Supabase project is selected for the independent build. See the [verified project status](supabase-setup-status.md). The owner has received a recovery code through Resend; application sign-in, customer sending-domain verification, independent hosting and production cutover remain pending. A `workers.dev` address can be used for the initial hosting test before buying a domain.
+Affimaro has two deployment targets. The existing owner-private ChatGPT Site retains Sites authentication. The independent target uses Cloudflare Workers/D1 and Supabase Auth. Its source and deployment workflow are prepared, and the owner-created Supabase project is selected for the independent build. See the [verified project status](supabase-setup-status.md). The owner completed signup-email code verification through the private setup page on 2026-10-17; application sign-in, customer sending-domain verification, independent hosting and production cutover remain pending. A `workers.dev` address can be used for the initial hosting test before buying a domain.
 
 ## Boundaries
 
@@ -25,7 +25,7 @@ Passwords are 12–128 characters for signup/reset. Login accepts an existing pa
 
 ### Confirm the setup email before the independent host exists
 
-The owner-private native Site provides `/setup/confirm-email`. Open it with the existing ChatGPT account, choose **ارسال کود تازه** to explicitly request a signup-confirmation resend, and enter the latest code. This avoids requiring a working independent host just to confirm the provider email. Resend still uses the configured SMTP sender and its delivery restrictions.
+The owner-private native Site provides `/setup/confirm-email`. Open it with the existing ChatGPT account, choose **Send a new code** to explicitly request a signup-confirmation resend, and enter the latest code. This avoids requiring a working independent host just to confirm the provider email. Resend still uses the configured SMTP sender and its delivery restrictions.
 
 The server requires a native authenticated identity whose stable ID and email match an existing D1 account. It selects the Supabase project from source, accepts no client-selected email, checks the verified-email policy, and sends the code directly to Supabase. Requests require the exact Origin and JSON, have bounded bodies/responses and shared resend/attempt limits. Provider credentials never reach the browser or become app sessions; the temporary verification session is signed out with local scope on a best-effort basis. The route is unavailable in the independent build. Merely opening the page sends no email.
 
