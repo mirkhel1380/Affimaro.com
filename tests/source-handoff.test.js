@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {migrationMaintenance} from '../self-hosted/migration.ts';
-import {handoffLandingLinks} from '../lib/landing.ts';
+import {handoffLandingLinks,marketingPage,pricingPage} from '../lib/landing.ts';
 
 const source='https://affimaro-preview.kindsky66.chatgpt.site',target='https://independent.example',paused={AFFIMARO_MIGRATION_MAINTENANCE:'true'};
 test('paused native browser pages go to the completed host while keeping the exact application path',()=>{
@@ -24,13 +24,15 @@ test('an accidental pause on the independent host stays blocked and invalid or s
     const response=migrationMaintenance(request,paused,destination);assert.equal(response.status,503);assert.equal(response.headers.get('location'),null);
   }
 });
-test('every package action in the native landing page opens the active host at top level',async()=>{
-  const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8'),html=handoffLandingLinks(landing,target);
+test('every package action on the separate pricing page opens the active host from the native preview',async()=>{
+  const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8'),section=await readFile(new URL('../content/pricing-section.html',import.meta.url),'utf8');
+  const page=pricingPage(landing,section),html=marketingPage(page,false,target);
   const packages=[...html.matchAll(/<a\b[^>]*href="([^"]+\/billing)"[^>]*>/g)];assert.equal(packages.length,3);
   for(const [tag,href] of packages){assert.equal(href,target+'/billing');assert.match(tag,/target="_top"/);}
-  assert.ok(html.includes('href="#plans"'));assert.ok(html.includes('href="#/demo/affiliate/overview"'));
+  assert.ok(html.includes('href="/pricing" aria-current="page"'));assert.ok(html.includes('href="/#/demo/affiliate/overview"'));
   for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(account|billing|start|install)([/?#]|$)/.test(href));
-  assert.ok(landing.includes('href="/billing"'));assert.ok(!landing.includes(target));
+  const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/billing"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
+  assert.ok(!landing.includes('id="plans"'));assert.ok(!landing.includes('href="#plans"'));
 });
 test('native landing handoff preserves public/demo links, replaces an existing target once and supports a future selected domain',()=>{
   const html='<a href="/billing" target="_self">Plans</a><a href="/start?view=affiliate">Guide</a><a href="/downloads/guide.md">Download</a><a href="/#/demo/merchant/overview">Demo</a><a href="https://external.example/billing">External</a>';

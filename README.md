@@ -34,6 +34,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 ## Routes
 
 - `/`: marketing website; `/#/demo/merchant/overview` opens the sample dashboard.
+- `/pricing`: public package features, reached from Pricing in the header. The home page has no pricing section; the install link sits in the lower-right corner.
 - `/account`: create/edit a profile and choose a workspace.
 - `/install`: install the independent web app from a supported browser.
 - `/start`: private setup progress for businesses; `?view=affiliate` selects the affiliate guide.
