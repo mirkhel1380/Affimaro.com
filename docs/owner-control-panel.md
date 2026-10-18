@@ -2,6 +2,8 @@
 
 The established Affimaro owner signs in at `/auth/owner/login` and manages the service at `/owner`. This uses the existing verified provider identity, original account ID, `platform_admins` grant and central D1 database. No replacement owner, database, workspace, payment key or migration import is created.
 
+The public footer includes **Owner sign in**, a direct link to `/auth/owner/login` that works from another browser or device. The native preview forwards this link to the independent host; the independent website keeps it on its own domain. This is only a sign-in entry, not access to owner tools.
+
 The owner entry does not offer public registration. Its sealed login/recovery flows are distinct from the four customer flows. A verified provider identity must already map to an account with a stored owner grant before an owner session is issued. Email, display name, user metadata, a submitted role and URL parameters never grant owner access. Every owner page and data operation checks the stored grant again. Removing the grant removes access even from an existing session.
 
 The control panel contains:

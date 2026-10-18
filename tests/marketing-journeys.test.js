@@ -6,7 +6,7 @@ import {marketingPages,renderMarketingDocument} from '../lib/marketing-content.m
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const sprite=read('content/icon-sprite.html');
-const privatePaths=new Set(['/account','/workspace','/partner','/billing','/install','/pricing','/demo/brands','/demo/affiliates']);
+const privatePaths=new Set(['/account','/workspace','/partner','/billing','/install','/pricing','/demo/brands','/demo/affiliates','/auth/owner/login']);
 test('public journeys have real destinations, valid fragment targets and no missing downloads',()=>{
   for(const path of Object.keys(marketingPages)){
     const html=renderMarketingDocument(path,sprite),ids=[...html.matchAll(/\sid="([^"]+)"/g)].map(m=>m[1]);
@@ -29,6 +29,7 @@ test('home publishes the current authored pages, with separate portal entry and 
   const html=renderMarketingDocument('/',sprite),header=html.match(/<header class="site-header"[\s\S]*?<\/header>/)[0];
   assert.equal(read('public/demo/index.html'),html);
   for(const path of ['/platform','/brands','/affiliates','/resources','/pricing'])assert.ok(header.includes('href="'+path+'"'));
+  assert.ok(!header.includes('/auth/owner/login'));assert.match(html,/<footer [\s\S]*?href="\/auth\/owner\/login">Owner sign in<\/a>/);
   assert.ok(!header.includes('/install'));assert.match(html,/<a class="corner-install" href="\/install"/);
   assert.ok(!/<section[^>]*(?:id="pricing"|class="plans-section)/.test(html));
   assert.match(html,/href="\/auth\/brand\/signup"/);assert.match(html,/href="\/auth\/affiliate\/signup"/);

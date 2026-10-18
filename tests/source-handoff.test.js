@@ -32,6 +32,7 @@ test('every package action on the separate pricing page opens the active host fr
   assert.ok(html.includes('href="/pricing" aria-current="page"'));
   for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));
   const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/get-started?plan=growth"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
+  assert.ok(html.includes('href="'+target+'/auth/owner/login" target="_top">Owner sign in</a>'));assert.ok(independent.includes('href="/auth/owner/login">Owner sign in</a>'));
   assert.ok(!landing.includes('id="plans"'));assert.ok(!landing.includes('href="#plans"'));
 });
 test('native landing handoff preserves public/demo links, replaces an existing target once and supports a future selected domain',()=>{
