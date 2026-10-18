@@ -140,6 +140,29 @@ test('customer portal uses only a verified saved customer and rejects unexpected
   for(const value of ['http://billing.stripe.com/p/a','https://billing.stripe.com.evil.example/p/a','https://user:pass@billing.stripe.com/p/a','https://billing.stripe.com:444/p/a','https://billing.stripe.com/other'])assert.throws(()=>billingRedirect(value,'portal'),fails(502));
 });
 
+test('billing links accept both Stripe-hosted Checkout routes and preserve the complete provider URL',()=>{
+  for(const path of ['/c/pay/cs_live_FIXTURESESSION123','/g/pay/cs_live_FIXTURESESSION123']){
+    const url='https://checkout.stripe.com'+path+'?locale=en#FIXTURE_CHECKOUT_FRAGMENT';
+    assert.equal(billingRedirect(url,'checkout'),url);
+  }
+  for(const value of ['http://checkout.stripe.com/g/pay/session','https://checkout.stripe.com.evil.example/g/pay/session','https://user:pass@checkout.stripe.com/g/pay/session','https://checkout.stripe.com:444/g/pay/session','https://checkout.stripe.com/g/other/session','https://checkout.stripe.com/g/pay','https://checkout.stripe.com/g/pay/../other','https://billing.stripe.com/g/pay/session'])assert.throws(()=>billingRedirect(value,'checkout'),fails(502));
+});
+
+test('a saved uncertain checkout resumes through Stripe g/pay using the original attempt and idempotency payload',async t=>{
+  const f=await fixture(t);
+  f.state.mutate=raw=>raw.object==='checkout.session'?{...raw,url:raw.url?.replace('/c/pay/','/g/pay/')}:raw;
+  f.state.lose=true;await assert.rejects(start(f),fails(502));
+  const first=checkout(f),payload=posts(f)[0].body.toString(),idempotency=posts(f)[0].headers['Idempotency-Key'];
+  assert.equal(first.state,'review');assert.equal(first.session_id,null);
+  const resumed=await start(f);
+  assert.equal(resumed.outcome,'checkout');assert.match(resumed.url,/^https:\/\/checkout\.stripe\.com\/g\/pay\//);
+  assert.equal(checkout(f).id,first.id);assert.equal(checkout(f).state,'open');assert.equal(f.state.created,1);
+  assert.equal(posts(f).length,2);assert.equal(posts(f)[1].headers['Idempotency-Key'],idempotency);assert.equal(posts(f)[1].body.toString(),payload);
+  assert.ok(!JSON.stringify(await f.api.dashboard()).includes('PRIVATE_CHECKOUT_SECRET'));
+  assert.equal(account(f).subscription_id,null);assert.equal((await f.api.dashboard()).entitled,false);
+  assert.equal((await start(f)).url,resumed.url);assert.equal(posts(f).length,2);assert.equal(f.state.created,1);
+});
+
 test('agency billing management returns to the agency portal while checkout retries retain their original payload',async t=>{
  const f=await fixture(t);f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner','agency',new Date().toISOString());f.config.origin='https://affimaro.example';
  f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();await start(f);assert.equal(posts(f)[1].body.toString(),first);

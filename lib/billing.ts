@@ -32,7 +32,8 @@ export function starterEntitled(row:BillingAccount|null,clock=Date.now()){
 export function billingConfigured(config:BillingConfig){return !!config.secret&&accountId.safeParse(config.platformId).success&&priceId.safeParse(config.priceId).success&&new RegExp(`^(?:sk|rk)_${config.mode}_[A-Za-z0-9]{12,240}$`).test(config.secret)&&(config.mode==='test'||config.liveEnabled);}
 export function billingRedirect(value:string,kind:'checkout'|'portal'){
   let url:URL;try{url=new URL(value);}catch{throw new AppError(502,'Stripe returned an invalid billing link.');}
-  if(url.protocol!=='https:'||url.hostname!==(kind==='checkout'?'checkout.stripe.com':'billing.stripe.com')||url.port||url.username||url.password||!url.pathname.startsWith(kind==='checkout'?'/c/':'/p/'))throw new AppError(502,'Stripe returned an unsupported billing link.');return url.href;
+  const allowedPath=kind==='checkout'?(url.pathname.startsWith('/c/')||url.pathname.startsWith('/g/pay/')):url.pathname.startsWith('/p/');
+  if(url.protocol!=='https:'||url.hostname!==(kind==='checkout'?'checkout.stripe.com':'billing.stripe.com')||url.port||url.username||url.password||!allowedPath)throw new AppError(502,'Stripe returned an unsupported billing link.');return url.href;
 }
 async function api(fetcher:Fetcher,config:BillingConfig,path:string,body?:URLSearchParams,idem?:string){
   const url=new URL('https://api.stripe.com'+path);
