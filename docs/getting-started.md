@@ -1,6 +1,12 @@
 # Getting started
 
-`/start` is the authenticated business setup guide; `/start?view=affiliate` shows the affiliate guide. Both use the current server-verified identity and preserve the selected guide when sign-in is required. Account, workspace and billing pages link to the guide. The public website explains where to begin and distinguishes current Starter features from planned packages.
+`/start` is the authenticated brand setup guide; `/start?view=affiliate` is the affiliate guide. The server determines which guide the account can open from its saved primary role. An opposite-role link returns to the account's own guide. Account and matching dashboard pages link to it. The public website explains where to begin and distinguishes current Starter features from planned packages.
+
+## Separate accounts and registration
+
+`/get-started` offers separate brand and affiliate registration. `/auth/brand/signup` collects a business name, while `/auth/affiliate/signup` collects the affiliate's main channel. The role and minimal setup details are bound in the encrypted verification flow; the password is never retained there. After provider-verified email confirmation, only the corresponding business workspace or affiliate profile is created. Neither signup applies to a program, opens a subscription nor configures a payment destination.
+
+`/login` offers separate sign-in pages. A brand account cannot sign in to the affiliate portal, and an affiliate account cannot sign in to the brand portal. Use a separate email/account for the other role. Existing legacy records keep their original identifiers; an account that already owns a business remains a brand account. Its historical affiliate record is preserved without providing a role switch. Unassigned legacy accounts can use the signed-in setup links to establish one primary role. Authenticated pages and APIs enforce this separation on the server.
 
 The guide reads existing records only. It does not create profiles, workspaces, applications, subscriptions, provider connections, orders or payments. Each step links to the existing form or dashboard responsible for that action. Progress is recalculated on each visit; no local checklist or manually persisted completion flag is used.
 
@@ -8,11 +14,21 @@ The guide reads existing records only. It does not create profiles, workspaces, 
 
 The six steps cover the account profile, workspace, reviewed/active program, active/verified store, first approved affiliate and first received attributed order. A new workspace's default rules are not considered reviewed until the owner saves program settings. Pausing a program or connection returns its current setup step to incomplete. An old received order remains a historical milestone and never proves commission approval, refund verification or payment settlement.
 
-A saved store URL or generated signing key does not count as a verified connection. WooCommerce needs a signed delivery; Shopify verification follows its existing connected-account state. Neither verification alone proves that any order has arrived. Shopify orders still require dashboard sync. The invitation card copies the owner's current program application path using the current host.
+A saved store URL or generated signing key does not count as a verified connection. WooCommerce and custom websites need a signed delivery; Shopify verification follows its existing connected-account state. Neither verification alone proves that any order has arrived. Shopify orders still require dashboard sync. The invitation card copies the owner's current program application path using the current host.
 
 ## Affiliate progress
 
 The five steps cover the account profile, affiliate profile, a submitted application, an available approved referral link and a received referred order. Pending applications and approved programs without an eligible store display “Awaiting business.” Referral-link eligibility matches the existing portal: approved application, active program and active connection with a verification timestamp. Pausing/suspending any of these removes current referral readiness without erasing application/order history. Business subscriptions and business workspaces are not prerequisites for affiliate access.
+
+## Program invitation journey
+
+An authenticated `/join/[programId]` keeps a new partner's account, affiliate-profile form and application review on the same invitation path. It shows three steps: account, affiliate profile and sending an application. Saving or editing a profile returns to that invitation without applying. The partner separately chooses **Apply to this program**, with a disclosure of the profile fields shared with the business. No business workspace, subscription, email invitation or payment is created by this journey. A submitted request completes the application steps, rather than guaranteeing approval or earnings.
+
+Owners see their sharing link and cannot apply to themselves. Other brand accounts also cannot apply to a program; they see guidance to use a separate affiliate account. A paused program offers no new setup/application form. Existing pending, declined, suspended or approved applications retain their current status and never silently reapply. Approved partners can copy their referral link directly from the invitation, using the same format and eligibility as the affiliate portal for WooCommerce, Shopify and custom websites. Pausing a program/connection, clearing verification or suspending approval removes current referral availability.
+
+Profile form and Apply errors offer a sign-in link back through the invitation if the session expires. The existing protected route and same-origin API checks remain in place. Invitation loading reads only program details and the current applicant's own profile/status; approved-link lookup selects public store metadata with explicit current-user and eligibility filters. It never reads signing keys, payment credentials, bank destinations, orders or subscription records, and executes no writes. No schema or runtime-secret change is required.
+
+Isolated SQL and real component-rendering tests cover account → profile → explicit application, owner/tenant isolation, duplicate requests, pauses, decisions, link parity across all three platforms, safe text escaping and read-only loading. A real authenticated browser walkthrough remains a separate device check.
 
 ## Access and verification
 

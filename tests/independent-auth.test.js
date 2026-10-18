@@ -6,6 +6,7 @@ import {openAuth,sealAuth} from '../self-hosted/auth-seal.ts';
 import {authPage} from '../self-hosted/auth-pages.ts';
 import {independentFetch,verifiedRequest} from '../self-hosted/bridge.ts';
 import {AppError,service} from '../lib/service.ts';
+import {accountPortal} from '../lib/portal-policy.ts';
 
 const config={origin:'https://affimaro.example',supabaseUrl:'https://project-fixture.supabase.co',publishableKey:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',encryptionKey:'df'.repeat(32)};
 const uid='11111111-1111-4111-8111-111111111111',otherUid='22222222-2222-4222-8222-222222222222';
@@ -184,4 +185,43 @@ test('getting-started routes resolve the verified session and cannot be cached o
   const anonymous=await independentFetch(request('/start','',{headers:{'oai-authenticated-user-id':'victim'}}),env,app,f.fetcher);
   assert.equal((await anonymous.json()).id,null);assert.equal(anonymous.headers.get('cache-control'),'private, no-store');
   f.state.revoked=true;const revoked=await independentFetch(request('/start',cookie(signed.cookie)),env,app,f.fetcher);assert.equal((await revoked.json()).id,null);
+});
+
+test('separate brand and affiliate signup forms bind their portal through verification and create only their own primary workspace',async t=>{
+  for(const portal of ['brand','affiliate']){
+    const f=await fixture(t),page=await authPage(request('/auth/'+portal+'/signup'),f.api,config.origin),html=await page.text();
+    assert.equal(page.status,200);assert.ok(html.includes('data-portal="'+portal+'"'));assert.ok(html.includes('action="/auth/'+portal+'/signup"'));
+    assert.equal(html.includes('name="businessName"'),portal==='brand');assert.equal(html.includes('name="channel"'),portal==='affiliate');
+    const cookies=cookie(page.headers.getSetCookie()[0]),flow=await f.api.flow(request('/',cookies));assert.equal(flow.portal,portal);
+    const values={email,password,name:'Test Registrant',...(portal==='brand'?{businessName:'Registered Example Brand'}:{channel:'Newsletter'})};
+    const submitted=await post(f,portal+'/signup',flow,cookies,values);assert.equal(submitted.status,303);assert.equal(submitted.headers.get('location'),'/auth/'+portal+'/verify');
+    assert.equal(count(f,'accounts'),0);assert.equal(count(f,'workspaces'),0);assert.equal(count(f,'affiliate_profiles'),0);
+    const verificationCookie=cookie(submitted.headers.getSetCookie()[0]),verificationFlow=await f.api.flow(request('/',verificationCookie));
+    assert.equal(verificationFlow.portal,portal);assert.equal(verificationFlow.onboarding.name,values.name);assert.ok(!JSON.stringify(verificationFlow).includes(password));
+    const verified=await post(f,portal+'/verify',verificationFlow,verificationCookie,{code:'123456'});assert.equal(verified.status,303);assert.equal(verified.headers.get('location'),portal==='brand'?'/workspace':'/partner');
+    const signed=await f.api.resolve(request('/account',cookie(verified.headers.getSetCookie()[0])));assert.equal(await accountPortal(f.db,signed.userId),portal);
+    assert.equal(count(f,'workspaces'),portal==='brand'?1:0);assert.equal(count(f,'affiliate_profiles'),portal==='affiliate'?1:0);assert.equal(count(f,'applications'),0);assert.equal(count(f,'payout_requests'),0);assert.equal(count(f,'billing_accounts'),0);
+  }
+});
+
+test('portal flow cannot be changed through the form path, extra fields or editable provider metadata',async t=>{
+  const f=await fixture(t),next=await f.api.newFlow('signup','/partner',undefined,'affiliate'),cookies=cookie(next.cookie);
+  const wrong=await post(f,'brand/signup',next.flow,cookies,{email,password,name:'Applicant',businessName:'Wrong brand'});assert.equal(wrong.status,403);assert.equal(f.state.calls.length,0);
+  const extra=await post(f,'affiliate/signup',next.flow,cookies,{email,password,name:'Applicant',channel:'Blog',portal:'brand'});assert.equal(extra.status,400);assert.equal(f.state.calls.length,0);
+  const signed=await login(f);await service(f.db,signed.user).saveAffiliate({name:'Affiliate User',channel:'Blog',website:'',bio:''});
+  f.state.user.user_metadata={display_name:'Changed name',role:'brand',portal:'brand'};
+  const before=count(f,'auth_sessions');await assert.rejects(f.api.login({email,password},'brand-attempt',null,'brand'),fails(403));
+  assert.equal(count(f,'auth_sessions'),before);assert.equal(await accountPortal(f.db,signed.user.userId),'affiliate');assert.ok(await f.api.resolve(request('/partner',cookie(signed.cookie))));
+  await f.api.login({email,password},'affiliate-attempt',null,'affiliate');assert.equal(count(f,'workspaces'),0);
+});
+
+test('legacy dual records keep the original brand identity and reject affiliate sign-in without replacing the working session',async t=>{
+  const f=await fixture(t),legacy=service(f.db,{userId:'original-legacy-owner',email});await legacy.saveAccount({name:'Original Owner'});
+  const workspace=await legacy.createBusiness({name:'Original Brand',website:''});
+  f.db.sqlite.prepare("INSERT INTO affiliate_profiles(user_id,display_name,channel,website,bio,created_at) VALUES (?,'Original affiliate profile','Other',NULL,'',?)").run('original-legacy-owner',new Date().toISOString());
+  f.db.sqlite.prepare('INSERT INTO auth_identities VALUES (?,?,?)').run(uid,'original-legacy-owner',new Date().toISOString());
+  const signed=await f.api.login({email,password},'brand',null,'brand');assert.equal(signed.user.userId,'original-legacy-owner');assert.equal(await accountPortal(f.db,signed.user.userId),'brand');
+  const before=count(f,'auth_sessions');await assert.rejects(f.api.login({email,password},'wrong-portal',cookie(signed.cookie).split('=')[1],'affiliate'),fails(403));
+  assert.equal(count(f,'auth_sessions'),before);assert.equal((await f.api.resolve(request('/workspace',cookie(signed.cookie)))).userId,'original-legacy-owner');
+  assert.equal((await legacy.workspace()).id,workspace.id);assert.equal(count(f,'accounts'),1);assert.equal(count(f,'affiliate_profiles'),1);
 });

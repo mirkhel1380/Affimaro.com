@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {accountPortal} from './portal-policy.ts';
 
 export type Identity = { userId: string; email: string };
 export type Account = {id:string;email:string;display_name:string;created_at:string};
@@ -55,15 +56,16 @@ export function service(db:D1Database,identity:Identity) {
     async createBusiness(input:unknown) {
       await requireAccount();const value=parse(schemas.business,input);
       const existing=await workspace();if(existing)return existing;
+      if(await profile())throw new AppError(403,'Affiliate accounts cannot create a brand workspace.');
       const workspaceId=id(),programId=id(),created=now();
       try {
         await db.batch([
-          db.prepare("INSERT INTO workspaces (id,owner_id,name,website,created_at) VALUES (?,?,?,?,?)").bind(workspaceId,identity.userId,value.name,value.website,created),
+          db.prepare("INSERT INTO workspaces (id,owner_id,name,website,created_at) SELECT ?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM affiliate_profiles WHERE user_id=?)").bind(workspaceId,identity.userId,value.name,value.website,created,identity.userId),
           db.prepare("INSERT INTO programs (id,workspace_id,name,rate_bps,window_days,active,created_at) VALUES (?,?,?,?,?,?,?)").bind(programId,workspaceId,'Store partners',1000,30,1,created),
           db.prepare('INSERT INTO program_rule_revisions (id,program_id,rate_bps,window_days,active,effective_at) VALUES (?,?,1000,30,1,?)').bind(id(),programId,created),
           event(workspaceId,'workspace_created'),
         ]);
-      }catch(error){if(await workspace())return workspace();throw error;}
+      }catch(error){if(await workspace())return workspace();if(await profile())throw new AppError(403,'Affiliate accounts cannot create a brand workspace.');throw error;}
       return workspace();
     },
     async saveBusiness(input:unknown) {
@@ -76,7 +78,9 @@ export function service(db:D1Database,identity:Identity) {
     },
     async saveAffiliate(input:unknown) {
       await requireAccount();const value=parse(schemas.affiliate,input);
-      await db.prepare("INSERT INTO affiliate_profiles (user_id,display_name,channel,website,bio,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,channel=excluded.channel,website=excluded.website,bio=excluded.bio").bind(identity.userId,value.name,value.channel,value.website,value.bio,now()).run();
+      if(await workspace())throw new AppError(403,'Brand accounts cannot create or edit an affiliate profile.');
+      await db.prepare("INSERT INTO affiliate_profiles (user_id,display_name,channel,website,bio,created_at) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_id=?) ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,channel=excluded.channel,website=excluded.website,bio=excluded.bio WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_id=?)").bind(identity.userId,value.name,value.channel,value.website,value.bio,now(),identity.userId,identity.userId).run();
+      if(await accountPortal(db,identity.userId)!=='affiliate')throw new AppError(403,'Brand accounts cannot create or edit an affiliate profile.');
       return profile();
     },
     async businessDashboard() {
@@ -109,6 +113,7 @@ export function service(db:D1Database,identity:Identity) {
     },
     async apply(input:unknown) {
       await requireAccount();const value=parse(schemas.application,input);
+      if(await workspace())throw new AppError(403,'Brand accounts cannot apply to affiliate programs.');
       if(!await profile())throw new AppError(409,"Complete your affiliate profile first.");
       const program=await one<Program & {owner_id:string}>("SELECT p.*,w.owner_id FROM programs p JOIN workspaces w ON w.id=p.workspace_id WHERE p.id=?",value.programId);
       if(!program||!program.active)throw new AppError(409,"This program is not accepting applications.");

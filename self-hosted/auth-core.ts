@@ -1,5 +1,6 @@
 import {z} from 'zod';
-import {AppError} from '../lib/service.ts';
+import {AppError,service} from '../lib/service.ts';
+import {accountPortal,type Portal} from '../lib/portal-policy.ts';
 import {openAuth,sealAuth} from './auth-seal.ts';
 import {trustedPublicOrigin} from '../lib/public-origin.ts';
 
@@ -9,12 +10,15 @@ type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 type ProviderUser={id:string;email:string;email_confirmed_at:string;user_metadata?:{display_name?:string}};
 type Tokens={access_token:string;refresh_token:string;expires_at:number};
 type Session={id:string;token_hash:string;provider_id:string;user_id:string;encrypted_tokens:string;recovery_only:number;expires_at:number;lease_id:string|null;lease_until:number|null};
-export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number};
+type Onboarding={name:string;businessName?:string;channel?:'Content creator'|'Newsletter'|'Community'|'Blog'|'Other'};
+export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number;portal?:Portal;onboarding?:Onboarding};
 export const SESSION_COOKIE='__Host-affimaro_session',FLOW_COOKIE='__Host-affimaro_flow';
 const userSchema=z.object({id:z.string().uuid(),email:z.string().email().max(254).regex(/^[\x21-\x7e]+$/),email_confirmed_at:z.string().datetime(),user_metadata:z.object({display_name:z.string().max(200).optional()}).optional()});
 const tokenSchema=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_in:z.number().int().positive().max(86400),token_type:z.literal('bearer'),user:z.unknown()});
 const storedTokens=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_at:z.number().int().positive()}).strict();
-const flowSchema=z.object({nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int()}).strict();
+const channelSchema=z.enum(['Content creator','Newsletter','Community','Blog','Other']);
+const onboardingSchema=z.object({name:z.string().trim().min(2).max(60),businessName:z.string().trim().min(2).max(60).optional(),channel:channelSchema.optional()}).strict();
+const flowSchema=z.object({nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int(),portal:z.enum(['brand','affiliate']).optional(),onboarding:onboardingSchema.optional()}).strict();
 const hex=(data:Uint8Array)=>Array.from(data,byte=>byte.toString(16).padStart(2,'0')).join('');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const stamp=()=>new Date().toISOString();
@@ -76,11 +80,26 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     }
     await db.prepare('DELETE FROM auth_rate_limits WHERE id IN (SELECT id FROM auth_rate_limits WHERE expires_at<? LIMIT 100)').bind(at).run();
   }
-  async function issue(raw:unknown,expectedEmail:string,recoveryOnly=false,previousCookie?:string|null){
+  async function issue(raw:unknown,expectedEmail:string,recoveryOnly=false,previousCookie?:string|null,portal?:Portal,onboarding?:Onboarding){
     const response=tokenSchema.safeParse(raw);if(!response.success)throw new AppError(503,'The sign-in session could not be verified.');
     const user=checkedUser(await provider('/user','GET',undefined,response.data.access_token)),claimed=checkedUser(response.data.user);
     if(user.id!==claimed.id||user.email.toLowerCase()!==claimed.email.toLowerCase()||user.email.toLowerCase()!==expectedEmail.toLowerCase())throw new AppError(403,'The sign-in identity could not be verified.');
-    const userId=await identity(user),id=crypto.randomUUID(),token=random(),tokenHash=await hash(token),at=Math.floor(Date.now()/1000),expires=at+(recoveryOnly?600:30*86400);
+    const userId=await identity(user);
+    if(portal){
+      const actual=await accountPortal(db,userId);
+      if(actual&&actual!==portal)throw new AppError(403,`This email belongs to a ${actual} account. Use its own sign-in page.`);
+      if(!actual&&!recoveryOnly&&onboarding){
+        const s=service(db,{userId,email:user.email});
+        if(portal==='brand'){
+          if(!onboarding.businessName)throw new AppError(400,'Enter your business name on brand registration.');
+          await s.createBusiness({name:onboarding.businessName,website:''});
+        }else{
+          if(!onboarding.channel)throw new AppError(400,'Choose your main channel on affiliate registration.');
+          await s.saveAffiliate({name:onboarding.name,channel:onboarding.channel,website:'',bio:''});
+        }
+      }
+    }
+    const id=crypto.randomUUID(),token=random(),tokenHash=await hash(token),at=Math.floor(Date.now()/1000),expires=at+(recoveryOnly?600:30*86400);
     const credentials:Tokens={access_token:response.data.access_token,refresh_token:response.data.refresh_token,expires_at:at+response.data.expires_in};
     const encrypted=await sealAuth(credentials,config.encryptionKey,`auth-session/${id}`);
     await db.batch([db.prepare('INSERT INTO auth_sessions (id,token_hash,provider_id,user_id,encrypted_tokens,recovery_only,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?)').bind(id,tokenHash,user.id,userId,encrypted,recoveryOnly?1:0,expires,stamp()),...(previousCookie&&/^[a-f0-9]{64}$/.test(previousCookie)?[db.prepare('DELETE FROM auth_sessions WHERE token_hash=?').bind(await hash(previousCookie))]:[])]);
@@ -113,13 +132,19 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     return {row,tokens,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
   return {
-    async newFlow(purpose:string,returnTo?:string,email?:string){const flow:AuthFlow={nonce:random(),purpose,returnTo:safeReturnTo(returnTo),...(email?{email}:{}),expires:Math.floor(Date.now()/1000)+900};return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
+    async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:safeReturnTo(returnTo),...(email?{email}:{}),...(portal?{portal}:{}),...(onboarding?{onboarding}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
     async flow(request:Request){const value=cookieValue(request,FLOW_COOKIE);if(!value||value.length>4096)return null;try{const data=flowSchema.parse(await openAuth(value,config.encryptionKey,`auth-flow/${config.origin}`));return data.expires>Math.floor(Date.now()/1000)&&data.expires<=Math.floor(Date.now()/1000)+905?data:null;}catch{return null;}},
-    async login(input:unknown,ip:string,previousCookie?:string|null){const value=parse(z.object({email:emailSchema,password:z.string().min(1).max(128)}).strict(),input);await rate('login',value.email,ip,8);await emailProvider();return issue(await provider('/token?grant_type=password','POST',{email:value.email,password:value.password}),value.email,false,previousCookie);},
-    async signup(input:unknown,ip:string){const value=parse(z.object({email:emailSchema,password:z.string().min(12).max(128),name:z.string().trim().min(2).max(60)}).strict(),input);await rate('signup',value.email,ip,4,3600);await emailProvider(true);await provider('/signup','POST',{email:value.email,password:value.password,data:{display_name:value.name}});return {email:value.email};},
+    async login(input:unknown,ip:string,previousCookie?:string|null,portal?:Portal){const value=parse(z.object({email:emailSchema,password:z.string().min(1).max(128)}).strict(),input);await rate('login',value.email,ip,8);await emailProvider();return issue(await provider('/token?grant_type=password','POST',{email:value.email,password:value.password}),value.email,false,previousCookie,portal);},
+    async signup(input:unknown,ip:string,portal?:Portal){
+      const base=z.object({email:emailSchema,password:z.string().min(12).max(128),name:z.string().trim().min(2).max(60)});
+      const schema=portal==='brand'?base.extend({businessName:z.string().trim().min(2).max(60)}).strict():portal==='affiliate'?base.extend({channel:channelSchema}).strict():base.strict();
+      const value=parse(schema,input);await rate('signup',value.email,ip,4,3600);await emailProvider(true);await provider('/signup','POST',{email:value.email,password:value.password,data:{display_name:value.name}});
+      const onboarding=onboardingSchema.parse({name:value.name,...('businessName' in value?{businessName:value.businessName}:{}),...('channel' in value?{channel:value.channel}:{})});
+      return {email:value.email,...(portal?{onboarding}:{})};
+    },
     async recover(input:unknown,ip:string){const value=parse(z.object({email:emailSchema}).strict(),input);await rate('recover',value.email,ip,4,3600);await provider('/recover','POST',{email:value.email});return {email:value.email};},
     async resend(flow:AuthFlow,ip:string){if(!flow.email||!['verify-signup','verify-recovery'].includes(flow.purpose))throw new AppError(400,'Start email verification again.');await rate('resend',flow.email,ip,4,3600);await provider(flow.purpose==='verify-signup'?'/resend':'/recover','POST',flow.purpose==='verify-signup'?{type:'signup',email:flow.email}:{email:flow.email});},
-    async verify(flow:AuthFlow,input:unknown,ip:string,previousCookie?:string|null){const value=parse(z.object({code:z.string().trim().regex(/^[0-9]{6,10}$/)}).strict(),input);if(!flow.email||!['verify-signup','verify-recovery'].includes(flow.purpose))throw new AppError(400,'Start email verification again.');await rate('verify',flow.email,ip,8);await emailProvider();return issue(await provider('/verify','POST',{type:flow.purpose==='verify-signup'?'signup':'recovery',email:flow.email,token:value.code}),flow.email,flow.purpose==='verify-recovery',previousCookie);},
+    async verify(flow:AuthFlow,input:unknown,ip:string,previousCookie?:string|null){const value=parse(z.object({code:z.string().trim().regex(/^[0-9]{6,10}$/)}).strict(),input);if(!flow.email||!['verify-signup','verify-recovery'].includes(flow.purpose))throw new AppError(400,'Start email verification again.');await rate('verify',flow.email,ip,8);await emailProvider();return issue(await provider('/verify','POST',{type:flow.purpose==='verify-signup'?'signup':'recovery',email:flow.email,token:value.code}),flow.email,flow.purpose==='verify-recovery',previousCookie,flow.portal,flow.onboarding);},
     async resolve(request:Request){return (await session(request))?.user||null;},
     async canReset(request:Request){return Boolean((await session(request,true))?.row.recovery_only);},
     async reset(request:Request,input:unknown){const value=parse(z.object({password:z.string().min(12).max(128)}).strict(),input),current=await session(request,true);if(!current?.row.recovery_only)throw new AppError(403,'Verify a password-recovery code first.');const result=checkedUser(await provider('/user','PUT',{password:value.password},current.tokens.access_token));if(result.id!==current.row.provider_id)throw new AppError(403,'Password update identity could not be verified.');await db.prepare('DELETE FROM auth_sessions WHERE provider_id=?').bind(current.row.provider_id).run();try{await provider('/logout?scope=global','POST',{},current.tokens.access_token);}catch{}return clearAuthCookie(SESSION_COOKIE);},

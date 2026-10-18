@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {effectiveCommission,shopifyHold,trackedOrderColumns} from './commission-query.ts';
 import {AppError,service,type Identity} from './service.ts';
+import {storeReferralLink} from './referral-link.ts';
 
 export type StorePlatform='woocommerce'|'shopify'|'custom';
 export type Connection={id:string;store_url:string;active:number;last_seen:string|null;created_at:string;platform:StorePlatform};
@@ -82,7 +83,7 @@ export function commerce(db:D1Database,identity:Identity){
       const links=await all<{application_id:string;program_id:string;platform:string;store_url:string;business_name:string}>(db,"SELECT a.id AS application_id,p.id AS program_id,c.platform,c.store_url,w.name AS business_name FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id JOIN store_connections c ON c.workspace_id=w.id WHERE a.affiliate_user_id=? AND a.status='approved' AND p.active=1 AND c.active=1 AND c.last_seen IS NOT NULL",identity.userId);
       const orders=await all<TrackedOrder>(db,`SELECT ${trackedOrderColumns()},w.name AS business_name FROM orders o JOIN applications a ON a.id=o.application_id JOIN store_connections c ON c.id=o.store_id JOIN workspaces w ON w.id=c.workspace_id WHERE a.affiliate_user_id=? ORDER BY o.received_at DESC LIMIT 100`,identity.userId);
       const totals=await all<{currency:string;decimals:number;commission:number;count:number}>(db,`SELECT o.currency,o.decimals,sum(${effectiveCommission()}) AS commission,count(*) AS count FROM orders o JOIN applications a ON a.id=o.application_id WHERE a.affiliate_user_id=? GROUP BY o.currency,o.decimals`,identity.userId);
-      return {links:links.map(l=>({...l,url:l.platform==='shopify'?`${l.store_url}/?ref=af_${l.application_id}&utm_source=affimaro&utm_medium=affiliate&utm_campaign=${l.program_id}&utm_content=${l.application_id}`:`${l.store_url}/?affimaro_ref=${l.application_id}`})),orders,totals};
+      return {links:links.map(l=>({...l,url:storeReferralLink(l)})),orders,totals};
     },
   };
 }

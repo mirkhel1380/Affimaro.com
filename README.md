@@ -10,7 +10,7 @@ Affimaro is an affiliate management product by Highlink. The independent pilot i
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - A [getting-started guide](docs/getting-started.md) with account-scoped business/affiliate progress, exact next-step links, current referral readiness and clear package availability. It reads existing records and never starts a subscription or payment.
 - One business workspace, editable program and one store connection (WooCommerce, Shopify or a custom website) per owner.
-- Affiliate profiles, application pages, duplicate-safe applications and owner review.
+- Affiliate profiles, guided invitation pages with inline profile setup, explicit duplicate-safe applications and owner review. Approved partners can copy eligible referral links from their invitation.
 - One-time per-store signing keys, rotation, pause/resume and signed connection verification.
 - Consent-based store referral capture and approved affiliates’ referral links after verification.
 - Signed order snapshots, deduplication, replay protection, monotonic order revisions and immutable attribution/currency.
@@ -33,16 +33,19 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 ## Routes
 
-- `/`: marketing website; `/#/demo/merchant/overview` opens the sample dashboard.
+- `/`: expanded marketing website with dedicated audience, feature, integration and resource pages, grouped service menus and a shared footer.
+- `/brands`, `/affiliates`: separate audience pages; `/demo/brands` and `/demo/affiliates` open separate sample dashboards.
+- `/login`, `/get-started`: choose the brand or affiliate authentication journey.
+- `/auth/brand/login|signup`, `/auth/affiliate/login|signup`: independent, verified-email sign-in and registration. Brand signup collects the business name; affiliate signup collects the main channel. Only that role's workspace/profile is created after email verification.
 - `/pricing`: public package features, reached from Pricing in the header. The home page has no pricing section; the install link sits in the lower-right corner.
-- `/account`: create/edit a profile and choose a workspace.
+- `/account`: edit the account profile and open its own primary portal.
 - `/install`: install the independent web app from a supported browser.
 - `/start`: private setup progress for businesses; `?view=affiliate` selects the affiliate guide.
 - `/workspace`: overview, partners, program, store setup, referred orders and settings.
 - `/partner`: affiliate profile, memberships, verified store referral links and own orders.
 - `/payments?view=affiliate`: bank details, commission balances, requests and payment history.
 - `/payments?view=business`: commission approvals, request review and completed-transfer records.
-- `/join/[programId]`: application page for a specific program.
+- `/join/[programId]`: protected program invitation with inline account/profile setup, explicit application, current decision and eligible referral link.
 - `/api/account`, `/api/business`, `/api/affiliate`, `/api/program`, `/api/applications`, `/api/store`: authenticated JSON writes.
 - `/api/payments`: same-origin authenticated bank/profile, approval, request and receipt actions.
 - `/api/payments/export?view=merchant|partner`: authenticated CSV export of the selected role’s latest 100 records.
@@ -67,7 +70,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 Sites owns identity for the owner-private native deployment through `app/chatgpt-auth.ts`; its visitors need ChatGPT accounts and that source is paused for cutover. The independent target at `https://affimaro-com.m-mirkhel20.workers.dev` implements verified Supabase email/password sign-in and strips untrusted identity headers at its entry point. Original data/key import and verified legacy mapping are complete; the owner reported successful sign-in and password recovery on 2026-10-18. Customer sending-domain verification and live store/payment walkthroughs remain pending. Follow the [independent-hosting guide](docs/independent-hosting.md) for the preserved migration record and remaining checks, or [Cloudflare GitHub setup](docs/cloudflare-github-setup.md) for the direct Git integration fields. Never expose the native Sites Worker outside its own dispatch integration.
 
-The Site remains owner-private. Sharing an application link does not grant private-pilot access. A business owner can maintain an affiliate profile but cannot apply to their own program.
+The Site remains owner-private. Sharing an application link does not grant private-pilot access. Each independent account has one primary role, determined from its stored workspace/profile, never from editable provider metadata. A business owner uses the brand portal; an affiliate uses the affiliate portal. Separate accounts and emails are required for both roles. Legacy dual records and original identifiers are preserved, with an existing business workspace retaining the brand role. Server checks and conditional SQL prevent creating or accessing the opposite role, including through direct API requests or concurrent setup.
 
 User writes derive identity server-side, check ownership, require same-origin JSON and cap bodies at 16 KiB. The machine endpoint does not use browser identity or Origin as authorization: each request requires a store-scoped HMAC-SHA256 over the exact timestamp, event ID and raw body. Signatures expire after five minutes. Duplicate event IDs replay their original result and cannot change payload. Accounting and receipts commit together in atomic D1 batches.
 
@@ -138,7 +141,7 @@ The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter p
 
 `.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty-five tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. `0009` adds separate software billing accounts/checkouts. `0010` adds external identity mappings, encrypted server sessions, shared authentication throttles and frozen Checkout return origins. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
-The sample dashboard remains device-local (`affimaro.demo.v1`). Its role switch grants no server access, and its sample payments do not create real records.
+The separate sample dashboards remain device-local (`affimaro.demo.v1.merchant` and `affimaro.demo.v1.affiliate`). Each demo locks navigation to its own role and has no role switch. Sample payments do not create real records. Legacy hash links redirect to the corresponding dedicated demo.
 
 ## Development and verification
 

@@ -2,6 +2,8 @@ import {getChatGPTUser} from '../../../chatgpt-auth';
 import {getRawDb} from '../../../../db';
 import {reports,reportCsv,reportSearchParams} from '../../../../lib/reports';
 import {AppError} from '../../../../lib/service';
+import {accountPortal,portalForView} from '../../../../lib/portal-policy';
+import {requireAccountPortal} from '../../../../lib/portal-access';
 
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
@@ -9,7 +11,10 @@ export async function GET(request:Request){
   const user=await getChatGPTUser();
   if(!user)return Response.json({ok:false,error:'Sign in to export your report.'},{status:401,headers});
   try{
-    const report=await reports(getRawDb(),user).get(reportSearchParams(new URL(request.url).searchParams));
+    const db=getRawDb(),filters=reportSearchParams(new URL(request.url).searchParams),actual=await accountPortal(db,user.userId);
+    if(!actual)throw new AppError(403,'Complete your account setup first.');
+    const expected=portalForView(filters.view)||actual;await requireAccountPortal(db,user,expected);
+    const report=await reports(db,user).get({...filters,view:filters.view||(actual==='brand'?'business':'affiliate')});
     return new Response(reportCsv(report),{headers:{...headers,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="affimaro-${report.filters.view}-report-${report.filters.from}-${report.filters.to}.csv"`}});
   }catch(error){
     const known=error instanceof AppError;

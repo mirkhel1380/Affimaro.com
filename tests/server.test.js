@@ -53,7 +53,7 @@ test('applications are idempotent, paused programs reject new applicants, and ow
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM applications').get().n,1);
   await owner.saveProgram({name:'Paused',rate:12.5,windowDays:45,active:false});const other=await affiliate(db,'other');
   await assert.rejects(other.apply({programId:p.id}),status(409));
-  await owner.saveAffiliate({name:'Owner Partner',channel:'Blog',website:'',bio:''});
+  await assert.rejects(owner.saveAffiliate({name:'Owner Partner',channel:'Blog',website:'',bio:''}),status(403));
   await owner.saveProgram({name:'Open again',rate:10,windowDays:30,active:true});
   await assert.rejects(owner.apply({programId:p.id}),status(403));
 });

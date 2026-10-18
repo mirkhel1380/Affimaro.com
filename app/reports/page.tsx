@@ -1,3 +1,4 @@
+import {accountPortal,portalForView} from '../../lib/portal-policy';
 import {redirect} from 'next/navigation';
 import {requireChatGPTUser} from '../chatgpt-auth';
 import {getRawDb} from '../../db';
@@ -22,13 +23,16 @@ function CurrentBalances({report}:{report:Report}){
 export default async function ReportsPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const user=await requireChatGPTUser('/reports'),db=getRawDb(),account=await service(db,user).account();
   if(!account)redirect('/account');
+  const portal=await accountPortal(db,user.userId);if(!portal)redirect('/get-started');
+  const reportView=portal==='brand'?'business':'affiliate';
   let report:Report|undefined,error:string|undefined;
   const queryInput=await searchParams;
-  try{report=await reports(db,user).get(queryInput.view?queryInput:{...queryInput,view:await service(db,user).workspace()?'business':'affiliate'});}catch(cause){if(cause instanceof AppError)error=cause.message;else throw cause;}
-  if(!report)return <Shell name={account.display_name} email={user.email} active="reports"><PageHeading eyebrow="REPORTS" title="Your saved performance." description="Reports are scoped to your own business or affiliate partnerships."/><nav className="a-tabs" aria-label="Report views"><a href="/reports?view=business">Business reports</a><a href="/reports?view=affiliate">Affiliate reports</a></nav><Card title="Choose your report"><div className="a-card-body"><p role="alert" className="a-form-error">{error}</p><a className="a-btn a-btn-outline" href="/reports?view=business">Reset business filters</a><a className="a-text-link a-spaced-link" href="/reports?view=affiliate">Open affiliate reports ↗</a><a className="a-text-link a-spaced-link" href="/workspace">Open your workspace ↗</a></div></Card></Shell>;
-  const business=report.filters.view==='business',query=reportQuery(report.filters),viewHref=(view:'business'|'affiliate')=>`/reports?${reportQuery({...report.filters,view,applicationId:undefined})}`;
-  return <Shell name={account.display_name} email={user.email} active="reports"><PageHeading eyebrow={business?'BUSINESS REPORTS':'AFFILIATE REPORTS'} title={business?`${report.businessName} in numbers.`:'Your referrals in numbers.'} description="Recorded orders, earned commission and a clear view of payments."><a className="a-btn a-btn-outline" href={`/api/reports/export?${query}`} download>Export report CSV <Icon name="arrow"/></a></PageHeading>
-    <nav className="a-tabs" aria-label="Report views"><a href={viewHref('business')} className={business?'is-active':''} aria-current={business?'page':undefined}>Business reports</a><a href={viewHref('affiliate')} className={!business?'is-active':''} aria-current={!business?'page':undefined}>Affiliate reports</a></nav>
+  if(queryInput.view&&portalForView(queryInput.view)!==portal)redirect('/reports?view='+reportView);
+  try{report=await reports(db,user).get({...queryInput,view:reportView});}catch(cause){if(cause instanceof AppError)error=cause.message;else throw cause;}
+  if(!report)return <Shell name={account.display_name} email={user.email} active="reports" portal={portal}><PageHeading eyebrow="REPORTS" title="Your saved performance." description="Reports are scoped to your own business or affiliate partnerships."/><Card title="Choose your report"><div className="a-card-body"><p role="alert" className="a-form-error">{error}</p><a className="a-btn a-btn-outline" href={`/reports?view=${reportView}`}>Reset report filters</a></div></Card></Shell>;
+  const business=report.filters.view==='business',query=reportQuery(report.filters);
+  return <Shell name={account.display_name} email={user.email} active="reports" portal={portal}><PageHeading eyebrow={business?'BUSINESS REPORTS':'AFFILIATE REPORTS'} title={business?`${report.businessName} in numbers.`:'Your referrals in numbers.'} description="Recorded orders, earned commission and a clear view of payments."><a className="a-btn a-btn-outline" href={`/api/reports/export?${query}`} download>Export report CSV <Icon name="arrow"/></a></PageHeading>
+
     <Card title="Choose a period"><ReportFiltersForm filters={report.filters} options={report.options} today={report.generatedAt.slice(0,10)} truncated={report.truncated.options}/></Card>
     <div className="a-report-period"><strong>{formatDate(report.filters.from)} — {formatDate(report.filters.to)}</strong><span>UTC · Orders created in this period · Latest recorded state</span></div>
     <div className="a-stats"><Stat label="Referred orders" value={count(report.summary.orders)} caption={`${count(report.summary.partnerships)} ${business?'affiliate partnerships':'business partnerships'} with orders`} icon="store"/><Stat label="Accruing commission" value={count(report.summary.eligible_orders)} caption="Eligible source orders, including zero-value orders" icon="check" dark/><Stat label="Orders needing review" value={count(report.summary.review_orders)} caption="Held or incomplete source data" icon="clock"/></div>

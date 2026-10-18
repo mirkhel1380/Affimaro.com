@@ -29,8 +29,8 @@ test('every package action on the separate pricing page opens the active host fr
   const page=pricingPage(landing,section),html=marketingPage(page,false,target);
   const packages=[...html.matchAll(/<a\b[^>]*href="([^"]+\/billing)"[^>]*>/g)];assert.equal(packages.length,3);
   for(const [tag,href] of packages){assert.equal(href,target+'/billing');assert.match(tag,/target="_top"/);}
-  assert.ok(html.includes('href="/pricing" aria-current="page"'));assert.ok(html.includes('href="/#/demo/affiliate/overview"'));
-  for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(account|billing|start|install)([/?#]|$)/.test(href));
+  assert.ok(html.includes('href="/pricing" aria-current="page"'));assert.ok(html.includes('href="/demo/affiliates"'));
+  for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));
   const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/billing"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
   assert.ok(!landing.includes('id="plans"'));assert.ok(!landing.includes('href="#plans"'));
 });

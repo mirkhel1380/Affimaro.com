@@ -1,3 +1,4 @@
+import {requirePortalUser} from '../portal-auth';
 import { redirect } from "next/navigation";
 import {emailSignIn} from '../../lib/auth-mode';
 import { requireChatGPTUser } from "../chatgpt-auth";
@@ -15,7 +16,7 @@ import { ApiForm,ActionButton,CopyButton } from "../forms";
 import { Shell,PageHeading,Card,Icon,Note,Stat,Badge,Empty,formatDate } from "../ui";
 export const dynamic="force-dynamic";
 export default async function WorkspacePage({searchParams}:{searchParams:Promise<{tab?:string}>}){
-  const user=await requireChatGPTUser('/workspace'),s=service(getRawDb(),user),account=await s.account();if(!account)redirect('/account');
+  const user=await requirePortalUser('brand','/workspace',true),s=service(getRawDb(),user),account=await s.account();if(!account)redirect('/account');
   const dashboard=await s.businessDashboard(),query=await searchParams;
   const active=['overview','partners','program','store','orders','settings'].includes(query.tab||'')?query.tab!:'overview';
   if(!dashboard)return <Shell name={account.display_name} email={user.email} active="business"><div className="a-onboarding"><div className="a-onboarding-copy"><span className="a-eyebrow">YOUR BUSINESS WORKSPACE</span><h1>Give your<br/>program<br/><em>a home.</em></h1><p>Start with your business details. Your first program opens with a 10% commission and a 30-day attribution window, ready for you to edit.</p><div className="a-setup-steps"><span><b>01</b> Create your workspace</span><span><b>02</b> Set your program rules</span><span><b>03</b> Welcome your first partner</span></div></div><Card title="Create your workspace" kicker="LET’S GET STARTED"><div className="a-card-body"><ApiForm endpoint="/api/business" fields={[{name:'name',label:'Business name',placeholder:'Your business',required:true,maxLength:60},{name:'website',label:'Business website (optional)',type:'url',placeholder:'https://your-store.com',hint:'Adding a website does not connect store tracking.'}]} label="Create workspace" redirectTo="/workspace"/></div></Card></div></Shell>;

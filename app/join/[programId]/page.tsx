@@ -1,17 +1,21 @@
-import { notFound } from "next/navigation";
-import { requireChatGPTUser } from "../../chatgpt-auth";
-import { getRawDb } from "../../../db";
-import { service,AppError } from "../../../lib/service";
-import { ApiForm,ActionButton } from "../../forms";
-import { Shell,PageHeading,Card,Icon,Note,Badge } from "../../ui";
-export const dynamic="force-dynamic";
+import {notFound} from 'next/navigation';
+import {emailSignIn} from '../../../lib/auth-mode';
+import {programInvitation} from '../../../lib/program-invitation';
+import {AppError} from '../../../lib/service';
+import {requireChatGPTUser} from '../../chatgpt-auth';
+import {getRawDb} from '../../../db';
+import {Shell} from '../../ui';
+import {InvitationView} from '../invitation-view';
+export const dynamic='force-dynamic';
+export const metadata={title:'Program invitation | Affimaro',robots:{index:false,follow:false}};
 export default async function JoinPage({params}:{params:Promise<{programId:string}>}){
   const {programId}=await params;
   return <AuthenticatedProgram programId={programId}/>;
 }
 async function AuthenticatedProgram({programId}:{programId:string}){
-  const user=await requireChatGPTUser(`/join/${encodeURIComponent(programId)}`),s=service(getRawDb(),user);
-  let program;try{program=await s.getProgram(programId);}catch(error){if(error instanceof AppError&&error.status===404)notFound();throw error;}
-  const account=await s.account(),profile=await s.profile();
-  return <Shell name={account?.display_name||user.fullName||user.email.split('@')[0]} email={user.email} active="partner"><PageHeading eyebrow="A NEW PARTNERSHIP" title={program.business_name} description={program.name}/><div className="a-join-layout"><Card className="a-program-presentation"><div className="a-card-body"><span className="a-large-link"><Icon name="link"/></span><span className="a-eyebrow">PROGRAM COMMISSION</span><div className="a-join-rate">{program.rate_bps/100}<span>%</span></div><p>On eligible net merchandise sales.</p><dl className="a-detail-list"><div><dt>Attribution window</dt><dd>{program.window_days} days</dd></div><div><dt>Applications</dt><dd>{program.active?'Open':'Paused'}</dd></div><div><dt>Payment</dt><dd>Direct from the business</dd></div></dl>{program.website&&<a className="a-text-link" href={program.website} target="_blank" rel="noopener noreferrer">Visit business website ↗</a>}</div></Card><Card title={program.isOwner?'This is your program.':program.application?'Your application':!account?'Create your Affimaro profile':'Ready to partner?'}><div className="a-card-body">{program.isOwner?<><p className="a-muted">You manage this program. Share this page with a partner who can access the private pilot. Business owners cannot apply to their own programs.</p><a className="a-btn a-btn-dark" href="/workspace?tab=partners">Manage applications <Icon name="arrow"/></a></>:program.application?<><Badge status={program.application.status}/><p className="a-muted a-spaced-link">{program.application.status==='approved'?'The business has approved your application. Tracking and commission records will become available with the store integration.':program.application.status==='pending'?'Your application is saved and waiting for the business to review it.':'The business has updated your application status. Contact the business directly if you have questions.'}</p><a className="a-btn a-btn-outline" href="/partner">Open affiliate portal <Icon name="arrow"/></a></>:!program.active?<Note>This business has paused new applications.</Note>:!account?<><p className="a-muted">You are signed in as {user.email}. Create your profile to continue.</p><ApiForm endpoint="/api/account" fields={[{name:'name',label:'Your name',value:user.fullName||user.email.split('@')[0],required:true,maxLength:60}]} label="Create profile" redirectTo={`/join/${programId}`}/></>:!profile?<><p className="a-muted">Complete your affiliate profile so the business can review your audience and channel.</p><a className="a-btn a-btn-dark" href="/partner">Create affiliate profile <Icon name="arrow"/></a><p className="a-fine-print">After saving your profile, return to this application link.</p></>:<><div className="a-applicant-preview"><span className="a-user-avatar">{profile.display_name.slice(0,1).toUpperCase()}</span><div><strong>{profile.display_name}</strong><small>{profile.channel} · {user.email}</small></div></div><p className="a-muted">The business will receive your partner name, email, channel, website and audience description to review your application.</p><ActionButton method="POST" body={{programId}} label="Apply to this program" variant="dark"/><p className="a-fine-print">Applying creates a saved request. It does not guarantee acceptance or commission income.</p></>}</div></Card></div><Note>This is a private pilot. Program rules and applications are saved; live store tracking is still to be built.</Note></Shell>;
+  const user=await requireChatGPTUser('/join/'+encodeURIComponent(programId));
+  let invitation;
+  try{invitation=await programInvitation(getRawDb(),user,programId);}
+  catch(error){if(error instanceof AppError&&error.status===404)notFound();throw error;}
+  return <Shell name={invitation.account?.display_name||user.fullName||user.email.split('@')[0]} email={user.email} active="partner" portal={invitation.portal||'affiliate'}><InvitationView invitation={invitation} user={user} independent={emailSignIn}/></Shell>;
 }

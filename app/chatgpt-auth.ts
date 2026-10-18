@@ -51,7 +51,14 @@ export async function requireChatGPTUser(
 
 export function chatGPTSignInPath(returnTo: string): string {
   const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+  let entry=SIGN_IN_PATH;
+  if(emailSignIn){
+    const path=new URL(safeReturnTo,'https://app.local');
+    const affiliate=/^\/(partner|join)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='affiliate';
+    const brand=/^\/(workspace|billing)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='business';
+    if(affiliate||brand)entry='/auth/'+(affiliate?'affiliate':'brand')+'/login';
+  }
+  return `${entry}?return_to=${encodeURIComponent(safeReturnTo)}`;
 }
 
 export function chatGPTSignOutPath(returnTo = "/"): string {

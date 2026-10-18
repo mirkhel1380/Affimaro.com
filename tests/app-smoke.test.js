@@ -57,3 +57,32 @@ test('all workspace views render and sale → approval → refund → payment fl
   assert.equal(stored().orders.length,9);
   assert.ok(!element('#app').innerHTML.includes('SMOKE-001'));
 });
+
+test('dedicated demos stay in their own portal even with an opposite-role hash and keep separate sample storage',async()=>{
+  const storage=new Map();
+  for(const [scope,role,other] of [['brands','merchant','affiliate'],['affiliates','affiliate','merchant']]){
+    const elements=new Map(),listeners={},windowListeners={};
+    function element(selector){
+      if(!elements.has(selector)){
+        const classes=new Set();elements.set(selector,{innerHTML:'',textContent:'',hidden:false,open:false,dataset:{},classList:{add:c=>classes.add(c),remove:c=>classes.delete(c),contains:c=>classes.has(c),toggle(c,force){if(force)classes.add(c);else classes.delete(c);}},setAttribute(){},focus(){},scrollIntoView(){},showModal(){this.open=true;},close(){this.open=false;},addEventListener(){}});
+      }
+      return elements.get(selector);
+    }
+    element('body').dataset.demoPortal=scope;
+    globalThis.document={querySelector:element,querySelectorAll:()=>[],body:element('body'),addEventListener(name,fn){listeners[name]=fn;},getElementById:()=>null,title:''};
+    globalThis.window={addEventListener(name,fn){windowListeners[name]=fn;},scrollTo(){}};
+    globalThis.location={hash:'#/demo/'+other+'/overview'};
+    globalThis.localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
+    globalThis.requestAnimationFrame=fn=>fn();
+    await import('../public/demo/app.js?scope='+scope);
+    const html=element('#app').innerHTML;
+    assert.match(html,new RegExp('href="/auth/'+(role==='merchant'?'brand':'affiliate')+'/login"'));
+    assert.ok(!html.includes('id="role-select"'));assert.ok(!html.includes('href="#/demo/'+other+'/'));
+    assert.match(html,/Interactive demo/);assert.equal(element('#app').hidden,false);
+    location.hash='#/demo/'+other+'/payments';windowListeners.hashchange();
+    assert.equal(document.title,'Overview · Affimaro demo');
+    listeners.click({target:{closest:()=>({dataset:{action:'confirm-reset'}})},preventDefault(){}});
+    assert.ok(storage.has('affimaro.demo.v1.'+role));
+  }
+  assert.equal(storage.size,2);
+});
