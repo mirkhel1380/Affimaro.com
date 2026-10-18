@@ -1,0 +1,23 @@
+# Platform subscription checkout
+
+The owner connects Affimaro subscriptions from `/owner/settings#stripe-connection`. This owner-only form accepts a live restricted Stripe key for the selected existing account. It verifies the account, live charges and all three fixed USD monthly prices, then creates a dedicated customer portal configuration and a signed subscription webhook. It does not create a customer, Checkout Session or charge.
+
+Starter is $19, Growth $49 and Business $99 USD per month. The provider identifiers selected and verified for this release are in `lib/platform-billing-catalog.ts`. Creator and affiliate access remains free.
+
+Required restricted-key resources are shown in the private form: Accounts and Balance read; Products and Prices read; Checkout Sessions and Customers write; Customer Portal write; Subscriptions and Invoices read; Webhook Endpoints write. Transfer, payout and bank permissions are separate from this software subscription connection. The ChatGPT Stripe app's OAuth connection does not supply a server runtime key.
+
+The additive `0013` migration introduces encrypted platform configuration, minimal webhook delivery records and versioned Checkout payload fields. Platform keys and webhook signing secrets use the existing `PAYMENT_DATA_KEY_V1` with separate authenticated contexts. Original authentication/payment keys, identities, workspaces and financial records are preserved. Settings, credentials and signing secrets are never returned to customer pages or public downloads.
+
+Both setup POST payloads and idempotency keys are frozen before submission. Unknown setup responses retry the same operations within 23 hours; older or changed-account/domain setups require operator reconciliation. Invalid replacements never overwrite the existing credential. Explicit key rotation and domain changes must reconcile the existing setup rather than registering an untracked duplicate. The dedicated customer portal supports invoices, payment method updates and cancellation at period end. Plan changes remain subject to owner approval.
+
+Public package selection explains registration, review and payment as three steps. Approved brands and agencies with a verified session go directly to their own billing page. Pending accounts stay in application review. An approved package displays its provider-verified amount and the recurring-payment confirmation before creating hosted Stripe Checkout. A different unapproved package never opens checkout for the old package. GET requests do not create Checkouts or charge cards.
+
+New Checkouts use dynamic payment methods and a durable integration identifier with eight random letters. Version 1 unknown Checkout POSTs remain held; they are not replayed with a changed payload. Known older Sessions can still be checked. Creating or returning from Checkout never substitutes for authoritative paid-provider evidence.
+
+`POST /api/billing/webhook` alone bypasses browser-session authentication. It requires a valid raw-body Stripe signature within five minutes and the configured account/mode. It handles Checkout completion/async outcomes, subscription lifecycle events and paid/failed invoices. Notifications resolve existing workspace/attempt identifiers, re-read Stripe and use the same validated billing reconciliation path. Unpaid async completion cannot activate access. Replays are deduplicated, concurrent work is leased, and transient failures remain retryable. No event payload, bank details or provider secrets are stored in the delivery ledger.
+
+Subscription enforcement is required by default, and saved platform setup always enforces it. Before a runtime key is connected, checkout remains explicitly unavailable. A connected provider, verified price or registered webhook is not proof of a real customer payment. Customer email delivery also still requires a verified sender; the domain purchase/connection remains deferred by the owner.
+
+The old migration-v1 transfer format remains frozen. Its tests use the historical source schema, verify import into the additive current target, and assert that the exporter refuses the newer billing schema rather than omitting new subscription configuration. Do not repeat the already completed migration/import.
+
+Validation includes isolated Stripe responses, real SQL migrations, real server-page rendering, raw-body signature failures, unpaid async events, duplicate/out-of-order events, cross-workspace correlation, lost creation responses, atomic database rollback and the actual initial payment review. No real customer, Checkout Session or charge was created by implementation tests. Live credential activation and a real merchant/customer walkthrough remain owner actions after deployment.

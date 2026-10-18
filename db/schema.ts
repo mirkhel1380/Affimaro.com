@@ -276,6 +276,8 @@ export const billingCheckouts=sqliteTable('billing_checkouts',{
   amount:integer('amount').notNull(),
   returnOrigin:text('return_origin').notNull().default('https://affimaro-preview.kindsky66.chatgpt.site'),
   customerSnapshot:text('customer_snapshot'),
+  payloadVersion:integer('payload_version').notNull().default(1),
+  integrationSuffix:text('integration_suffix'),
   state:text('state').notNull(),
   sessionId:text('session_id'),
   encryptedUrl:text('encrypted_url'),
@@ -352,3 +354,13 @@ export const agencyClients=sqliteTable('agency_clients',{
 export const creatorContent=sqliteTable('creator_content',{
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),applicationId:text('application_id').references(()=>applications.id),title:text('title').notNull(),platform:text('platform').notNull(),status:text('status').notNull(),url:text('url'),notes:text('notes').notNull().default(''),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[index('creator_content_owner').on(t.userId),check('creator_content_status',sql`${t.status} IN ('idea','draft','published','archived')`)]);
+
+// Independent platform subscription credentials; never merchant connections.
+export const platformBillingSettings=sqliteTable('platform_billing_settings',{
+ id:text('id').primaryKey(),setupId:text('setup_id').notNull(),accountId:text('account_id').notNull(),mode:text('mode').notNull(),origin:text('origin').notNull(),
+ encryptedCredential:text('encrypted_credential').notNull(),webhookPayload:text('webhook_payload').notNull(),portalPayload:text('portal_payload').notNull(),portalConfigurationId:text('portal_configuration_id'),encryptedWebhookSecret:text('encrypted_webhook_secret'),webhookId:text('webhook_id'),status:text('status').notNull(),
+ configuredBy:text('configured_by').notNull().references(()=>accounts.id),leaseId:text('lease_id'),leaseUntil:text('lease_until'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[check('platform_billing_singleton',sql`${t.id}='stripe'`),check('platform_billing_mode',sql`${t.mode} IN ('test','live')`),check('platform_billing_status',sql`${t.status} IN ('pending','ready')`)]);
+export const billingWebhookEvents=sqliteTable('billing_webhook_events',{
+ eventId:text('event_id').primaryKey(),status:text('status').notNull(),leaseId:text('lease_id').notNull(),leaseUntil:text('lease_until').notNull(),createdAt:text('created_at').notNull(),processedAt:text('processed_at'),
+},t=>[check('billing_webhook_status',sql`${t.status} IN ('processing','processed')`)]);

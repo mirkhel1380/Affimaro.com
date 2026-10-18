@@ -13,7 +13,8 @@ import {deploymentSettings,verifiedEmailSettings} from '../self-hosted/preflight
 const pair=generateKeyPairSync('rsa',{modulusLength:3072,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem',cipher:'aes-256-cbc',passphrase:'LONG FIXTURE PASSPHRASE'}});
 const key='ab'.repeat(32),values={AFFIMARO_MIGRATION_MAINTENANCE:'true',AFFIMARO_MIGRATION_EXPORT_PUBLIC_KEY:pair.publicKey,PAYMENT_DATA_KEY_V1:key},uid='11111111-1111-4111-8111-111111111111';
 const decode=bundle=>decryptMigration(JSON.stringify(bundle),pair.privateKey,'LONG FIXTURE PASSPHRASE'),fails=status=>error=>error instanceof AppError&&error.status===status;
-async function fixture(t){const db=database(t),owner=service(db,{userId:'native-owner-id',email:'owner@example.com'});await owner.saveAccount({name:"Owner O'Brien'); DROP TABLE accounts;--"});await owner.createBusiness({name:'Preserved workspace',website:''});return {db,owner};}
+// The v1 transfer format is frozen at the completed pre-billing migration.
+async function fixture(t){const db=database(t,12),owner=service(db,{userId:'native-owner-id',email:'owner@example.com'});await owner.saveAccount({name:"Owner O'Brien'); DROP TABLE accounts;--"});await owner.createBusiness({name:'Preserved workspace',website:''});return {db,owner};}
 
 test('migration export is explicitly owner-gated and disabled without a paused source',async t=>{
   const f=await fixture(t);for(const [id,settings] of [[undefined,{}],['owner',{}],['other',{AFFIMARO_MIGRATION_ENABLED:'true',AFFIMARO_MIGRATION_OWNER_ID:'owner'}]])assert.throws(()=>requireMigrationOwner(id,settings),fails(404));
@@ -76,3 +77,5 @@ test('deployment preflight checks the verified-email provider policy without cre
   for(const body of [{mailer_autoconfirm:true,external:{email:true}},{mailer_autoconfirm:false,external:{email:false}},{other:'value'}])await assert.rejects(verifiedEmailSettings(settings,key,fetcher(body)));
   await assert.rejects(verifiedEmailSettings(settings,key,async()=>new Response('a'.repeat(70000))));
 });
+
+test('the frozen v1 exporter refuses the newer billing schema rather than silently omitting subscription configuration',async t=>{const db=database(t);await assert.rejects(encryptedMigration(db,values,'https://source.example'),fails(409));});

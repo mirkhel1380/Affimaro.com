@@ -178,12 +178,12 @@ test('only exact POST store-event paths bypass browser sessions, and maintenance
   const f=await fixture(t),signed=await login(f),cookies=cookie(signed.cookie),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
   f.state.outage=true;const before=f.state.calls.length;
   const machine=async req=>{assert.equal(req.headers.get('oai-authenticated-user-id'),null);return Response.json({reached:true});};
-  for(const path of ['/api/custom/event','/api/woocommerce/event']){
+  for(const path of ['/api/custom/event','/api/woocommerce/event','/api/billing/webhook']){
     const response=await independentFetch(request(path,cookies,{method:'POST',headers:{'oai-authenticated-user-id':'spoof'}}),env,machine,f.fetcher);
     assert.equal(response.status,200);assert.equal(f.state.calls.length,before);
     const paused=await independentFetch(request(path,cookies,{method:'POST'}),{...env,AFFIMARO_MIGRATION_MAINTENANCE:'true'},async()=>{throw new Error('The paused application must not run.');},f.fetcher);assert.equal(paused.status,503);
   }
-  for(const [path,method] of [['/api/custom/event','GET'],['/api/custom/manage','POST'],['/api/custom/event/extra','POST'],['/api/woocommerce/manage','POST'],['/api/store','POST']]){
+  for(const [path,method] of [['/api/billing/webhook','GET'],['/api/billing/webhook/extra','POST'],['/api/custom/event','GET'],['/api/custom/manage','POST'],['/api/custom/event/extra','POST'],['/api/woocommerce/manage','POST'],['/api/store','POST']]){
     const response=await independentFetch(request(path,cookies,{method}),env,async()=>{throw new Error('A browser API must verify its session first.');},f.fetcher);assert.equal(response.status,503);
   }
 });
@@ -192,7 +192,7 @@ test('getting-started routes resolve the verified session and cannot be cached o
   const f=await fixture(t),signed=await login(f),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
   approvedFixture(f,signed.user.userId);
   const app=async req=>Response.json({id:req.headers.get('oai-authenticated-user-id')});
-  for(const path of ['/start','/start?view=affiliate','/start/']){
+  for(const path of ['/get-started?plan=starter','/start','/start?view=affiliate','/start/']){
     const response=await independentFetch(request(path,cookie(signed.cookie)),env,app,f.fetcher);
     assert.equal((await response.json()).id,signed.user.userId);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.match(response.headers.get('vary'),/Cookie/);
   }

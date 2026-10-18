@@ -3,3 +3,5 @@
 @media(max-width:1150px){.o-stats,.o-role-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:960px){.o-shell .a-sidebar{overflow:visible}.o-shell .a-sidebar .a-logo{margin-bottom:0}.o-shell .a-sidebar nav{overflow-x:auto}.o-shell .a-sidebar nav a{white-space:nowrap}.o-shell .a-sidebar-bottom{display:none}.o-shell .a-user small{overflow-wrap:anywhere}}
 @media(max-width:560px){.o-shell .a-topbar{padding:15px;height:auto;align-items:flex-start}.o-shell .a-topbar>div:first-child{font-size:8px;max-width:100px;line-height:1.7}.o-shell .a-user{font-size:10px;gap:6px}.o-shell .a-user small{font-size:9px}.o-stats,.o-role-grid{gap:10px}.o-stats .a-stat{padding:16px}.o-role-card{padding:16px}.o-filters{padding:18px;gap:12px}.o-filters .a-field{width:100%}.o-pagination{padding:18px}.o-shell .a-page-heading h1{font-size:30px}}
+
+.o-permissions{margin:22px 0;border:1px solid #dbe5d1;border-radius:8px;padding:17px}.o-permissions summary{cursor:pointer;font-weight:600}.o-permissions table{min-width:0;margin-top:18px}.o-billing-form{margin:24px 0;max-width:680px}

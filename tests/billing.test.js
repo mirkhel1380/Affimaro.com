@@ -176,3 +176,49 @@ test('changing the configured Stripe account never inherits the earlier paid ent
 });
 
 test('each package reviews only its approved USD monthly amount and cannot use a lower-priced package',async t=>{for(const [plan,dollars] of [['starter',19],['growth',49],['business',99]]){const f=await fixture(t);f.config.plan=plan;f.state.price.unit_amount=dollars*100;const quote=await f.api.preview({});assert.equal(quote.amount,dollars*100);f.state.price.unit_amount=1900+(plan==='starter'?1:0);await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.created,0);}});
+
+// Production webhook handling uses the same authoritative provider checks as billing.
+async function webhookFixture(f){
+ const {billingWebhook}=await import('../lib/billing-webhook.ts'),setup=crypto.randomUUID(),secret='whsec_FIXTUREONLYSIGNINGSECRET123456',at=new Date().toISOString();
+ const credential=await sealPayment(f.config.secret,key,'platform-billing/key/'+setup),signing=await sealPayment(secret,key,'platform-billing/webhook/'+setup);
+ f.db.sqlite.prepare("INSERT INTO platform_billing_settings (id,setup_id,account_id,mode,origin,encrypted_credential,webhook_payload,portal_payload,encrypted_webhook_secret,webhook_id,status,configured_by,created_at,updated_at) VALUES ('stripe',?,?,?,?,?,'fixture','fixture',?,'we_FIXTURE123','ready','owner',?,?)").run(setup,f.config.platformId,f.config.mode,'https://affimaro.example',credential,signing,at,at);
+ let sequence=0;
+ async function signed(event,{timestamp=Math.floor(Date.now()/1000),signingKey=secret,suffix=''}={}){const body=JSON.stringify(event),hmac=await crypto.subtle.importKey('raw',new TextEncoder().encode(signingKey),{name:'HMAC',hash:'SHA-256'},false,['sign']),digest=await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode(timestamp+'.'+body)),signature=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');return new Request('https://affimaro.example/api/billing/webhook',{method:'POST',headers:{'Stripe-Signature':'t='+timestamp+',v1='+signature,'Content-Type':'application/json'},body:body+suffix});}
+ const event=(type,object)=>({id:'evt_FIXTURE'+(++sequence),object:'event',type,livemode:f.config.mode==='live',data:{object:structuredClone(object)}});
+ const handle=request=>billingWebhook(request,{db:f.db,key,origin:'https://affimaro.example',config:async()=>f.config,fetcher:f.fetcher});
+ return {event,signed,handle};
+}
+test('new Checkout payloads use dynamic methods and a stable integration identifier, while legacy unknown requests are held',async t=>{
+ const f=await fixture(t);f.state.lose=true;await assert.rejects(start(f));const attempt=checkout(f);assert.equal(attempt.payload_version,2);assert.match(attempt.integration_suffix,/^[a-z]{8}$/);const first=posts(f)[0].body;assert.equal(first.get('payment_method_types[0]'),null);assert.match(first.get('integration_identifier'),/^affimaro_checkout_[a-z]{8}$/);await start(f);assert.equal(posts(f)[1].body.toString(),first.toString());
+ const before=posts(f).length;f.db.sqlite.prepare("UPDATE billing_checkouts SET payload_version=1,integration_suffix=NULL,session_id=NULL,state='review'").run();await assert.rejects(start(f),e=>e.status===409);assert.equal(posts(f).length,before);
+});
+test('signed subscription notifications fulfill only after paid provider evidence and replay without another write or payment',async t=>{
+ const f=await fixture(t);await start(f);const h=await webhookFixture(f),{session,sub}=complete(f),event=h.event('checkout.session.completed',session),before=f.state.created;
+ assert.equal((await h.handle(await h.signed(event))).status,200);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,before);const calls=f.state.calls.length;assert.equal((await h.handle(await h.signed(event))).status,200);assert.equal(f.state.calls.length,calls);assert.equal(f.db.sqlite.prepare('SELECT status FROM billing_webhook_events').get().status,'processed');
+ // An older event cannot overwrite a currently cancelled provider subscription.
+ sub.status='canceled';assert.equal((await h.handle(await h.signed(h.event('customer.subscription.deleted',sub)))).status,200);assert.equal((await f.api.dashboard()).entitled,false);assert.equal(f.state.created,before);
+});
+test('raw-body signatures reject tampering, stale requests, wrong keys, missing signatures and mode mismatches before fulfillment',async t=>{
+ const f=await fixture(t);await start(f);const h=await webhookFixture(f),{session}=complete(f),event=h.event('checkout.session.completed',session);
+ for(const request of [await h.signed(event,{suffix:' '}),await h.signed(event,{timestamp:Math.floor(Date.now()/1000)-301}),await h.signed(event,{signingKey:'wrong-secret'}),new Request('https://affimaro.example/api/billing/webhook',{method:'POST',body:JSON.stringify(event)})])assert.equal((await h.handle(request)).status,400);
+ assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_webhook_events').get().n,0);assert.equal((await f.api.dashboard()).entitled,false);
+ const mismatch={...event,livemode:false};assert.equal((await h.handle(await h.signed(mismatch))).status,400);
+});
+test('unpaid asynchronous completion stays unfulfilled until a later success and does not create another subscription',async t=>{
+ const f=await fixture(t);await start(f);const h=await webhookFixture(f),session=f.state.sessions.get(checkout(f).session_id);session.status='complete';session.payment_status='unpaid';
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',session)))).status,200);assert.equal((await f.api.dashboard()).entitled,false);
+ complete(f);assert.equal((await h.handle(await h.signed(h.event('checkout.session.async_payment_succeeded',session)))).status,200);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,1);
+});
+test('a webhook recovers a lost Checkout response by matching the frozen attempt instead of trusting browser returns',async t=>{
+ const f=await fixture(t);f.state.lose=true;await assert.rejects(start(f));assert.equal(checkout(f).session_id,null);const h=await webhookFixture(f),session=[...f.state.sessions.values()][0],at=Math.floor(Date.now()/1000);session.status='complete';session.payment_status='paid';session.customer='cus_FIXTURECUSTOMER123';session.subscription='sub_FIXTURESUBSCRIPTION123';session.url=null;f.state.subs.set(session.subscription,{id:session.subscription,object:'subscription',livemode:true,customer:session.customer,status:'active',metadata:session.metadata,cancel_at_period_end:false,items:{has_more:false,data:[{quantity:1,current_period_start:at-60,current_period_end:at+86400,price:f.state.price}]},latest_invoice:{object:'invoice',customer:session.customer,status:'paid',currency:'usd'}});
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',session)))).status,200);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,1);
+});
+test('webhook database failures remain retryable and cannot leave a partially fulfilled invoice',async t=>{
+ const f=await fixture(t);await start(f);const h=await webhookFixture(f),{session}=complete(f),event=h.event('checkout.session.completed',session);
+ f.db.sqlite.exec("CREATE TRIGGER fail_subscription_audit BEFORE INSERT ON audit_events WHEN NEW.action='subscription_checked' BEGIN SELECT RAISE(ABORT,'fixture fail'); END;");assert.equal((await h.handle(await h.signed(event))).status,503);assert.equal(account(f).subscription_id,null);assert.equal(f.db.sqlite.prepare('SELECT status FROM billing_webhook_events').get().status,'processing');f.db.sqlite.exec('DROP TRIGGER fail_subscription_audit');assert.equal((await h.handle(await h.signed(event))).status,200);assert.equal((await f.api.dashboard()).entitled,true);
+});
+
+test('signed notifications cannot correlate a checkout from one workspace to another, even when their metadata is forged',async t=>{
+ const f=await fixture(t);await start(f);const other=billing(f.db,identity('other'),f.config,key,f.fetcher),q=await other.preview({});await other.checkout({reviewToken:q.reviewToken,confirmed:true});const h=await webhookFixture(f),{session}=complete(f),otherAttempt=f.db.sqlite.prepare('SELECT c.id FROM billing_checkouts c WHERE c.workspace_id<>?').get(f.workspace.id);
+ const forged={...session,metadata:{...session.metadata,affimaro_checkout:otherAttempt.id}};assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',forged)))).status,200);assert.equal((await f.api.dashboard()).entitled,false);assert.equal((await other.dashboard()).entitled,false);assert.equal(f.state.created,2);
+});
