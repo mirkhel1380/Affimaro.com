@@ -33,6 +33,7 @@ async function fixture(t){
   return {db,state,fetcher,api:emailAuth(db,config,fetcher)};
 }
 const login=f=>f.api.login({email,password},'192.0.2.10');
+function approvedFixture(f,userId,portal='brand'){const at=new Date().toISOString();f.db.sqlite.prepare("INSERT INTO platform_applications(user_id,portal,status,profile_json,created_at,updated_at) VALUES (?,?,'approved','{}',?,?)").run(userId,portal,at,at);}
 const session=f=>f.db.sqlite.prepare('SELECT * FROM auth_sessions ORDER BY rowid DESC LIMIT 1').get();
 const count=(f,table)=>f.db.sqlite.prepare(`SELECT count(*) n FROM ${table}`).get().n;
 async function post(f,path,flow,cookies,values={}){return authPage(request('/auth/'+path,cookies,{method:'POST',headers:{Origin:config.origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({nonce:flow.nonce,...values})}),f.api,config.origin);}
@@ -141,7 +142,7 @@ test('forms enforce same-origin CSRF, purpose binding, unique fields, method and
 test('full form recovery flow keeps tokens off URLs and pages and requires POST to sign out',async t=>{
   const f=await fixture(t),next=await f.api.newFlow('recover','/workspace');let result=await post(f,'recover',next.flow,cookie(next.cookie),{email});assert.equal(result.status,303);assert.equal(result.headers.get('location'),'/auth/verify');
   const flowCookie=cookie(result.headers.getSetCookie()[0]),flow=await f.api.flow(request('/',flowCookie));result=await post(f,'verify',flow,flowCookie,{code:'123456'});assert.equal(result.headers.get('location'),'/auth/reset');
-  const sessionCookie=cookie(result.headers.getSetCookie()[0]);const resetPage=await authPage(request('/auth/reset',sessionCookie),f.api,config.origin);assert.equal(resetPage.status,200);assert.match(resetPage.headers.get('content-security-policy'),/frame-ancestors 'none'/);const html=await resetPage.text();assert.ok(!html.includes('FIXTURE_'));assert.ok(!html.includes('<script'));
+  const sessionCookie=cookie(result.headers.getSetCookie()[0]);const resetPage=await authPage(request('/auth/reset',sessionCookie),f.api,config.origin);assert.equal(resetPage.status,200);assert.match(resetPage.headers.get('content-security-policy'),/frame-ancestors 'none'/);const html=await resetPage.text();assert.ok(!html.includes('FIXTURE_'));assert.match(html,/<script src="\/auth-form.js" defer><\/script>/);assert.ok(!/<script(?! src=)/.test(html));assert.match(resetPage.headers.get('content-security-policy'),/script-src 'self'/);
   const resetFlowCookie=cookie(resetPage.headers.getSetCookie()[0]),resetFlow=await f.api.flow(request('/',resetFlowCookie));result=await post(f,'reset',resetFlow,sessionCookie+'; '+resetFlowCookie,{password});assert.equal(result.headers.get('location'),'/auth/login?password_changed=1');assert.equal(count(f,'auth_sessions'),0);
   const signed=await login(f),logout=await authPage(request('/auth/logout',cookie(signed.cookie)),f.api,config.origin);assert.equal(logout.status,200);assert.equal(count(f,'auth_sessions'),1);
 });
@@ -151,7 +152,7 @@ test('the independent entry strips all spoofed identity headers and injects only
   assert.equal(verifiedRequest(request('/api/account','',{headers:forged}),null).headers.get('oai-authenticated-user-id'),null);
   let received;const app=async req=>{received=req;return Response.json({id:req.headers.get('oai-authenticated-user-id')});};
   const anonymous=await independentFetch(request('/api/account','',{headers:forged}),env,app,f.fetcher);assert.equal((await anonymous.json()).id,null);assert.ok([...received.headers.keys()].every(key=>!key.startsWith('oai-authenticated-user-')));
-  const signed=await login(f),verified=await independentFetch(request('/api/account',cookie(signed.cookie),{headers:forged}),env,app,f.fetcher);assert.equal((await verified.json()).id,signed.user.userId);assert.equal(received.headers.get('oai-authenticated-user-invented'),null);assert.match(verified.headers.get('cache-control'),/no-store/);
+  const signed=await login(f);approvedFixture(f,signed.user.userId);const verified=await independentFetch(request('/api/account',cookie(signed.cookie),{headers:forged}),env,app,f.fetcher);assert.equal((await verified.json()).id,signed.user.userId);assert.equal(received.headers.get('oai-authenticated-user-invented'),null);assert.match(verified.headers.get('cache-control'),/no-store/);
   f.state.outage=true;let called=false;const unavailable=await independentFetch(request('/api/account',cookie(signed.cookie)),env,async()=>{called=true;return new Response();},f.fetcher);assert.equal(unavailable.status,503);assert.equal(called,false);assert.ok(!(await unavailable.text()).includes('PRIVATE_'));
   const wrongHost=await independentFetch(new Request('https://other.example/api/account'),env,app,f.fetcher);assert.equal(wrongHost.status,403);
   const missing=await independentFetch(request('/account'),{DB:f.db},app,f.fetcher);assert.equal(missing.status,503);
@@ -177,6 +178,7 @@ test('only exact POST store-event paths bypass browser sessions, and maintenance
 
 test('getting-started routes resolve the verified session and cannot be cached or impersonated',async t=>{
   const f=await fixture(t),signed=await login(f),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
+  approvedFixture(f,signed.user.userId);
   const app=async req=>Response.json({id:req.headers.get('oai-authenticated-user-id')});
   for(const path of ['/start','/start?view=affiliate','/start/']){
     const response=await independentFetch(request(path,cookie(signed.cookie)),env,app,f.fetcher);
@@ -187,7 +189,7 @@ test('getting-started routes resolve the verified session and cannot be cached o
   f.state.revoked=true;const revoked=await independentFetch(request('/start',cookie(signed.cookie)),env,app,f.fetcher);assert.equal((await revoked.json()).id,null);
 });
 
-test('separate brand and affiliate signup forms bind their portal through verification and create only their own primary workspace',async t=>{
+test('separate signup binds the portal through verification and creates an unapproved application without an active workspace',async t=>{
   for(const portal of ['brand','affiliate']){
     const f=await fixture(t),page=await authPage(request('/auth/'+portal+'/signup'),f.api,config.origin),html=await page.text();
     assert.equal(page.status,200);assert.ok(html.includes('data-portal="'+portal+'"'));assert.ok(html.includes('action="/auth/'+portal+'/signup"'));
@@ -200,7 +202,7 @@ test('separate brand and affiliate signup forms bind their portal through verifi
     assert.equal(verificationFlow.portal,portal);assert.equal(verificationFlow.onboarding.name,values.name);assert.ok(!JSON.stringify(verificationFlow).includes(password));
     const verified=await post(f,portal+'/verify',verificationFlow,verificationCookie,{code:'123456'});assert.equal(verified.status,303);assert.equal(verified.headers.get('location'),portal==='brand'?'/workspace':'/partner');
     const signed=await f.api.resolve(request('/account',cookie(verified.headers.getSetCookie()[0])));assert.equal(await accountPortal(f.db,signed.userId),portal);
-    assert.equal(count(f,'workspaces'),portal==='brand'?1:0);assert.equal(count(f,'affiliate_profiles'),portal==='affiliate'?1:0);assert.equal(count(f,'applications'),0);assert.equal(count(f,'payout_requests'),0);assert.equal(count(f,'billing_accounts'),0);
+    assert.equal(count(f,'workspaces'),0);assert.equal(count(f,'affiliate_profiles'),0);const admission=f.db.sqlite.prepare('SELECT portal,status FROM platform_applications WHERE user_id=?').get(signed.userId);assert.equal(admission.portal,portal);assert.equal(admission.status,'draft');assert.equal(count(f,'applications'),0);assert.equal(count(f,'payout_requests'),0);assert.equal(count(f,'billing_accounts'),0);
   }
 });
 

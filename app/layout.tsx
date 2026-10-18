@@ -5,7 +5,7 @@ import "./start.css";
 
 export const metadata: Metadata = {
   title: "Affimaro — Your partner workspace",
-  description: "Your Affimaro account, business programs and affiliate partnerships. A product of Highlink.",
+  description: "Your Affimaro account, business programs and affiliate partnerships.",
   icons: {
     icon: "/demo/favicon.svg",
     shortcut: "/demo/favicon.svg",

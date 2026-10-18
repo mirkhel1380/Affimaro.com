@@ -6,7 +6,7 @@ import {handoffLandingLinks,marketingPage,pricingPage} from '../lib/landing.ts';
 
 const source='https://affimaro-preview.kindsky66.chatgpt.site',target='https://independent.example',paused={AFFIMARO_MIGRATION_MAINTENANCE:'true'};
 test('paused native browser pages go to the completed host while keeping the exact application path',()=>{
-  for(const path of ['/billing','/start?view=affiliate','/workspace?tab=program','/payments?view=business','/reports?range=7d','/join/program-id','/account','/install'])for(const method of ['GET','HEAD']){
+  for(const path of ['/billing','/start?view=affiliate','/workspace?tab=program','/payments?view=business','/reports?range=7d','/join/program-id','/account','/install','/application','/admin/applications'])for(const method of ['GET','HEAD']){
     const response=migrationMaintenance(new Request(source+path,{method}),paused,target);
     assert.equal(response.status,307);assert.equal(response.headers.get('location'),target+path);assert.equal(response.body,null);assert.equal(response.headers.get('cache-control'),'no-store');assert.equal(response.headers.get('referrer-policy'),'no-referrer');assert.equal(response.headers.get('set-cookie'),null);
   }
@@ -27,7 +27,7 @@ test('an accidental pause on the independent host stays blocked and invalid or s
 test('every package action on the separate pricing page opens the active host from the native preview',async()=>{
   const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8'),section=await readFile(new URL('../content/pricing-section.html',import.meta.url),'utf8');
   const page=pricingPage(landing,section),html=marketingPage(page,false,target);
-  const packages=[...html.matchAll(/<a\b[^>]*href="([^"]+\/billing)"[^>]*>/g)];assert.equal(packages.length,3);
+  const packages=[...html.matchAll(/<a\b[^>]*href="([^"]+\/billing)"[^>]*>/g)];assert.equal(packages.length,1);assert.equal((html.match(/<button[^>]*disabled>/g)||[]).length,2);
   for(const [tag,href] of packages){assert.equal(href,target+'/billing');assert.match(tag,/target="_top"/);}
   assert.ok(html.includes('href="/pricing" aria-current="page"'));assert.ok(html.includes('href="/demo/affiliates"'));
   for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));

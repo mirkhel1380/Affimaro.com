@@ -1,5 +1,5 @@
 /* Only public installation assets belong in this cache. Account data stays online. */
-const CACHE_NAME = 'affimaro-public-v1';
+const CACHE_NAME = 'affimaro-public-v2';
 const PUBLIC_ASSETS = [
   '/offline',
   '/manifest.webmanifest',

@@ -309,3 +309,32 @@ export const authRateLimits=sqliteTable('auth_rate_limits',{
   count:integer('count').notNull(),
   expiresAt:integer('expires_at').notNull(),
 },t=>[index('auth_rate_expiry').on(t.expiresAt),check('auth_rate_count',sql`${t.count}>0`)]);
+
+// Platform admission is distinct from an affiliate's application to a brand.
+export const platformApplications=sqliteTable('platform_applications',{
+  userId:text('user_id').primaryKey().references(()=>accounts.id),
+  portal:text('portal').notNull(),
+  status:text('status').notNull().default('draft'),
+  profileJson:text('profile_json').notNull().default('{}'),
+  revision:integer('revision').notNull().default(1),
+  submittedAt:text('submitted_at'),
+  reviewedAt:text('reviewed_at'),
+  reviewedBy:text('reviewed_by').references(()=>accounts.id),
+  reviewNote:text('review_note').notNull().default(''),
+  transitionId:text('transition_id'),
+  createdAt:text('created_at').notNull(),
+  updatedAt:text('updated_at').notNull(),
+},t=>[index('platform_application_queue').on(t.status,t.submittedAt),check('platform_application_portal',sql`${t.portal} IN ('brand','affiliate')`),check('platform_application_status',sql`${t.status} IN ('draft','pending','changes_requested','approved','rejected')`),check('platform_application_revision',sql`${t.revision}>0`)]);
+export const platformAdmins=sqliteTable('platform_admins',{
+  userId:text('user_id').primaryKey().references(()=>accounts.id),
+  grantedAt:text('granted_at').notNull(),
+});
+export const platformReviewEvents=sqliteTable('platform_review_events',{
+  id:text('id').primaryKey(),
+  applicantId:text('applicant_id').notNull().references(()=>platformApplications.userId),
+  actorId:text('actor_id').notNull().references(()=>accounts.id),
+  action:text('action').notNull(),
+  revision:integer('revision').notNull(),
+  note:text('note').notNull().default(''),
+  createdAt:text('created_at').notNull(),
+},t=>[index('platform_review_history').on(t.applicantId,t.createdAt)]);

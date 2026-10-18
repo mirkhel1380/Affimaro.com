@@ -8,7 +8,7 @@ Open **Plans & billing** in your account navigation. This is billing for Affimar
 
 Growth and Business remain future packages. Multiple programs/stores, extra business seats, coupon attribution, team permissions and a customer API are not offered for purchase.
 
-There is no hardcoded sale price. The business owner sees the verified configured Stripe price in a fresh review before continuing to hosted recurring Checkout. In the unconfigured private pilot, checkout is disabled and existing pilot access is preserved. No paid plan, trial deadline or charge is invented automatically.
+The owner-approved public launch prices are Starter $19, Growth $49 and Business $99 USD per month. Growth/Business are planned and cannot be purchased. Affiliate access is free. Provider billing remains separately configured; set the new Starter USD monthly Price to 1900 minor units before enabling checkout. The business owner sees the verified configured Stripe price in a fresh review before continuing to hosted recurring Checkout. In the unconfigured private pilot, checkout is disabled and existing pilot access is preserved. No paid plan, trial deadline or charge is invented automatically.
 
 ## Configure the Affimaro billing account
 
@@ -35,7 +35,7 @@ This pilot explicitly disables adaptive pricing, promotion codes and automatic t
 
 ## Review and buy Starter
 
-1. Create an Affimaro profile and business workspace.
+1. Complete a brand application and receive platform-owner approval, which provisions the business workspace.
 2. Open **Plans & billing → Review Starter subscription**.
 3. Review the mode, verified USD monthly amount and available package features. The owner/workspace/account/price/mode-bound review expires after five minutes.
 4. Explicitly confirm continuing to Stripe's recurring subscription checkout.
@@ -70,7 +70,7 @@ Successful live subscription verification is cached for up to fifteen minutes, n
 
 Accounts, existing tracking, corrections/refunds, payment requests, commission approvals/transfers, reports and history remain accessible. Program pause, affiliate suspension/decline, store security-key rotation, connection maintenance and manual Shopify sync remain available for safe operation of existing records. This enforcement policy does not discard store orders or commissions because a software subscription is overdue, and is not a full traffic shutoff for existing programs.
 
-New-workspace creation remains available so a business can reach setup and billing. Database constraints limit it to one workspace, program and store. No extra paid seats or hidden volume overage is enabled.
+Only an approved brand application receives its workspace and can reach setup and billing. Database constraints limit it to one workspace, program and store. No extra paid seats or hidden volume overage is enabled.
 
 ## Invoices and cancellation
 
@@ -90,6 +90,6 @@ Hosted return links are currently pinned to `https://affimaro-preview.kindsky66.
 
 This release preserves the supported Sites authentication integration. Sites owns hosted sign-in; independent email/password registration is not implemented here. A supported independent hosting/authentication deployment remains a separate task.
 
-Automated SQLite/provider-boundary tests exercise tenant isolation, quote/consent validation, price/account/mode mismatches, encrypted URLs, idempotent retries, duplicate purchase prevention, unknown-result holds, exact subscription/customer/invoice verification, live/test entitlement separation, period and renewal changes, expired-session handling, customer portals, leases, audit rollback and stale-provider failures. They use controlled responses. No Affimaro billing credential or final Price was supplied, no real Stripe checkout or card charge was executed, and authenticated browser/mobile QA remains pending because a supported browser QA surface is unavailable.
+Automated SQLite/provider-boundary tests exercise tenant isolation, quote/consent validation, price/account/mode mismatches, encrypted URLs, idempotent retries, duplicate purchase prevention, unknown-result holds, exact subscription/customer/invoice verification, live/test entitlement separation, period and renewal changes, expired-session handling, customer portals, leases, audit rollback and stale-provider failures. They use controlled responses. No Affimaro billing credential or configured provider Price was supplied, no real Stripe checkout or card charge was executed, and authenticated browser/mobile QA remains pending because a supported browser QA surface is unavailable.
 
 Official references: [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create), [Checkout retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve), [Price object](https://docs.stripe.com/api/prices/object), [Subscription object](https://docs.stripe.com/api/subscriptions/object), [Item-level billing periods](https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end), [Customer portal sessions](https://docs.stripe.com/api/customer_portal/sessions/create), [Idempotent requests](https://docs.stripe.com/api/idempotent_requests).

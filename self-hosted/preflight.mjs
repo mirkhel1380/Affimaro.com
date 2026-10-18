@@ -34,6 +34,13 @@ export async function verifiedD1Database(settings,apiToken,fetcher=fetch){
   let value;try{value=await boundedSettings(response,failure);}catch{throw new Error(failure);}
   if(value?.success!==true||value.result?.uuid!==settings.databaseId)throw new Error('The selected D1 database could not be confirmed in this Cloudflare account.');
 }
+export async function verifiedAdmissionBootstrap(settings,apiToken,fetcher=fetch){
+  const message='The existing owner’s application-review access could not be confirmed. Verify the original account/provider mapping before deploying the new Worker.';
+  const sql=`SELECT EXISTS(SELECT 1 FROM platform_admins pa JOIN auth_identities i ON i.user_id=pa.user_id JOIN platform_applications a ON a.user_id=pa.user_id JOIN workspaces w ON w.owner_id=pa.user_id JOIN programs p ON p.workspace_id=w.id WHERE pa.user_id=? AND i.provider_id=? AND a.portal='brand' AND a.status='approved') AS owner_ready`;
+  let response;try{response=await fetcher('https://api.cloudflare.com/client/v4/accounts/'+settings.accountId+'/d1/database/'+settings.databaseId+'/query',{method:'POST',headers:{Authorization:'Bearer '+apiToken,'Content-Type':'application/json'},redirect:'error',signal:AbortSignal.timeout(10000),body:JSON.stringify({sql,params:['sRqRHPT8wXYPGznd4Is1WagNk0865sViN9Ol8JZ3HBU0cBVOsDYjzR','0bc66b4f-f700-443b-ad8c-1967b4189c43']})});}catch{throw new Error(message);}
+  const value=await boundedSettings(response,message),result=value?.result?.[0];
+  if(value?.success!==true||result?.success!==true||result.results?.length!==1||result.results[0]?.owner_ready!==1)throw new Error(message);
+}
 export function verifyCloudflareTarget(config,settings){
   if(config.name!==independentWorkerName||config.vars?.APP_ORIGIN!==settings.origin||config.account_id!==settings.accountId||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='DB'||config.d1_databases[0].database_id!==settings.databaseId||config.workers_dev!==settings.routing.workers_dev||config.preview_urls!==false||JSON.stringify(config.routes??[])!==JSON.stringify(settings.routing.routes))throw new Error('Rebuild the independent package with these exact deployment settings.');
 }

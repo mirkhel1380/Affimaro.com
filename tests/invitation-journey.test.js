@@ -16,7 +16,7 @@ import {programInvitation} from '../lib/program-invitation.ts';
 const root=fileURLToPath(new URL('../',import.meta.url)),cache=join(root,'node_modules/.cache');
 mkdirSync(cache,{recursive:true});const temp=mkdtempSync(join(cache,'affimaro-invitation-'));
 after(()=>rmSync(temp,{recursive:true,force:true}));
-const output=await build({stdin:{contents:"export {Shell} from './app/ui'; export {InvitationView} from './app/join/invitation-view'; export {ApiForm,ActionButton,CopyButton} from './app/forms';",resolveDir:root,loader:'tsx'},write:false,bundle:true,platform:'node',format:'esm',target:'node22',jsx:'automatic',packages:'external',define:{'import.meta.env.AFFIMARO_SELF_HOSTED':'true'},plugins:[{name:'unused-dispatch-imports',setup(b){b.onResolve({filter:/^next\/(headers|navigation)$/},args=>({path:args.path,external:true,sideEffects:false}));}}]});
+const output=await build({stdin:{contents:"export {Shell} from './app/ui'; export {InvitationView} from './app/join/invitation-view'; export {ApiForm,ActionButton,CopyButton} from './app/forms';",resolveDir:root,loader:'tsx'},write:false,bundle:true,platform:'node',format:'esm',target:'node22',jsx:'automatic',packages:'external',define:{'import.meta.env.AFFIMARO_SELF_HOSTED':'true'},plugins:[{name:'unused-dispatch-imports',setup(b){b.onResolve({filter:/^(next\/(headers|navigation)|cloudflare:workers)$/},args=>({path:args.path,external:true,sideEffects:false}));}}]});
 const filename=join(temp,'view.mjs');writeFileSync(filename,output.outputFiles[0].contents);
 const {Shell,InvitationView,ApiForm,ActionButton,CopyButton}=await import(pathToFileURL(filename).href);
 const clientComponents=new Set([ApiForm,ActionButton,CopyButton]);

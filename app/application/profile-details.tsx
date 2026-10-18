@@ -1,0 +1,8 @@
+import type {ApplicationProfile} from '../../lib/application-profile';
+const labels:Record<string,string>={contactName:'Full contact name',name:'Profile name',organizationType:'Operating as',country:'Country / territory',city:'City',phone:'Contact phone',businessName:'Brand name',legalBusinessName:'Legal business / proprietor',registrationNumber:'Registration number',teamSize:'Team size',monthlyOrders:'Monthly orders',currency:'Primary currency',primaryUrl:'Primary website / channel',additionalUrls:'Additional properties',industry:'Main category',channel:'Main channel type',description:'Business / audience description',monthlyAudience:'Monthly reach',audienceCountries:'Audience countries',promotionMethods:'Promotion methods',experience:'Affiliate experience',promotionPlan:'Promotion strategy',partnerGoals:'Program goals',previousPartnerships:'Previous partnerships',referralSource:'How they found Affimaro',authorityConfirmed:'Authority & promotion declaration',dataConfirmed:'Accuracy & review declaration'};
+export function ProfileDetails({profile}:{profile:Partial<ApplicationProfile>}){
+  return <dl className="a-application-details">{Object.entries(labels).filter(([key])=>Object.hasOwn(profile,key)).map(([key,label])=>{
+    const raw=(profile as Record<string,unknown>)[key],values=Array.isArray(raw)?raw:[raw];
+    return <div key={key}><dt>{label}</dt><dd>{values.map((value,index)=><span key={index}>{['primaryUrl','additionalUrls'].includes(key)&&typeof value==='string'&&value.startsWith('https://')?<a href={value} target="_blank" rel="noopener noreferrer">{value}</a>:typeof value==='boolean'?value?'Confirmed':'Not confirmed':String(value||'Not provided')}</span>)}</dd></div>;
+  })}</dl>;
+}

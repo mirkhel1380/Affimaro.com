@@ -8,7 +8,7 @@ export async function accountPortal(db:D1Database,userId:string):Promise<Portal|
   const row=await db.prepare(`SELECT CASE
     WHEN EXISTS(SELECT 1 FROM workspaces WHERE owner_id=?) THEN 'brand'
     WHEN EXISTS(SELECT 1 FROM affiliate_profiles WHERE user_id=?) THEN 'affiliate'
-    ELSE NULL END AS portal`).bind(userId,userId).first<{portal:Portal|null}>();
+    ELSE (SELECT portal FROM platform_applications WHERE user_id=?) END AS portal`).bind(userId,userId,userId).first<{portal:Portal|null}>();
   return row?.portal||null;
 }
 export function portalForView(value:unknown):Portal|null{

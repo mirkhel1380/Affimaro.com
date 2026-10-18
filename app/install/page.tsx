@@ -30,7 +30,7 @@ export default function InstallPage(){
         </div>
         <div className="m-note"><strong>Stay connected.</strong><p>An internet connection is needed to see your current partners, orders and commissions and to make changes. If you’re offline, Affimaro will help you reconnect.</p></div>
       </section>
-      <footer className="m-footer"><span>Affimaro · A product of Highlink</span><a href="/">Back to Affimaro</a></footer>
+      <footer className="m-footer"><span>Affimaro</span><a href="/">Back to Affimaro</a></footer>
     </main>
   </>;
 }

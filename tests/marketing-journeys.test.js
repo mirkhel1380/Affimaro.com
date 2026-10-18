@@ -13,6 +13,7 @@ test('public journeys have real destinations, valid fragment targets and no miss
     assert.equal(ids.length,new Set(ids).size,path+' has unique IDs');
     assert.equal((html.match(/<h1[\s>]/g)||[]).length,1,path+' has one primary heading');
     assert.match(html,/<html lang="en">/);assert.match(html,/<footer /);
+    assert.ok(!/Highlink/i.test(html),'Removed attribution stays absent on '+path);
     for(const [,href] of html.matchAll(/\bhref="([^"]+)"/g)){
       if(href.startsWith('#')){assert.ok(ids.includes(href.slice(1)),path+' has target '+href);continue;}
       const url=new URL(href,'https://affimaro.example');

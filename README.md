@@ -1,6 +1,6 @@
 # Affimaro
 
-Affimaro is an affiliate management product by Highlink. The independent pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, a signed custom-website server integration, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
+Affimaro is an independent affiliate management platform. The independent pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, a signed custom-website server integration, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
 
 ## Available now
 
@@ -36,7 +36,11 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/`: expanded marketing website with dedicated audience, feature, integration and resource pages, grouped service menus and a shared footer.
 - `/brands`, `/affiliates`: separate audience pages; `/demo/brands` and `/demo/affiliates` open separate sample dashboards.
 - `/login`, `/get-started`: choose the brand or affiliate authentication journey.
-- `/auth/brand/login|signup`, `/auth/affiliate/login|signup`: independent, verified-email sign-in and registration. Brand signup collects the business name; affiliate signup collects the main channel. Only that role's workspace/profile is created after email verification.
+- `/application`: private detailed application, owner-review status and requested corrections.
+- `/admin/applications`: owner-only review queue for both account types.
+- `/api/application`, `/api/admin/applications`: bounded, same-origin application submission and owner decisions.
+- `/creators`, `/agencies`: dedicated audience pages with honest current account scope.
+- `/auth/brand/login|signup`, `/auth/affiliate/login|signup`: independent, verified-email sign-in and registration. Brand signup collects the business name; affiliate signup collects the main channel. Email verification creates only a draft application. The owner reviews a complete profile before its workspace/profile and portal access are activated.
 - `/pricing`: public package features, reached from Pricing in the header. The home page has no pricing section; the install link sits in the lower-right corner.
 - `/account`: edit the account profile and open its own primary portal.
 - `/install`: install the independent web app from a supported browser.
@@ -139,7 +143,7 @@ The [subscription setup guide](docs/subscriptions-setup.md) covers the Starter p
 
 ## Storage
 
-`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty-five tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. `0009` adds separate software billing accounts/checkouts. `0010` adds external identity mappings, encrypted server sessions, shared authentication throttles and frozen Checkout return origins. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
+`.openai/hosting.json` preserves the Site ID and declares D1 binding `DB`. `db/schema.ts` defines twenty-eight tables; `drizzle/` holds append-only schema migrations and metadata. Sites provisions D1 and applies migrations on publication. Applied migration `0000` is unchanged; `0001` adds connections, referrals, orders and event receipts; `0002` adds bank profiles, commission approvals and payout requests. `0003`–`0005` add store platform metadata, Shopify connection/retry state and program rule revisions. `0006` adds owner-scoped encrypted payment-provider connections. `0007` adds opt-in Stripe setup settings and recipient state. `0008` preserves existing bank-payment rows while adding payment methods, processing/transferred state, reversal amounts and durable Stripe transfer attempts. `0009` adds separate software billing accounts/checkouts. `0010` adds external identity mappings, encrypted server sessions, shared authentication throttles and frozen Checkout return origins. `0011` adds platform applications, explicit platform admins and review history. The deployment-only [bootstrap](self-hosted/admission-bootstrap.sql) preserves the established owner mapping and leaves other unreviewed accounts in draft. Earlier applied migrations are unchanged. SQL values are bound and related writes use D1 batches.
 
 The separate sample dashboards remain device-local (`affimaro.demo.v1.merchant` and `affimaro.demo.v1.affiliate`). Each demo locks navigation to its own role and has no role switch. Sample payments do not create real records. Legacy hash links redirect to the corresponding dedicated demo.
 
@@ -164,3 +168,11 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 Connect a real staging store and verify checkout/refunds end to end, verify customer email sending after the owner purchases a domain, then complete live subscription configuration, broader subscription tiers, the Paddle adapter, broader currency and payout support, and native app-store packages. The independent host, owner sign-in/recovery and installable web app are already online. Starter currently follows the existing one-store/program/owner limits; future package limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
 
 The private GitHub repository is connected to Cloudflare Workers Builds on `main` and publishes the independent host automatically. Native Sites source/version synchronization is maintained separately; its owner-private source remains paused with migration export disabled and the original payment key preserved. GitHub Pages is not used. The owner will purchase the custom domain elsewhere; domain connection is deferred.
+
+## Platform applications and launch prices
+
+Both brand and affiliate accounts require a complete profile and explicit owner approval. Email verification creates an account identity and draft application only. `/application` collects contact details, business or channel URLs, category, audience countries/reach, experience, promotion methods/strategy and factual declarations. Brands additionally provide business identity and program goals. There are no identity-document or bank-detail uploads in this application. Review data is private to the applicant and the authorized platform owner.
+
+The [admissions guide](docs/platform-applications.md) documents access enforcement, review revisions and the bounded deployment bootstrap. Existing affiliate-to-brand applications remain a separate, manually reviewed membership workflow.
+
+Owner-approved launch prices are Starter **$19**, Growth **$49** and Business **$99 USD per month**. Affiliate accounts are free to use. Growth/Business remain planned, and paid checkout still requires separate provider configuration. Prices are shared between public and private plan pages through `lib/pricing-catalog.mjs`. Existing payment credentials, billing records and encryption keys are preserved.

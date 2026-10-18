@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {AppError,service} from '../lib/service.ts';
 import {accountPortal,type Portal} from '../lib/portal-policy.ts';
+import {admissions} from '../lib/admissions.ts';
 import {openAuth,sealAuth} from './auth-seal.ts';
 import {trustedPublicOrigin} from '../lib/public-origin.ts';
 
@@ -89,13 +90,13 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
       const actual=await accountPortal(db,userId);
       if(actual&&actual!==portal)throw new AppError(403,`This email belongs to a ${actual} account. Use its own sign-in page.`);
       if(!actual&&!recoveryOnly&&onboarding){
-        const s=service(db,{userId,email:user.email});
+        const registration=admissions(db,{userId,email:user.email});
         if(portal==='brand'){
           if(!onboarding.businessName)throw new AppError(400,'Enter your business name on brand registration.');
-          await s.createBusiness({name:onboarding.businessName,website:''});
+          await registration.start('brand',{businessName:onboarding.businessName});
         }else{
           if(!onboarding.channel)throw new AppError(400,'Choose your main channel on affiliate registration.');
-          await s.saveAffiliate({name:onboarding.name,channel:onboarding.channel,website:'',bio:''});
+          await registration.start('affiliate',{channel:onboarding.channel});
         }
       }
     }

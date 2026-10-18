@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {emailSignIn} from '../lib/auth-mode';
+import {getRawDb} from '../db';
+import {getAdmission} from '../lib/admissions';
 
 export type ChatGPTUser = {
   userId: string;
@@ -42,9 +44,13 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
 
 export async function requireChatGPTUser(
   returnTo: string,
+  options:{allowApplication?:boolean}={},
 ): Promise<ChatGPTUser> {
   const user = await getChatGPTUser();
-  if (user) return user;
+  if (user){
+    if(!options.allowApplication&&(await getAdmission(getRawDb(),user.userId))?.status!=='approved')redirect('/application?return_to='+encodeURIComponent(safeRelativeReturnPath(returnTo)));
+    return user;
+  }
 
   redirect(chatGPTSignInPath(returnTo));
 }

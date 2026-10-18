@@ -2,6 +2,7 @@ import {AppError} from '../lib/service.ts';
 import {emailAuth,validateAuthConfig,type AuthConfig,type AuthUser} from './auth-core.ts';
 import {authPage,isAuthPath} from './auth-pages.ts';
 import {migrationMaintenance} from './migration.ts';
+import {admissionGate} from '../lib/admission-gate.ts';
 
 type Bindings=Record<string,unknown>&{DB:D1Database};
 export function independentConfig(env:Bindings):AuthConfig{
@@ -23,8 +24,9 @@ export async function independentFetch(request:Request,env:Bindings,application:
     if(isAuthPath(url.pathname))return authPage(request,auth,config.origin);
     // Public assets and HMAC-signed store events do not need a browser identity.
     const signedStoreEvent=request.method==='POST'&&['/api/woocommerce/event','/api/custom/event'].includes(url.pathname);
-    const accountRoute=/^\/(account|start|workspace|partner|payments|reports|billing|join|migration)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent;
+    const accountRoute=/^\/(account|start|workspace|partner|payments|reports|billing|join|migration|application|admin)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent;
     const user=accountRoute?await auth.resolve(request):null;
+    if(user){const blocked=await admissionGate(request,env.DB,user);if(blocked)return blocked;}
     const response=await application(verifiedRequest(request,user)),headers=new Headers(response.headers);
     if(accountRoute){headers.set('Cache-Control','private, no-store');headers.append('Vary','Cookie');}
     headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('Strict-Transport-Security','max-age=31536000');
