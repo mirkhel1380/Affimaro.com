@@ -23,7 +23,7 @@ test('migration export is explicitly owner-gated and disabled without a paused s
   await assert.rejects(encryptedMigration(f.db,{...values,AFFIMARO_MIGRATION_EXPORT_PUBLIC_KEY:'invalid'},'https://source.example'),fails(503));
 });
 test('maintenance blocks browser writes, machine delivery and pages with potential writes, while leaving encrypted export available',()=>{
-  for(const [path,method] of [['/api/woocommerce/event','POST'],['/api/payments','POST'],['/billing','GET'],['/workspace','GET'],['/auth/login','POST']]){
+  for(const [path,method] of [['/api/woocommerce/event','POST'],['/api/payments','POST'],['/billing','GET'],['/workspace','GET'],['/start','GET'],['/auth/login','POST']]){
     const req=new Request('https://source.example'+path,{method});assert.equal(migrationMaintenance(req,{}),null);assert.equal(migrationMaintenance(req,values).status,503);
   }
   for(const [path,method] of [['/migration','GET'],['/api/migration/export','POST'],['/demo/app.js','GET'],['/','GET']])assert.equal(migrationMaintenance(new Request('https://source.example'+path,{method}),values),null);

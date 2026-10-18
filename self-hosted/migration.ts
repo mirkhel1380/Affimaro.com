@@ -1,13 +1,23 @@
 import {AppError} from '../lib/service.ts';
+import {trustedPublicOrigin} from '../lib/public-origin.ts';
 import {migrationTables} from './migration-schema.ts';
 export const migrationSettings=['PAYMENT_DATA_KEY_V1','AFFIMARO_BILLING_STRIPE_KEY','AFFIMARO_BILLING_ACCOUNT_ID','AFFIMARO_STARTER_PRICE_ID','AFFIMARO_BILLING_MODE','AFFIMARO_BILLING_LIVE_ENABLED','AFFIMARO_BILLING_REQUIRED'] as const;
 const encoder=new TextEncoder(),maximum=4*1024*1024;
 const base64=(bytes:Uint8Array)=>{let value='';for(let at=0;at<bytes.length;at+=8192)value+=String.fromCharCode(...bytes.subarray(at,at+8192));return btoa(value);};
-export function migrationMaintenance(request:Request,values:Record<string,unknown>){
+export function migrationMaintenance(request:Request,values:Record<string,unknown>,completedMoveOrigin?:string){
   if(values.AFFIMARO_MIGRATION_MAINTENANCE!=='true')return null;
-  const path=new URL(request.url).pathname;
+  const url=new URL(request.url),path=url.pathname,read=['GET','HEAD'].includes(request.method);
   if(path==='/migration'||path==='/api/migration/export')return null;
-  if(!['GET','HEAD'].includes(request.method)||/^\/(account|workspace|partner|payments|reports|billing|join|api|auth)(\/|$)/.test(path))return Response.json({ok:false,error:'Affimaro is temporarily paused for a data migration. Retry after the owner completes the move.'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'120'}});
+  const applicationPage=/^\/(account|start|workspace|partner|payments|reports|billing|join|install)(\/|$)/.test(path);
+  // Only the native entry supplies the completed destination. Never forward a
+  // write, API call, authentication request or old-host credential to it.
+  if(read&&applicationPage&&completedMoveOrigin){
+    try{
+      const target=trustedPublicOrigin(completedMoveOrigin);
+      if(target!==url.origin)return new Response(null,{status:307,headers:{Location:target+path+url.search,'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+    }catch{/* Keep the source paused if its configured destination is invalid. */}
+  }
+  if(!read||applicationPage||/^\/(api|auth)(\/|$)/.test(path))return Response.json({ok:false,error:'Affimaro is temporarily paused for a data migration. Retry after the owner completes the move.'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'120'}});
   return null;
 }
 export function requireMigrationOwner(userId:string|undefined,values:Record<string,unknown>){

@@ -4,6 +4,8 @@ Affimaro has two deployment targets. The owner-private ChatGPT Site retains Site
 
 ## Boundaries
 
+After the completed migration, native marketing links to account/application pages use the selected independent origin and top-level navigation. GET/HEAD visits to old business URLs (including `/billing`, `/start` and `/workspace`) temporarily redirect to the same path on that host, with no-store and no-referrer headers. This handoff is supplied only by the native entry while maintenance is enabled. Source writes, API requests and authentication requests remain blocked; no source session, payment key or request body is forwarded. The independent host retains relative navigation, its own sign-in and its maintenance behavior. The source remains paused and export access stays disabled.
+
 - Native: `vite.config.ts`, `build/sites-worker.ts`, `npm run build`. Publish only through Sites. Its audience and existing runtime payment key are unchanged.
 - Independent: `vite.self-hosted.config.ts`, `self-hosted/worker.ts`, `npm run build:self-hosted`. The builder uses an isolated source copy because the current Vinext version writes manifests under `dist/`. The resulting package is `dist-self-hosted/`; the native package is untouched.
 - Never deploy the native Worker as an ordinary public Cloudflare Worker. Only the independent entry strips caller-supplied `oai-authenticated-user-*` headers and replaces them with a verified session identity.
