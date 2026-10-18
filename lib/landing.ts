@@ -10,7 +10,7 @@ export function pricingPage(landing:string,section:string){
   const homeLinks=(html:string)=>html.replace(/<a\b[^>]*>/g,tag=>tag.replace(/\shref="#([^"]*)"/,(_,hash)=>` href="/${hash?'#'+hash:''}"`));
   const head=part(/<head>[\s\S]*?<\/head>/)
     .replace(/<title>[\s\S]*?<\/title>/,'<title>Pricing & packages | Affimaro</title>')
-    .replace(/<meta name="description"[^>]*>/,'<meta name="description" content="Explore Affimaro Starter features and planned packages for your affiliate program.">')
+    .replace(/<meta name="description"[^>]*>/,'<meta name="description" content="Compare Starter, Growth and Business packages for brand and agency accounts. Affiliate and creator access is free.">')
     .replace('<script type="module" src="/demo/app.js"></script>','<script src="/marketing-nav.js" defer></script>');
   const header=homeLinks(part(/<header class="site-header"[\s\S]*?<\/header>/)).replace(/(<a\b[^>]*\bhref="\/pricing")([^>]*>)/,'$1 aria-current="page"$2');
   const footer=homeLinks(part(/<footer class="site-footer [^"]*"[\s\S]*?<\/footer>/));
@@ -24,7 +24,7 @@ export function handoffLandingLinks(html:string,independentOrigin:string){
   const origin=trustedPublicOrigin(independentOrigin);
   return html.replace(/<a\b[^>]*>/g,tag=>{
     const href=tag.match(/\shref="([^"]+)"/)?.[1];
-    if(!href||!/^\/(auth|account|start|workspace|partner|payments|reports|billing|join|install|application|admin)([/?#]|$)/.test(href))return tag;
+    if(!href||!/^\/(auth|account|start|workspace|partner|creator|agency|payments|reports|billing|join|install|application|admin)([/?#]|$)/.test(href))return tag;
     return tag.replace(/\s+target="[^"]*"/g,'').replace(/\shref="[^"]+"/,` href="${origin}${href}" target="_top"`);
   });
 }

@@ -19,7 +19,7 @@ export function ApiForm({endpoint,method='POST',fields,label,redirectTo}:{endpoi
       if(redirectTo)window.location.assign(redirectTo);else window.location.reload();
     }catch(error){setError(error instanceof Error?error.message:'The connection failed. Please try again.');setBusy(false);}
   }
-  return <form className="a-form" onSubmit={submit}>{fields.map(field=>{
+  return <form method="post" action={endpoint} className="a-form" onSubmit={submit}>{fields.map(field=>{
     const id=`field-${field.name}`,value=typeof field.value==='boolean'?'':field.value;
     if(field.type==='checkbox')return <label key={field.name} className="a-switch"><span>{field.label}{field.hint&&<small>{field.hint}</small>}</span><input type="checkbox" name={field.name} defaultChecked={!!field.value}/></label>;
     return <div className="a-field" key={field.name}><label htmlFor={id}>{field.label}</label>{field.type==='select'?<select id={id} name={field.name} defaultValue={value} required={field.required}>{field.options?.map(option=><option key={option}>{option}</option>)}</select>:field.type==='textarea'?<textarea id={id} name={field.name} defaultValue={value} maxLength={field.maxLength} placeholder={field.placeholder} rows={3}/>:<input id={id} name={field.name} type={field.type||'text'} defaultValue={value} placeholder={field.placeholder} required={field.required} min={field.min} max={field.max} step={field.step} maxLength={field.maxLength} autoComplete={field.name==='name'?'name':undefined}/>}{field.hint&&<small>{field.hint}</small>}</div>;

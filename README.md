@@ -176,3 +176,7 @@ Both brand and affiliate accounts require a complete profile and explicit owner 
 The [admissions guide](docs/platform-applications.md) documents access enforcement, review revisions and the bounded deployment bootstrap. Existing affiliate-to-brand applications remain a separate, manually reviewed membership workflow.
 
 Owner-approved launch prices are Starter **$19**, Growth **$49** and Business **$99 USD per month**. Affiliate accounts are free to use. Growth/Business remain planned, and paid checkout still requires separate provider configuration. Prices are shared between public and private plan pages through `lib/pricing-catalog.mjs`. Existing payment credentials, billing records and encryption keys are preserved.
+
+## Four dedicated portals
+
+Brand (`/workspace`), Affiliate (`/partner`), Creator (`/creator`) and Agency (`/agency`) have separate registration, review profiles, navigation and private homes. Creator content planning and agency client contacts are saved server-side. See [four-portals](docs/four-portals.md) and [package setup](docs/subscriptions-setup.md). All three packages have working selection and review; choosing one does not charge a card.

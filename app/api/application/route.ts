@@ -6,7 +6,7 @@ export async function POST(request:Request){return admissionAction(request,async
   const result=z.object({action:z.enum(['start','submit','edit']),data:z.unknown()}).strict().safeParse(body);if(!result.success)throw new AppError(400,'Check your application request.');
   const api=admissions(db,user),value=result.data;
   if(value.action==='start'){
-    const data=z.object({portal:z.enum(['brand','affiliate'])}).strict().safeParse(value.data);if(!data.success)throw new AppError(400,'Choose a brand or affiliate account.');return api.start(data.data.portal);
+    const data=z.object({portal:z.enum(['brand','affiliate','creator','agency'])}).strict().safeParse(value.data);if(!data.success)throw new AppError(400,'Choose your account type.');return api.start(data.data.portal);
   }
   return value.action==='submit'?api.submit(value.data):api.edit(value.data);
 });}

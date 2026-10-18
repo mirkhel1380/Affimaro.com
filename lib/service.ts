@@ -1,5 +1,5 @@
 import { z } from "zod";
-import {accountPortal} from './portal-policy.ts';
+import {accountPortal,portalFamily} from './portal-policy.ts';
 
 export type Identity = { userId: string; email: string };
 export type Account = {id:string;email:string;display_name:string;created_at:string};
@@ -80,7 +80,7 @@ export function service(db:D1Database,identity:Identity) {
       await requireAccount();const value=parse(schemas.affiliate,input);
       if(await workspace())throw new AppError(403,'Brand accounts cannot create or edit an affiliate profile.');
       await db.prepare("INSERT INTO affiliate_profiles (user_id,display_name,channel,website,bio,created_at) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_id=?) ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,channel=excluded.channel,website=excluded.website,bio=excluded.bio WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE owner_id=?)").bind(identity.userId,value.name,value.channel,value.website,value.bio,now(),identity.userId,identity.userId).run();
-      if(await accountPortal(db,identity.userId)!=='affiliate')throw new AppError(403,'Brand accounts cannot create or edit an affiliate profile.');
+      if(portalFamily((await accountPortal(db,identity.userId))||'affiliate')!=='affiliate')throw new AppError(403,'Brand accounts cannot create or edit an affiliate profile.');
       return profile();
     },
     async businessDashboard() {
@@ -133,11 +133,11 @@ export function service(db:D1Database,identity:Identity) {
       const value=parse(schemas.review,input);const business=await requireWorkspace();
       const application=await one<{id:string}>("SELECT a.id FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id WHERE a.id=? AND w.id=? AND w.owner_id=?",value.applicationId,business.id,identity.userId);
       if(!application)throw new AppError(404,"Application not found in your workspace.");
-      await db.batch([
-        db.prepare("UPDATE applications SET status=?,updated_at=? WHERE id=? AND program_id IN (SELECT id FROM programs WHERE workspace_id=?)").bind(value.status,now(),value.applicationId,business.id),
-        event(business.id,'application_reviewed'),
-      ]);
-      return {id:value.applicationId,status:value.status};
+      const at=now();await db.batch([
+        db.prepare(`UPDATE applications SET status=?,updated_at=? WHERE id=? AND program_id IN (SELECT id FROM programs WHERE workspace_id=?)
+          AND (?<>'approved' OR status='approved' OR (SELECT count(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=? AND a.status='approved') < COALESCE((SELECT CASE active_plan WHEN 'growth' THEN 500 WHEN 'business' THEN 2000 ELSE 100 END FROM plan_requests WHERE user_id=?),100))`).bind(value.status,at,value.applicationId,business.id,value.status,business.id,identity.userId),
+        db.prepare("INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_reviewed',? WHERE EXISTS(SELECT 1 FROM applications WHERE id=? AND status=? AND updated_at=?)").bind(id(),business.id,identity.userId,at,value.applicationId,value.status,at),
+      ]);const saved=await one<{status:string}>("SELECT status FROM applications WHERE id=?",value.applicationId);if(saved?.status!==value.status)throw new AppError(409,'Your approved-partner package limit has been reached. Request a larger package before approving another partner.');return {id:value.applicationId,status:value.status};
     },
   };
 }

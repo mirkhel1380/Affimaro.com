@@ -21,7 +21,7 @@ try{
   // The original payment key is provisioned only by the encrypted migration.
   // Ordinary deployments must never replace it from a CI environment value.
   const secrets={AUTH_SESSION_ENCRYPTION_KEY:process.env.AUTH_SESSION_ENCRYPTION_KEY};
-  for(const key of ['AFFIMARO_BILLING_STRIPE_KEY','AFFIMARO_BILLING_ACCOUNT_ID','AFFIMARO_STARTER_PRICE_ID','AFFIMARO_BILLING_MODE','AFFIMARO_BILLING_LIVE_ENABLED','AFFIMARO_BILLING_REQUIRED'])if(process.env[key])secrets[key]=process.env[key];
+  for(const key of ['AFFIMARO_BILLING_STRIPE_KEY','AFFIMARO_BILLING_ACCOUNT_ID','AFFIMARO_STARTER_PRICE_ID','AFFIMARO_GROWTH_PRICE_ID','AFFIMARO_BUSINESS_PRICE_ID','AFFIMARO_BILLING_MODE','AFFIMARO_BILLING_LIVE_ENABLED','AFFIMARO_BILLING_REQUIRED'])if(process.env[key])secrets[key]=process.env[key];
   // Secret values travel only over stdin, never command-line arguments or files.
   run(['secret','bulk'],JSON.stringify(secrets));
   run(['deploy']);

@@ -8,7 +8,7 @@ export function migrationMaintenance(request:Request,values:Record<string,unknow
   if(values.AFFIMARO_MIGRATION_MAINTENANCE!=='true')return null;
   const url=new URL(request.url),path=url.pathname,read=['GET','HEAD'].includes(request.method);
   if(path==='/migration'||path==='/api/migration/export')return null;
-  const applicationPage=/^\/(account|start|workspace|partner|payments|reports|billing|join|install|application|admin)(\/|$)/.test(path);
+  const applicationPage=/^\/(account|start|workspace|partner|creator|agency|payments|reports|billing|join|install|application|admin)(\/|$)/.test(path);
   // Only the native entry supplies the completed destination. Never forward a
   // write, API call, authentication request or old-host credential to it.
   if(read&&applicationPage&&completedMoveOrigin){

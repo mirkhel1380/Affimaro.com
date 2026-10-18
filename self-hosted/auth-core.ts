@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {AppError,service} from '../lib/service.ts';
-import {accountPortal,type Portal} from '../lib/portal-policy.ts';
+import {accountPortal,businessPortal,type Portal} from '../lib/portal-policy.ts';
 import {admissions} from '../lib/admissions.ts';
 import {openAuth,sealAuth} from './auth-seal.ts';
 import {trustedPublicOrigin} from '../lib/public-origin.ts';
@@ -11,15 +11,15 @@ type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 type ProviderUser={id:string;email:string;email_confirmed_at:string;user_metadata?:{display_name?:string}};
 type Tokens={access_token:string;refresh_token:string;expires_at:number};
 type Session={id:string;token_hash:string;provider_id:string;user_id:string;encrypted_tokens:string;recovery_only:number;expires_at:number;lease_id:string|null;lease_until:number|null};
-type Onboarding={name:string;businessName?:string;channel?:'Content creator'|'Newsletter'|'Community'|'Blog'|'Other'};
-export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number;portal?:Portal;onboarding?:Onboarding};
+type Onboarding={name:string;plan?:'starter'|'growth'|'business';businessName?:string;channel?:'Content creator'|'Newsletter'|'Community'|'Blog'|'Other'};
+export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number;portal?:Portal;onboarding?:Onboarding;plan?:'starter'|'growth'|'business'};
 export const SESSION_COOKIE='__Host-affimaro_session',FLOW_COOKIE='__Host-affimaro_flow';
 const userSchema=z.object({id:z.string().uuid(),email:z.string().email().max(254).regex(/^[\x21-\x7e]+$/),email_confirmed_at:z.string().datetime(),user_metadata:z.object({display_name:z.string().max(200).optional()}).optional()});
 const tokenSchema=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_in:z.number().int().positive().max(86400),token_type:z.literal('bearer'),user:z.unknown()});
 const storedTokens=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_at:z.number().int().positive()}).strict();
 const channelSchema=z.enum(['Content creator','Newsletter','Community','Blog','Other']);
-const onboardingSchema=z.object({name:z.string().trim().min(2).max(60),businessName:z.string().trim().min(2).max(60).optional(),channel:channelSchema.optional()}).strict();
-const flowSchema=z.object({nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int(),portal:z.enum(['brand','affiliate']).optional(),onboarding:onboardingSchema.optional()}).strict();
+const onboardingSchema=z.object({name:z.string().trim().min(2).max(60),businessName:z.string().trim().min(2).max(60).optional(),channel:channelSchema.optional(),plan:z.enum(['starter','growth','business']).optional()}).strict();
+const flowSchema=z.object({nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int(),portal:z.enum(['brand','affiliate','creator','agency']).optional(),onboarding:onboardingSchema.optional(),plan:z.enum(['starter','growth','business']).optional()}).strict();
 const hex=(data:Uint8Array)=>Array.from(data,byte=>byte.toString(16).padStart(2,'0')).join('');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const stamp=()=>new Date().toISOString();
@@ -91,12 +91,12 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
       if(actual&&actual!==portal)throw new AppError(403,`This email belongs to a ${actual} account. Use its own sign-in page.`);
       if(!actual&&!recoveryOnly&&onboarding){
         const registration=admissions(db,{userId,email:user.email});
-        if(portal==='brand'){
+        if(businessPortal(portal)){
           if(!onboarding.businessName)throw new AppError(400,'Enter your business name on brand registration.');
-          await registration.start('brand',{businessName:onboarding.businessName});
+          await registration.start(portal,{businessName:onboarding.businessName,plan:onboarding.plan});
         }else{
           if(!onboarding.channel)throw new AppError(400,'Choose your main channel on affiliate registration.');
-          await registration.start('affiliate',{channel:onboarding.channel});
+          await registration.start(portal,{channel:onboarding.channel});
         }
       }
     }
@@ -133,12 +133,12 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     return {row,tokens,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
   return {
-    async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:safeReturnTo(returnTo),...(email?{email}:{}),...(portal?{portal}:{}),...(onboarding?{onboarding}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
+    async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding,plan?:'starter'|'growth'|'business'){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:safeReturnTo(returnTo),...(email?{email}:{}),...(portal?{portal}:{}),...(onboarding?{onboarding}:{}),...(plan?{plan}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
     async flow(request:Request){const value=cookieValue(request,FLOW_COOKIE);if(!value||value.length>4096)return null;try{const data=flowSchema.parse(await openAuth(value,config.encryptionKey,`auth-flow/${config.origin}`));return data.expires>Math.floor(Date.now()/1000)&&data.expires<=Math.floor(Date.now()/1000)+905?data:null;}catch{return null;}},
     async login(input:unknown,ip:string,previousCookie?:string|null,portal?:Portal){const value=parse(z.object({email:emailSchema,password:z.string().min(1).max(128)}).strict(),input);await rate('login',value.email,ip,8);await emailProvider();return issue(await provider('/token?grant_type=password','POST',{email:value.email,password:value.password}),value.email,false,previousCookie,portal);},
     async signup(input:unknown,ip:string,portal?:Portal){
       const base=z.object({email:emailSchema,password:z.string().min(12).max(128),name:z.string().trim().min(2).max(60)});
-      const schema=portal==='brand'?base.extend({businessName:z.string().trim().min(2).max(60)}).strict():portal==='affiliate'?base.extend({channel:channelSchema}).strict():base.strict();
+      const schema=portal&&businessPortal(portal)?base.extend({businessName:z.string().trim().min(2).max(60)}).strict():portal&&!businessPortal(portal)?base.extend({channel:channelSchema}).strict():base.strict();
       const value=parse(schema,input);await rate('signup',value.email,ip,4,3600);await emailProvider(true);await provider('/signup','POST',{email:value.email,password:value.password,data:{display_name:value.name}});
       const onboarding=onboardingSchema.parse({name:value.name,...('businessName' in value?{businessName:value.businessName}:{}),...('channel' in value?{channel:value.channel}:{})});
       return {email:value.email,...(portal?{onboarding}:{})};

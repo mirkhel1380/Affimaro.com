@@ -27,11 +27,11 @@ test('an accidental pause on the independent host stays blocked and invalid or s
 test('every package action on the separate pricing page opens the active host from the native preview',async()=>{
   const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8'),section=await readFile(new URL('../content/pricing-section.html',import.meta.url),'utf8');
   const page=pricingPage(landing,section),html=marketingPage(page,false,target);
-  const packages=[...html.matchAll(/<a\b[^>]*href="([^"]+\/billing)"[^>]*>/g)];assert.equal(packages.length,1);assert.equal((html.match(/<button[^>]*disabled>/g)||[]).length,2);
-  for(const [tag,href] of packages){assert.equal(href,target+'/billing');assert.match(tag,/target="_top"/);}
-  assert.ok(html.includes('href="/pricing" aria-current="page"'));assert.ok(html.includes('href="/demo/affiliates"'));
+  const packages=[...html.matchAll(/<a\b[^>]*href="(\/get-started\?plan=[a-z]+)"[^>]*>/g)];assert.equal(packages.length,3);assert.equal((html.match(/<button[^>]*disabled>/g)||[]).length,0);
+  for(const [,href] of packages)assert.ok(['/get-started?plan=starter','/get-started?plan=growth','/get-started?plan=business'].includes(href));
+  assert.ok(html.includes('href="/pricing" aria-current="page"'));
   for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));
-  const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/billing"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
+  const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/get-started?plan=growth"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
   assert.ok(!landing.includes('id="plans"'));assert.ok(!landing.includes('href="#plans"'));
 });
 test('native landing handoff preserves public/demo links, replaces an existing target once and supports a future selected domain',()=>{

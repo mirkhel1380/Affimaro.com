@@ -1,5 +1,5 @@
 import {redirect} from 'next/navigation';
-import {accountPortal,portalForView} from '../../lib/portal-policy';
+import {accountPortal,portalForView,portalHome} from '../../lib/portal-policy';
 import {requireChatGPTUser} from '../chatgpt-auth';
 import {getRawDb} from '../../db';
 import {gettingStarted} from '../../lib/getting-started';
@@ -12,7 +12,7 @@ export const metadata={title:'Getting started | Affimaro',robots:{index:false,fo
 
 export default async function StartPage({searchParams}:{searchParams:Promise<{view?:string}>}){
   const query=await searchParams,user=await requireChatGPTUser(query.view==='affiliate'?'/start?view=affiliate':'/start');
-  const portal=await accountPortal(getRawDb(),user.userId);if(!portal)redirect('/get-started');
+  const portal=await accountPortal(getRawDb(),user.userId);if(!portal)redirect('/get-started');if(portal==='creator'||portal==='agency')redirect(portalHome(portal));
   if(query.view&&portalForView(query.view)!==portal)redirect(portal==='brand'?'/start':'/start?view=affiliate');
   const affiliate=portal==='affiliate';
   const setup=await gettingStarted(getRawDb(),user),view=affiliate?'affiliate':'business',progress=setup[view];

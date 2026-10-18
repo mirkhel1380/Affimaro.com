@@ -85,6 +85,13 @@
       "when": 1792308415346,
       "tag": "0011_material_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792322965448,
+      "tag": "0012_careful_thunderball",
+      "breakpoints": true
     }
   ]
 }

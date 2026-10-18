@@ -1,6 +1,6 @@
 import {service,type Identity} from './service.ts';
 import {storeReferralLink} from './referral-link.ts';
-import {accountPortal} from './portal-policy.ts';
+import {accountPortal,businessPortal} from './portal-policy.ts';
 
 type Stage='owner'|'brand'|'closed'|'account'|'profile'|'apply'|'pending'|'approved'|'suspended'|'rejected'|'updated';
 export async function programInvitation(db:D1Database,identity:Identity,programId:string){
@@ -9,7 +9,7 @@ export async function programInvitation(db:D1Database,identity:Identity,programI
   const application=program.application;
   let stage:Stage;
   if(program.isOwner)stage='owner';
-  else if(portal==='brand')stage='brand';
+  else if(portal&&businessPortal(portal))stage='brand';
   else if(application)stage=['pending','approved','suspended','rejected'].includes(application.status)?application.status as Stage:'updated';
   else if(!program.active)stage='closed';
   else stage=!account?'account':!profile?'profile':'apply';

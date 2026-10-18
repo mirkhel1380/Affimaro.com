@@ -338,3 +338,17 @@ export const platformReviewEvents=sqliteTable('platform_review_events',{
   note:text('note').notNull().default(''),
   createdAt:text('created_at').notNull(),
 },t=>[index('platform_review_history').on(t.applicantId,t.createdAt)]);
+
+// The exact portal is separate from the existing business/publisher accounting family.
+export const accountPortals=sqliteTable('account_portals',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),portal:text('portal').notNull(),createdAt:text('created_at').notNull(),
+},t=>[check('account_portal_type',sql`${t.portal} IN ('brand','affiliate','creator','agency')`)]);
+export const planRequests=sqliteTable('plan_requests',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),requestedPlan:text('requested_plan').notNull(),activePlan:text('active_plan'),status:text('status').notNull().default('pending'),revision:integer('revision').notNull().default(1),reviewNote:text('review_note').notNull().default(''),updatedAt:text('updated_at').notNull(),
+},t=>[check('requested_plan_type',sql`${t.requestedPlan} IN ('starter','growth','business')`),check('active_plan_type',sql`${t.activePlan} IS NULL OR ${t.activePlan} IN ('starter','growth','business')`),check('plan_request_status',sql`${t.status} IN ('pending','approved','rejected')`),check('plan_request_revision',sql`${t.revision}>0`)]);
+export const agencyClients=sqliteTable('agency_clients',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),name:text('name').notNull(),website:text('website').notNull(),contact:text('contact').notNull().default(''),status:text('status').notNull(),notes:text('notes').notNull().default(''),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('agency_clients_owner').on(t.userId),check('agency_client_status',sql`${t.status} IN ('prospect','active','on_hold','archived')`)]);
+export const creatorContent=sqliteTable('creator_content',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),applicationId:text('application_id').references(()=>applications.id),title:text('title').notNull(),platform:text('platform').notNull(),status:text('status').notNull(),url:text('url'),notes:text('notes').notNull().default(''),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('creator_content_owner').on(t.userId),check('creator_content_status',sql`${t.status} IN ('idea','draft','published','archived')`)]);

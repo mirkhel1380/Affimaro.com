@@ -59,8 +59,8 @@ test('password eyes reveal and hide only the associated input, update accessible
 test('approved prices are consistent and four audience paths link to real pages without borrowed award claims',()=>{
   const html=pricingSection();assert.equal(readFileSync(new URL('../content/pricing-section.html',import.meta.url),'utf8'),html);assert.deepEqual(launchPrices,{starter:19,growth:49,business:99});
   for(const amount of Object.values(launchPrices))assert.ok(html.includes('<strong>$'+amount+'</strong>'));
-  assert.equal((html.match(/type="button" disabled/g)||[]).length,2);assert.match(html,/Affiliate accounts are free/);assert.match(html,/Applying does not start a subscription/);
+  assert.equal((html.match(/type="button" disabled/g)||[]).length,0);for(const id of ['starter','growth','business'])assert.ok(html.includes('/get-started?plan='+id));assert.match(html,/Affiliate and creator accounts are free/);assert.match(html,/Registration and package selection do not charge/);
   const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8'),home=renderMarketingDocument('/',sprite);assert.match(home,/class="m-audience-paths"/);for(const path of ['/brands','/creators','/affiliates','/agencies'])assert.ok(home.includes('href="'+path+'"'));
-  assert.match(renderMarketingDocument('/creators',sprite),/performance-based affiliate programs/);assert.match(renderMarketingDocument('/agencies',sprite),/shared multi-client agency console/);
+  assert.match(renderMarketingDocument('/creators',sprite),/CREATOR STUDIO|creator studio/);assert.match(renderMarketingDocument('/agencies',sprite),/client directory/);
   const integration=renderMarketingDocument('/integrations',sprite);assert.match(integration,/FOR BRANDS/);assert.match(integration,/Affiliates use their approved referral links and do not need to connect a store/);
 });

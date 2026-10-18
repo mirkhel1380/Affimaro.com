@@ -60,9 +60,11 @@ export function chatGPTSignInPath(returnTo: string): string {
   let entry=SIGN_IN_PATH;
   if(emailSignIn){
     const path=new URL(safeReturnTo,'https://app.local');
+    const specific=/^\/(creator|agency)(\/|$)/.exec(path.pathname)?.[1]||(['creator','agency'].includes(path.searchParams.get('view')||'')?path.searchParams.get('view'):null);
     const affiliate=/^\/(partner|join)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='affiliate';
     const brand=/^\/(workspace|billing)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='business';
-    if(affiliate||brand)entry='/auth/'+(affiliate?'affiliate':'brand')+'/login';
+    if(specific)entry='/auth/'+specific+'/login';
+    else if(affiliate||brand)entry='/auth/'+(affiliate?'affiliate':'brand')+'/login';
   }
   return `${entry}?return_to=${encodeURIComponent(safeReturnTo)}`;
 }

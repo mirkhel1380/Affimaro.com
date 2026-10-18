@@ -168,3 +168,5 @@ test('changing the configured Stripe account never inherits the earlier paid ent
   assert.equal((await other.dashboard()).entitled,false);await assert.rejects(other.ensureEntitlement(),fails(402));
   assert.deepEqual(f.db.sqlite.prepare('PRAGMA foreign_key_check').all(),[]);
 });
+
+test('each package reviews only its approved USD monthly amount and cannot use a lower-priced package',async t=>{for(const [plan,dollars] of [['starter',19],['growth',49],['business',99]]){const f=await fixture(t);f.config.plan=plan;f.state.price.unit_amount=dollars*100;const quote=await f.api.preview({});assert.equal(quote.amount,dollars*100);f.state.price.unit_amount=1900+(plan==='starter'?1:0);await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.created,0);}});

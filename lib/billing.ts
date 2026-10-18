@@ -1,3 +1,5 @@
+import {planCatalog} from './pricing-catalog.mjs';
+import type {Plan} from './plan-requests.ts';
 import {z} from 'zod';
 import {AppError,service,type Identity} from './service.ts';
 import {openPayment,sealPayment} from './payment-crypto.ts';
@@ -5,7 +7,7 @@ import {STRIPE_VERSION} from './payment-connections.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
-export type BillingConfig={secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string};
+export type BillingConfig={plan?:Plan;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string};
 export const BILLING_ORIGIN='https://affimaro-preview.kindsky66.chatgpt.site';
 export type BillingAccount={id:string;workspace_id:string;platform_id:string;mode:'test'|'live';customer_id:string|null;subscription_id:string|null;price_id:string|null;amount:number|null;status:string;invoice_paid:number;period_start:number|null;period_end:number|null;cancel_at_period_end:number;last_verified_at:string|null;last_error:string|null};
 type LockedAccount=BillingAccount&{lease_id:string|null;lease_until:string|null};
@@ -53,7 +55,8 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
     const b=z.object({object:z.literal('balance'),livemode:z.boolean()}).safeParse(await api(fetcher,config,'/v1/balance'));
     if(!a.success||!b.success||a.data.id!==config.platformId||b.data.livemode!==(config.mode==='live'))throw new AppError(409,'The Affimaro billing account or environment could not be verified.');
   }
-  async function quote(){await source();const parsed=priceSchema.safeParse(await api(fetcher,config,`/v1/prices/${config.priceId}`));if(!parsed.success||parsed.data.id!==config.priceId||!parsed.data.active||parsed.data.livemode!==(config.mode==='live'))throw new AppError(409,'The configured Starter price must be an active, fixed USD monthly subscription price.');return parsed.data;}
+  const paidForPlan=(a:BillingAccount|null)=>starterEntitled(a)&&a?.price_id===config.priceId&&a?.amount===planCatalog[config.plan||'starter'].amount*100;
+  async function quote(){await source();const parsed=priceSchema.safeParse(await api(fetcher,config,`/v1/prices/${config.priceId}`));if(!parsed.success||parsed.data.id!==config.priceId||!parsed.data.active||parsed.data.livemode!==(config.mode==='live')||parsed.data.unit_amount!==planCatalog[config.plan||'starter'].amount*100)throw new AppError(409,'The configured '+planCatalog[config.plan||'starter'].name+' price must match its approved fixed USD monthly package price.');return parsed.data;}
   async function ensureAccount(wid:string){await db.prepare('INSERT OR IGNORE INTO billing_accounts (id,workspace_id,platform_id,mode,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),wid,config.platformId,config.mode,now(),now()).run();return (await current(wid))!;}
   async function lock(row:BillingAccount){const token=crypto.randomUUID();await db.prepare('UPDATE billing_accounts SET lease_id=?,lease_until=? WHERE id=? AND (lease_until IS NULL OR lease_until<=?)').bind(token,new Date(Date.now()+120000).toISOString(),row.id,now()).run();if((await one<LockedAccount>(db,'SELECT * FROM billing_accounts WHERE id=?',row.id))?.lease_id!==token)throw new AppError(409,'A billing operation is already running. Wait before checking again.');return token;}
   const unlock=(id:string,lease:string)=>db.prepare('UPDATE billing_accounts SET lease_id=NULL,lease_until=NULL WHERE id=? AND lease_id=?').bind(id,lease).run();
@@ -88,7 +91,7 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
       const usage=await one<{stores:number;programs:number;approved_partners:number;orders:number}>(db,"SELECT (SELECT COUNT(*) FROM store_connections WHERE workspace_id=w.id) AS stores,(SELECT COUNT(*) FROM programs WHERE workspace_id=w.id) AS programs,(SELECT COUNT(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=w.id AND a.status='approved') AS approved_partners,(SELECT COUNT(*) FROM orders o JOIN store_connections c ON c.id=o.store_id WHERE c.workspace_id=w.id) AS orders FROM workspaces w WHERE w.id=? AND w.owner_id=?",w.id,identity.userId);
       const p=a?await pending(a.id):null;
       const currentContext=!!a&&a.platform_id===config.platformId&&a.mode===config.mode;
-      return {business:w.name,configured:billingConfigured(config),required:config.required,mode:config.mode,currentContext,account:a,entitled:currentContext&&starterEntitled(a),pending:p?{id:p.id,state:p.state,amount:p.amount,expires_at:p.expires_at,last_error:p.last_error}:null,usage,limits:{stores:1,programs:1,business_users:1}};
+      return {business:w.name,configured:billingConfigured(config),required:config.required,mode:config.mode,currentContext,account:a,entitled:currentContext&&paidForPlan(a),pending:p?{id:p.id,state:p.state,amount:p.amount,expires_at:p.expires_at,last_error:p.last_error}:null,usage,limits:{stores:1,programs:1,business_users:1}};
     },
     async preview(input:unknown):Promise<BillingQuote>{parse(z.object({}).strict(),input);const w=await workspace(),a=await current(w.id);canStart(a);const price=await quote(),at=now();const token=await sealPayment({workspace:w.id,owner:identity.userId,platform:config.platformId,price:price.id,amount:price.unit_amount,mode:config.mode,at},key,`billing-review/${w.id}/${identity.userId}`);return {amount:price.unit_amount,currency:'USD',interval:'month',mode:config.mode,reviewToken:token,expiresAt:new Date(Date.parse(at)+300000).toISOString()};},
     async checkout(input:unknown){
@@ -112,7 +115,7 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
       catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
     },
     async portal(input:unknown){parse(z.object({}).strict(),input);const w=await workspace(),a=await current(w.id);if(!a?.customer_id||!a.subscription_id)throw new AppError(404,'A verified Stripe subscription customer is required.');await source();const raw=z.object({object:z.literal('billing_portal.session'),customer:customerId,livemode:z.boolean(),url:z.string()}).safeParse(await api(fetcher,config,'/v1/billing_portal/sessions',new URLSearchParams({customer:a.customer_id,return_url:trustedPublicOrigin(config.origin)+'/billing'})));if(!raw.success||raw.data.customer!==a.customer_id||raw.data.livemode!==(a.mode==='live'))throw new AppError(502,'Stripe could not verify the subscription portal.');return {url:billingRedirect(raw.data.url,'portal')};},
-    async ensureEntitlement(){if(!config.required)return;if(!billingConfigured(config)||config.mode!=='live')throw new AppError(503,'Live subscription billing must be configured before new paid business activity can be enabled.');const w=await workspace();let a=await current(w.id);if(starterEntitled(a))return;try{await apiObject.refresh({});}catch(error){if(error instanceof AppError&&[404,409].includes(error.status))throw new AppError(402,'An active Starter subscription is required. Open Plans & billing to check or manage your subscription.');throw error;}a=await current(w.id);if(!starterEntitled(a))throw new AppError(402,'An active paid Starter subscription is required for this action. Open Plans & billing.');},
+    async ensureEntitlement(){if(!config.required)return;if(!billingConfigured(config)||config.mode!=='live')throw new AppError(503,'Live subscription billing must be configured before new paid business activity can be enabled.');const w=await workspace();let a=await current(w.id);if(paidForPlan(a))return;try{await apiObject.refresh({});}catch(error){if(error instanceof AppError&&[404,409].includes(error.status))throw new AppError(402,'An active subscription matching your approved package is required. Open Plans & billing to check or manage your subscription.');throw error;}a=await current(w.id);if(!paidForPlan(a))throw new AppError(402,'An active paid subscription matching your approved package is required for this action. Open Plans & billing.');},
   };
   return apiObject;
 }
