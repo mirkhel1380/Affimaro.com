@@ -92,6 +92,18 @@ test('recovery sessions cannot open the application and password reset revokes a
   assert.equal(await f.api.resolve(req),null);assert.equal(await f.api.canReset(req),true);assert.equal(count(f,'auth_sessions'),2);
   const cleared=await f.api.reset(req,{password});assert.match(cleared,/Max-Age=0/);assert.equal(count(f,'auth_sessions'),0);assert.ok(f.state.calls.some(x=>x.path==='/logout?scope=global'));
 });
+
+test('all four account types recover through their own forms and return to their own sign-in',async t=>{
+ for(const portal of ['brand','affiliate','creator','agency']){
+  const f=await fixture(t),signed=await login(f),home={brand:'/workspace',affiliate:'/partner',creator:'/creator',agency:'/agency'}[portal];
+  f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run(signed.user.userId,portal,new Date().toISOString());approvedFixture(f,signed.user.userId,['brand','agency'].includes(portal)?'brand':'affiliate');
+  const next=await f.api.newFlow('recover',home,undefined,portal);let result=await post(f,portal+'/recover',next.flow,cookie(next.cookie),{email});assert.equal(result.headers.get('location'),'/auth/'+portal+'/verify');
+  const verifyCookie=cookie(result.headers.getSetCookie()[0]),flow=await f.api.flow(request('/',verifyCookie));result=await post(f,portal+'/verify',flow,verifyCookie,{code:'123456'});assert.equal(result.headers.get('location'),'/auth/'+portal+'/reset');
+  const recoveryCookie=cookie(result.headers.getSetCookie()[0]);assert.equal(await f.api.resolve(request(home,recoveryCookie)),null);
+  const page=await authPage(request('/auth/'+portal+'/reset',recoveryCookie),f.api,config.origin),html=await page.text();assert.match(html,new RegExp('data-portal="'+portal+'"'));assert.ok(!html.includes('FIXTURE_'));const resetCookie=cookie(page.headers.getSetCookie()[0]),resetFlow=await f.api.flow(request('/',resetCookie));
+  result=await post(f,portal+'/reset',resetFlow,recoveryCookie+'; '+resetCookie,{password});assert.equal(result.headers.get('location'),'/auth/'+portal+'/login?password_changed=1');assert.equal(count(f,'auth_sessions'),0);assert.equal(await f.api.resolve(request(home,cookie(signed.cookie))),null);assert.equal(await accountPortal(f.db,signed.user.userId),portal);
+ }
+});
 test('provider revocation removes local sessions; provider outages fail closed without losing retryable sessions',async t=>{
   const f=await fixture(t),signed=await login(f),req=request('/account',cookie(signed.cookie));f.state.outage=true;await assert.rejects(f.api.resolve(req),fails(503));assert.equal(count(f,'auth_sessions'),1);
   f.state.outage=false;f.state.revoked=true;assert.equal(await f.api.resolve(req),null);assert.equal(count(f,'auth_sessions'),0);

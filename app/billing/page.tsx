@@ -11,9 +11,19 @@ import {Shell,PageHeading,Card,Badge,Note,Icon} from '../ui';
 import {SubscriptionCheckout,BillingActions} from '../billing-controls';
 import {PackageChoice} from '../audience-forms';
 import {money} from '../../lib/money';
+import {requireChatGPTUser} from '../chatgpt-auth';
+import {accountPortal} from '../../lib/portal-policy';
+import {redirect} from 'next/navigation';
 export const dynamic='force-dynamic';
 export const metadata={title:'Packages & billing | Affimaro',robots:{index:false,follow:false}};
-export default async function BillingPage({searchParams=Promise.resolve({})}:{searchParams?:Promise<{plan?:string}>}={}){return BillingView('brand',await searchParams);}
+export default async function BillingPage({searchParams=Promise.resolve({})}:{searchParams?:Promise<{plan?:string;checkout_return?:string;checkout_cancelled?:string}>}={}){
+ const query=await searchParams,user=await requireChatGPTUser('/billing');
+ if(await accountPortal(getRawDb(),user.userId)==='agency'){
+  const params=new URLSearchParams();if(Object.hasOwn(planCatalog,query.plan||''))params.set('plan',query.plan!);if(query.checkout_return==='1')params.set('checkout_return','1');if(query.checkout_cancelled==='1')params.set('checkout_cancelled','1');
+  redirect('/agency/billing'+(params.size?'?'+params:''));
+ }
+ return BillingView('brand',query);
+}
 export async function BillingView(portal:Portal,query:{plan?:string}){
  const path=portal==='agency'?'/agency/billing':'/billing',selected=Object.hasOwn(planCatalog,query.plan||'')?query.plan as Plan:undefined,user=await requirePortalUser(portal,path+(selected?'?plan='+selected:'')),db=getRawDb(),account=await service(db,user).account(),request=await getPlanRequest(db,user.userId),planId=await activePlan(db,user.userId),plan=planCatalog[planId],dashboard=await billing(db,user,billingConfig(planId),paymentDataKey()).dashboard(),a=dashboard.account,pending=dashboard.currentContext?dashboard.pending:null,existing=dashboard.currentContext&&!!a?.subscription_id&&!['canceled','incomplete_expired'].includes(a.status);
  return <Shell name={account?.display_name||portalName(portal)} email={user.email} portal={portal} active="billing"><PageHeading eyebrow={portalName(portal).toUpperCase()+' PACKAGES & BILLING'} title="Your package. A clear next step." description="Choose your capacity, follow its review and manage any separately verified subscription."/>

@@ -140,6 +140,12 @@ test('customer portal uses only a verified saved customer and rejects unexpected
   for(const value of ['http://billing.stripe.com/p/a','https://billing.stripe.com.evil.example/p/a','https://user:pass@billing.stripe.com/p/a','https://billing.stripe.com:444/p/a','https://billing.stripe.com/other'])assert.throws(()=>billingRedirect(value,'portal'),fails(502));
 });
 
+test('agency billing management returns to the agency portal while checkout retries retain their original payload',async t=>{
+ const f=await fixture(t);f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner','agency',new Date().toISOString());f.config.origin='https://affimaro.example';
+ f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();await start(f);assert.equal(posts(f)[1].body.toString(),first);
+ complete(f);await f.api.refresh({});await f.api.portal({});assert.equal(f.state.calls.findLast(call=>call.path==='/v1/billing_portal/sessions').body.get('return_url'),'https://affimaro.example/agency/billing');
+});
+
 test('a billing lease prevents concurrent checkouts from creating duplicate sessions',async t=>{
   const f=await fixture(t),quote=await f.api.preview({});let release,entered;const gate=new Promise(resolve=>{release=resolve;}),started=new Promise(resolve=>{entered=resolve;});
   f.state.fault=async call=>{if(call.path==='/v1/checkout/sessions'&&call.method==='POST'){entered();await gate;}return null;};

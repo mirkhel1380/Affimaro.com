@@ -5,6 +5,7 @@ import {AppError,service,type Identity} from './service.ts';
 import {openPayment,sealPayment} from './payment-crypto.ts';
 import {STRIPE_VERSION} from './payment-connections.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
+import {accountPortal} from './portal-policy.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 export type BillingConfig={plan?:Plan;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string};
@@ -44,19 +45,33 @@ async function api(fetcher:Fetcher,config:BillingConfig,path:string,body?:URLSea
   const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)) as unknown;}catch{throw new AppError(502,'Stripe returned an invalid billing response.');}
 }
+async function verifySource(config:BillingConfig,fetcher:Fetcher){
+  if(!billingConfigured(config))throw new AppError(503,'Affimaro subscription checkout is not configured yet. No payment was started.');
+  const a=z.object({id:accountId,object:z.literal('account')}).safeParse(await api(fetcher,config,'/v1/account'));
+  const b=z.object({object:z.literal('balance'),livemode:z.boolean()}).safeParse(await api(fetcher,config,'/v1/balance'));
+  if(!a.success||!b.success||a.data.id!==config.platformId||b.data.livemode!==(config.mode==='live'))throw new AppError(409,'The Affimaro billing account or environment could not be verified.');
+}
+async function verifyPrice(config:BillingConfig,fetcher:Fetcher){
+  const parsed=priceSchema.safeParse(await api(fetcher,config,`/v1/prices/${config.priceId}`));
+  if(!parsed.success||parsed.data.id!==config.priceId||!parsed.data.active||parsed.data.livemode!==(config.mode==='live')||parsed.data.unit_amount!==planCatalog[config.plan||'starter'].amount*100)throw new AppError(409,'The configured '+planCatalog[config.plan||'starter'].name+' price must match its approved fixed USD monthly package price.');
+  return parsed.data;
+}
+// Read-only provider inspection. It never creates a customer, checkout or payment.
+export async function inspectBillingConfiguration(config:BillingConfig,fetcher:Fetcher=fetch){
+  const result={plan:config.plan||'starter',mode:config.mode,required:config.required,configured:billingConfigured(config)};
+  if(!result.configured)return {...result,status:'not_configured' as const,message:'Connect the billing account and configure this monthly package.'};
+  try{await verifySource(config,fetcher);await verifyPrice(config,fetcher);return {...result,status:config.mode==='live'?'live_ready' as const:'test_ready' as const,message:config.mode==='live'?'Account and monthly price verified with Stripe.':'Test account and monthly price verified. Live payments remain separate.'};}
+  catch(error){return {...result,status:error instanceof AppError&&error.status===409?'attention' as const:'unavailable' as const,message:error instanceof AppError?error.message:'Stripe verification is temporarily unavailable.'};}
+}
 export function billing(db:D1Database,identity:Identity,config:BillingConfig,key?:string,fetcher:Fetcher=fetch){
   const s=service(db,identity),workspace=async()=>{const w=await s.workspace();if(!w)throw new AppError(404,'Create a business workspace before choosing a business subscription.');return w;};
   const current=(wid:string)=>one<BillingAccount>(db,`SELECT ${accountFields} FROM billing_accounts WHERE workspace_id=? AND platform_id=? AND mode=?`,wid,config.platformId||'',config.mode);
   const pending=(aid:string)=>one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE account_id=? AND state IN ('creating','open','review') ORDER BY rowid DESC LIMIT 1`,aid);
   const audit=(wid:string,action:string)=>db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),wid,identity.userId,action,now());
-  async function source(){
-    if(!billingConfigured(config))throw new AppError(503,'Affimaro subscription checkout is not configured yet. No payment was started.');
-    const a=z.object({id:accountId,object:z.literal('account')}).safeParse(await api(fetcher,config,'/v1/account'));
-    const b=z.object({object:z.literal('balance'),livemode:z.boolean()}).safeParse(await api(fetcher,config,'/v1/balance'));
-    if(!a.success||!b.success||a.data.id!==config.platformId||b.data.livemode!==(config.mode==='live'))throw new AppError(409,'The Affimaro billing account or environment could not be verified.');
-  }
+  const source=()=>verifySource(config,fetcher);
+  const returnPath=async()=>await accountPortal(db,identity.userId)==='agency'?'/agency/billing':'/billing';
   const paidForPlan=(a:BillingAccount|null)=>starterEntitled(a)&&a?.price_id===config.priceId&&a?.amount===planCatalog[config.plan||'starter'].amount*100;
-  async function quote(){await source();const parsed=priceSchema.safeParse(await api(fetcher,config,`/v1/prices/${config.priceId}`));if(!parsed.success||parsed.data.id!==config.priceId||!parsed.data.active||parsed.data.livemode!==(config.mode==='live')||parsed.data.unit_amount!==planCatalog[config.plan||'starter'].amount*100)throw new AppError(409,'The configured '+planCatalog[config.plan||'starter'].name+' price must match its approved fixed USD monthly package price.');return parsed.data;}
+  async function quote(){await source();return verifyPrice(config,fetcher);}
   async function ensureAccount(wid:string){await db.prepare('INSERT OR IGNORE INTO billing_accounts (id,workspace_id,platform_id,mode,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),wid,config.platformId,config.mode,now(),now()).run();return (await current(wid))!;}
   async function lock(row:BillingAccount){const token=crypto.randomUUID();await db.prepare('UPDATE billing_accounts SET lease_id=?,lease_until=? WHERE id=? AND (lease_until IS NULL OR lease_until<=?)').bind(token,new Date(Date.now()+120000).toISOString(),row.id,now()).run();if((await one<LockedAccount>(db,'SELECT * FROM billing_accounts WHERE id=?',row.id))?.lease_id!==token)throw new AppError(409,'A billing operation is already running. Wait before checking again.');return token;}
   const unlock=(id:string,lease:string)=>db.prepare('UPDATE billing_accounts SET lease_id=NULL,lease_until=NULL WHERE id=? AND lease_id=?').bind(id,lease).run();
@@ -105,7 +120,10 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
         if(attempt&&(attempt.price_id!==review.price||attempt.amount!==review.amount))throw new AppError(409,'An earlier checkout needs review before changing its price.');
         if(attempt&&Date.now()-Date.parse(attempt.first_submitted_at)>23*3600000)throw new AppError(409,'This unknown checkout is older than the safe retry window. Review it in Stripe before creating another subscription.');
         if(!attempt){const id=crypto.randomUUID(),at=now();await db.batch([db.prepare("INSERT INTO billing_checkouts (id,account_id,workspace_id,price_id,amount,return_origin,customer_snapshot,state,first_submitted_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,'creating',?,?,?)").bind(id,a.id,w.id,review.price,review.amount,trustedPublicOrigin(config.origin),a.customer_id,at,at,at),audit(w.id,'subscription_checkout_started')]);attempt=(await pending(a.id))!;}
-        const body=new URLSearchParams({mode:'subscription','line_items[0][price]':attempt.price_id,'line_items[0][quantity]':'1','payment_method_types[0]':'card','allow_promotion_codes':'false','adaptive_pricing[enabled]':'false','automatic_tax[enabled]':'false',success_url:trustedPublicOrigin(attempt.return_origin)+'/billing?checkout_return=1',cancel_url:trustedPublicOrigin(attempt.return_origin)+'/billing?checkout_cancelled=1',client_reference_id:w.id,'metadata[affimaro_workspace]':w.id,'metadata[affimaro_checkout]':attempt.id,'subscription_data[metadata][affimaro_workspace]':w.id,'subscription_data[metadata][affimaro_checkout]':attempt.id,...(attempt.customer_snapshot?{customer:attempt.customer_snapshot}:{})});
+        // Keep the original checkout payload for safe idempotent retries. The
+        // shared return page forwards agencies into their own billing portal.
+        const path='/billing';
+        const body=new URLSearchParams({mode:'subscription','line_items[0][price]':attempt.price_id,'line_items[0][quantity]':'1','payment_method_types[0]':'card','allow_promotion_codes':'false','adaptive_pricing[enabled]':'false','automatic_tax[enabled]':'false',success_url:trustedPublicOrigin(attempt.return_origin)+path+'?checkout_return=1',cancel_url:trustedPublicOrigin(attempt.return_origin)+path+'?checkout_cancelled=1',client_reference_id:w.id,'metadata[affimaro_workspace]':w.id,'metadata[affimaro_checkout]':attempt.id,'subscription_data[metadata][affimaro_workspace]':w.id,'subscription_data[metadata][affimaro_checkout]':attempt.id,...(attempt.customer_snapshot?{customer:attempt.customer_snapshot}:{})});
         return await acceptSession(a,attempt,await api(fetcher,config,'/v1/checkout/sessions',body,`affimaro-subscription-${attempt.id}`));
       }catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
     },
@@ -114,7 +132,7 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
       try{a=(await current(w.id))!;await source();attempt=await pending(a.id)||undefined;if(attempt){if(!attempt.session_id)throw new AppError(409,'The checkout result is unknown. Open a fresh review to retry the same saved attempt safely.');return await acceptSession(a,attempt,await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}`));}if(!a.subscription_id)throw new AppError(404,'No subscription is saved.');return {outcome:'subscription',account:await readSubscription(a,a.subscription_id)};}
       catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
     },
-    async portal(input:unknown){parse(z.object({}).strict(),input);const w=await workspace(),a=await current(w.id);if(!a?.customer_id||!a.subscription_id)throw new AppError(404,'A verified Stripe subscription customer is required.');await source();const raw=z.object({object:z.literal('billing_portal.session'),customer:customerId,livemode:z.boolean(),url:z.string()}).safeParse(await api(fetcher,config,'/v1/billing_portal/sessions',new URLSearchParams({customer:a.customer_id,return_url:trustedPublicOrigin(config.origin)+'/billing'})));if(!raw.success||raw.data.customer!==a.customer_id||raw.data.livemode!==(a.mode==='live'))throw new AppError(502,'Stripe could not verify the subscription portal.');return {url:billingRedirect(raw.data.url,'portal')};},
+    async portal(input:unknown){parse(z.object({}).strict(),input);const w=await workspace(),a=await current(w.id);if(!a?.customer_id||!a.subscription_id)throw new AppError(404,'A verified Stripe subscription customer is required.');await source();const raw=z.object({object:z.literal('billing_portal.session'),customer:customerId,livemode:z.boolean(),url:z.string()}).safeParse(await api(fetcher,config,'/v1/billing_portal/sessions',new URLSearchParams({customer:a.customer_id,return_url:trustedPublicOrigin(config.origin)+await returnPath()})));if(!raw.success||raw.data.customer!==a.customer_id||raw.data.livemode!==(a.mode==='live'))throw new AppError(502,'Stripe could not verify the subscription portal.');return {url:billingRedirect(raw.data.url,'portal')};},
     async ensureEntitlement(){if(!config.required)return;if(!billingConfigured(config)||config.mode!=='live')throw new AppError(503,'Live subscription billing must be configured before new paid business activity can be enabled.');const w=await workspace();let a=await current(w.id);if(paidForPlan(a))return;try{await apiObject.refresh({});}catch(error){if(error instanceof AppError&&[404,409].includes(error.status))throw new AppError(402,'An active subscription matching your approved package is required. Open Plans & billing to check or manage your subscription.');throw error;}a=await current(w.id);if(!paidForPlan(a))throw new AppError(402,'An active paid subscription matching your approved package is required for this action. Open Plans & billing.');},
   };
   return apiObject;
