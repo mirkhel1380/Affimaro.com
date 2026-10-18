@@ -159,3 +159,15 @@ test('separate verified identities remain separate accounts and cannot read anot
   const f=await fixture(t),owner=await login(f),workspace=await service(f.db,owner.user).createBusiness({name:'Private owner workspace',website:''});
   f.state.user={...f.state.user,id:otherUid,email:'other@example.com'};const other=await f.api.login({email:'other@example.com',password},'other-ip');assert.notEqual(other.user.userId,owner.user.userId);assert.equal(await service(f.db,other.user).workspace(),null);assert.equal((await service(f.db,owner.user).workspace()).id,workspace.id);
 });
+
+test('getting-started routes resolve the verified session and cannot be cached or impersonated',async t=>{
+  const f=await fixture(t),signed=await login(f),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
+  const app=async req=>Response.json({id:req.headers.get('oai-authenticated-user-id')});
+  for(const path of ['/start','/start?view=affiliate','/start/']){
+    const response=await independentFetch(request(path,cookie(signed.cookie)),env,app,f.fetcher);
+    assert.equal((await response.json()).id,signed.user.userId);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.match(response.headers.get('vary'),/Cookie/);
+  }
+  const anonymous=await independentFetch(request('/start','',{headers:{'oai-authenticated-user-id':'victim'}}),env,app,f.fetcher);
+  assert.equal((await anonymous.json()).id,null);assert.equal(anonymous.headers.get('cache-control'),'private, no-store');
+  f.state.revoked=true;const revoked=await independentFetch(request('/start',cookie(signed.cookie)),env,app,f.fetcher);assert.equal((await revoked.json()).id,null);
+});

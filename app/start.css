@@ -1,0 +1,28 @@
+.a-sidebar{overflow-y:auto}
+.g-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(260px,1fr);gap:28px;align-items:start}
+.g-progress{background:#153b32;color:#fff;border-radius:15px;padding:30px;margin-bottom:23px;display:grid;gap:23px}
+.g-progress .a-eyebrow{color:#bdd59e;overflow-wrap:anywhere}
+.g-progress h2{font-size:27px;letter-spacing:-.8px;font-weight:550;margin:13px 0 12px}
+.g-progress p{font-size:12px;line-height:1.85;color:#c1d0b3;max-width:460px;margin:0}
+.g-progress progress{appearance:none;width:100%;height:7px;border:0;border-radius:5px;overflow:hidden;background:#3e5f4d;accent-color:#d5ec98}
+.g-progress progress::-webkit-progress-bar{background:#3e5f4d;border-radius:5px}
+.g-progress progress::-webkit-progress-value{background:#d5ec98;border-radius:5px}
+.g-progress progress::-moz-progress-bar{background:#d5ec98;border-radius:5px}
+.g-progress>.a-btn{justify-self:start}
+.g-steps{list-style:none;padding:0;margin:0 0 26px;background:#fff;border:1px solid #dfe6d7;border-radius:14px;overflow:hidden}
+.g-step{display:grid;grid-template-columns:34px minmax(0,1fr);gap:16px;padding:25px}
+.g-step+.g-step{border-top:1px solid #e5ebdf}
+.g-step-number{display:grid;place-items:center;align-self:start;width:34px;height:34px;border-radius:10px;background:#f1f4e9;color:#6a805b;font-size:11px;font-weight:600}
+.g-step-number .a-icon{width:18px;height:18px}
+.g-complete .g-step-number{background:#e5efd5;color:#42663c}
+.g-waiting .g-step-number{background:#fbf1dc;color:#947135}
+.g-step-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:3px 0 11px}
+.g-step h2{font-size:14px;font-weight:550;line-height:1.6;margin:0;letter-spacing:-.1px}
+.g-step-status{font-size:10px;color:#718267;white-space:nowrap}
+.g-complete .g-step-status{color:#486c3d}.g-waiting .g-step-status{color:#92713a}
+.g-step p,.g-copy{font-size:12px;line-height:1.85;color:#65775e;margin:0 0 16px;overflow-wrap:anywhere}
+.g-step .a-text-link{font-size:11px;color:#52713d}
+.g-aside .a-card-heading h2{font-size:15px}.g-aside .a-copy>code{font-size:10px}
+.g-aside .a-text-link{font-size:11px;color:#52713d}
+@media(max-width:1120px){.g-layout{grid-template-columns:1fr}.g-aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.g-aside .a-card{margin:0}.g-aside{margin-bottom:25px}}
+@media(max-width:600px){.g-progress{padding:25px 22px;gap:20px}.g-progress h2{font-size:24px}.g-step{padding:22px 19px;gap:12px;grid-template-columns:30px minmax(0,1fr)}.g-step-number{width:30px;height:30px}.g-step-heading{display:block}.g-step-status{display:inline-block;margin-top:6px}.g-aside{grid-template-columns:1fr}}

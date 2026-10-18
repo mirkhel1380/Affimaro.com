@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {emailSignIn} from '../lib/auth-mode';
 import "./account.css";
+import "./start.css";
 
 export const metadata: Metadata = {
   title: "Affimaro — Your partner workspace",
