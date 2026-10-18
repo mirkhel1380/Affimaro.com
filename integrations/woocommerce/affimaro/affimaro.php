@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Affimaro for WooCommerce
  * Description: First-party referral attribution and signed order/refund delivery to your Affimaro workspace.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: Highlink
  * Requires at least: 6.5
  * Requires PHP: 7.4
@@ -18,7 +18,7 @@ add_action( 'before_woocommerce_init', function () {
 } );
 
 function affimaro_settings() {
-    return wp_parse_args( get_option( 'affimaro_connection', array() ), array( 'url' => 'https://affimaro-preview.kindsky66.chatgpt.site', 'id' => '', 'key' => '' ) );
+    return wp_parse_args( get_option( 'affimaro_connection', array() ), array( 'url' => '', 'id' => '', 'key' => '' ) );
 }
 function affimaro_uuid( $value ) {
     return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value );
@@ -56,7 +56,7 @@ function affimaro_send( $payload ) {
     $status = wp_remote_retrieve_response_code( $response );
     $decoded = json_decode( wp_remote_retrieve_body( $response ), true );
     if ( $status < 200 || $status >= 300 || ! is_array( $decoded ) || empty( $decoded['ok'] ) || ! isset( $decoded['data'] ) ) {
-        return new WP_Error( 'http_' . (int) $status, 'Affimaro did not accept the request (HTTP ' . (int) $status . '). Check the connection and private service access.' );
+        return new WP_Error( 'http_' . (int) $status, 'Affimaro did not accept the request (HTTP ' . (int) $status . '). Check the Affimaro URL, connection ID and signing key.' );
     }
     return $decoded['data'];
 }
@@ -73,7 +73,7 @@ function affimaro_admin() {
     <?php if ( isset( $_GET['saved'] ) ) : ?><div class="notice notice-info"><p>Settings saved. Use Test connection before sharing referral links.</p></div><?php endif; ?>
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
     <input type="hidden" name="action" value="affimaro_save"><?php wp_nonce_field( 'affimaro_save' ); ?>
-    <table class="form-table"><tr><th><label for="affimaro-url">Affimaro URL</label></th><td><input class="regular-text" id="affimaro-url" name="url" type="url" required value="<?php echo esc_attr( $settings['url'] ); ?>"><p class="description">The HTTPS origin of your Affimaro installation, without a trailing path.</p></td></tr>
+    <table class="form-table"><tr><th><label for="affimaro-url">Affimaro URL</label></th><td><input class="regular-text" id="affimaro-url" name="url" type="url" required placeholder="https://your-affimaro-address" value="<?php echo esc_attr( $settings['url'] ); ?>"><p class="description">Copy the Affimaro URL from Business workspace → Store. Use the HTTPS address without a trailing path.</p></td></tr>
     <tr><th><label for="affimaro-id">Connection ID</label></th><td><input class="regular-text" id="affimaro-id" name="id" required value="<?php echo esc_attr( $settings['id'] ); ?>"></td></tr>
     <tr><th><label for="affimaro-key">Signing key</label></th><td><input class="regular-text" id="affimaro-key" name="key" type="password" autocomplete="new-password" value=""><p class="description">Paste a new key, or leave blank to keep the saved key. Saved keys are never displayed.</p></td></tr></table>
     <?php submit_button( 'Save connection' ); ?></form>
@@ -81,7 +81,7 @@ function affimaro_admin() {
     <p><strong>Last delivery:</strong> <?php echo esc_html( isset( $last['message'] ) ? $last['message'] : 'No delivery attempted.' ); ?> <?php echo esc_html( isset( $last['at'] ) ? $last['at'] : '' ); ?></p>
     <h2>Retry an attributed order</h2><p>Retries read the current WooCommerce order, including its latest refunds. Only orders with an Affimaro referral are sent.</p>
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="affimaro_retry"><?php wp_nonce_field( 'affimaro_retry' ); ?><label>WooCommerce order ID <input type="number" name="order_id" min="1" required></label><?php submit_button( 'Queue retry', 'secondary' ); ?></form>
-    <h2>Private pilot</h2><p>A private Affimaro Site also requires supported Sites service access configured only on this server. The signing key alone cannot pass the private Site access gate. See the bundled README. Changing this form does not change the Site audience.</p>
+    <details><summary>Connecting a private ChatGPT Site?</summary><p>Only private ChatGPT-hosted installations need additional server-side Sites service access. Independent Affimaro installations use the connection ID and signing key above. See the bundled README for private hosting setup.</p></details>
     <h2>Referral cookies</h2><p>Visitors arriving with an Affimaro referral are offered Allow / No thanks. A referral cookie is written after Allow. A consent manager can instead control the <code>affimaro_tracking_allowed</code> filter. Do not serve referral query URLs from a full-page cache.</p></div>
     <?php
 }

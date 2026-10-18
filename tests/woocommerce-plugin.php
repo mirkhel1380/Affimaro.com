@@ -69,6 +69,8 @@ $_COOKIE['affimaro_referral']='30000000-0000-4000-8000-000000000003';affimaro_at
 $block=new WC_Order();foreach($hooks['woocommerce_store_api_checkout_update_order_meta'] as $callback){$callback($block);}check($block->get_meta('_affimaro_referral')===$_COOKIE['affimaro_referral'],'block checkout attribution hook');
 
 $options['affimaro_connection']=array('url'=>'https://affimaro.example','id'=>'40000000-0000-4000-8000-000000000004','key'=>str_repeat('1',64));
+$result=affimaro_send(array('kind'=>'ping','storeUrl'=>'https://store.example'));check(!is_wp_error($result),'independent signed delivery needs no private Sites token');
+$independent=end($requests);check($independent['url']==='https://affimaro.example/api/woocommerce/event' && !isset($independent['args']['headers']['OAI-Sites-Authorization']),'independent delivery uses the selected installation without a service credential');
 define('AFFIMARO_SITES_SERVICE_TOKEN','isolated-test-service-token');define('AFFIMARO_SITES_SERVICE_ORIGIN','https://affimaro.example');
 $result=affimaro_send(array('kind'=>'ping','storeUrl'=>'https://store.example'));check(!is_wp_error($result),'signed delivery succeeds');
 $last=end($requests);$headers=$last['args']['headers'];$expected=hash_hmac('sha256',$headers['X-Affimaro-Timestamp'].'.'.$headers['X-Affimaro-Event'].'.'.$last['args']['body'],str_repeat('1',64));

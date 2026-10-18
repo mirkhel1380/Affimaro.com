@@ -1,6 +1,6 @@
 # Shopify dashboard sync — Affimaro pilot
 
-This adapter reads orders from Shopify when the business clicks **Sync Shopify orders** inside Affimaro. It works with the owner-private Affimaro Site: there is no public webhook, OAuth callback, storefront script, background polling job or Shopify App Store listing in this pilot. It does not change the Site audience.
+This adapter reads orders from Shopify when the business clicks **Sync Shopify orders** inside its signed-in Affimaro workspace. It supports both the independent installation and the owner-private ChatGPT Site. There is no public webhook, OAuth callback, storefront script, background polling job or Shopify App Store listing in this pilot. It does not change access controls.
 
 ## Connect your own store
 

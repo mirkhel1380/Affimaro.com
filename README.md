@@ -1,11 +1,11 @@
 # Affimaro
 
-Affimaro is an affiliate management product by Highlink. This owner-private pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
+Affimaro is an affiliate management product by Highlink. The independent pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
 
 ## Available now
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
-- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project and verified-email policy are selected. The original data/key migration and verified legacy mapping are complete, and the independent host is online for the owner's pilot. Authenticated browser walkthrough and customer sending-domain verification remain pending. Both custom domains and an account-verified `workers.dev` origin are supported.
+- A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project and verified-email policy are selected. The original data/key migration and verified legacy mapping are complete, and the independent host is online for the owner's pilot. The owner reported successful sign-in and password recovery on 2026-10-18. Customer sending-domain verification and live store/payment walkthroughs remain pending. Both custom domains and an account-verified `workers.dev` origin are supported.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.

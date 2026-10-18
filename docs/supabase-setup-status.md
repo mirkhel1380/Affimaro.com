@@ -29,7 +29,7 @@ New Free Supabase projects using default SMTP cannot edit Auth email templates u
 
 Current setup status:
 
-1. Signup-confirmation code verification succeeded for the owner on 2026-10-17. The app accepts provider codes from 6–10 digits. Continue with the independent-host login and recovery walkthrough. See the prepared HTML under `supabase/templates/` and the [independent-hosting guide](independent-hosting.md).
+1. Signup-confirmation code verification succeeded for the owner on 2026-10-17. The app accepts provider codes from 6–10 digits. The owner reported successful independent-host sign-in and password recovery on 2026-10-18. See the prepared HTML under `supabase/templates/` and the [independent-hosting guide](independent-hosting.md).
 2. Verify an owned sending domain and test delivery to intended users before customer signup. Provider quotas and sender setup are not verified by the public settings endpoint.
 3. The owner saved the independent origin as Supabase Site URL and reported a successful Cloudflare deployment. Home/sign-in/recovery pages respond at that origin.
 4. Encrypted data/key import and verified legacy mapping are complete. Preserve the populated target and the paused native source; do not repeat the import or recreate the owner.
@@ -37,7 +37,7 @@ Current setup status:
 
 The initial project verification and later provider status queries were read-only. The test user, SMTP/template changes and recovery email were performed by the owner in their dashboard. The owner subsequently performed encrypted migration and verified identity mapping on the independent D1 target. The native Site remains owner-private, uses native authentication and is paused for cutover.
 
-The owner-private Site includes `/setup/confirm-email`, originally used to enter a confirmation code before the independent host existed. It is limited to the current native account's registered email, offers an explicit resend, and retains no provider credentials or app sessions. The owner successfully submitted the code on 2026-10-17. A read-only provider query confirmed the existing user's email-confirmation timestamp. Legacy identity linking is now complete; independent application sessions still need a successful live login.
+The owner-private Site includes `/setup/confirm-email`, originally used to enter a confirmation code before the independent host existed. It is limited to the current native account's registered email, offers an explicit resend, and retains no provider credentials or app sessions. The owner successfully submitted the code on 2026-10-17. A read-only provider query confirmed the existing user's email-confirmation timestamp. Legacy identity linking is complete, and the owner reported successful independent sign-in and password recovery on 2026-10-18.
 
 ## Workers transport correction on 2026-10-17
 
@@ -54,3 +54,9 @@ The setup page, form controls, success/help text and server-side error messages 
 ## Independent browser form correction on 2026-10-17
 
 The owner's first independent sign-in returned `Open the form on this site and try again.` before any credential check. Auth pages were served with `Referrer-Policy: no-referrer`, which makes browser HTML POST navigation send `Origin: null`. The source now serves `same-origin` so its own forms retain their origin without sending referrers to external sites. Exact-Origin checks, encrypted flow cookies, nonce checks and cross-site rejection remain enforced. A regression test fails with the previous policy (403) and passes with the corrected policy (303). Provider identities, passwords and confirmation settings are unchanged by this correction.
+
+## Owner pilot closeout on 2026-10-18
+
+The owner reported that independent sign-in and password recovery now work. Temporary native migration export enabled/owner/public-key settings were removed; the existing saved native version 19 was deployed successfully with environment revision 4. The source remains owner-private and paused, with its original data and payment key retained. No keys were regenerated, no rows were re-imported and no customer-domain or payment-provider setup is implied by this closeout.
+
+The store setup now displays the current installation's Affimaro URL. WooCommerce plugin 0.3.1 starts without a default host, preserving saved connections and requiring new installations to use their own workspace address. Independent HMAC delivery is checked without a private Sites service token; optional native service access remains origin-bound. Real store attribution, checkout and refunds still need staging verification.
