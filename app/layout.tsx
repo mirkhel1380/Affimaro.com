@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import {emailSignIn} from '../lib/auth-mode';
 import "./account.css";
 
 export const metadata: Metadata = {
@@ -17,7 +18,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <head>{emailSignIn&&<><link rel="manifest" href="/manifest.webmanifest"/><link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png"/><meta name="theme-color" content="#153b32"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="Affimaro"/></>}</head>
+      <body className="antialiased">{children}{emailSignIn&&<script src="/install-app.js" defer/>}</body>
     </html>
   );
 }

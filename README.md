@@ -6,6 +6,7 @@ Affimaro is an affiliate management product by Highlink. The independent pilot i
 
 - ChatGPT sign-in through Sites and saved Affimaro profiles.
 - A separate independent Cloudflare build with Supabase verified email/password sign-in, OTP confirmation, password recovery and secure server sessions. The owner-created project and verified-email policy are selected. The original data/key migration and verified legacy mapping are complete, and the independent host is online for the owner's pilot. The owner reported successful sign-in and password recovery on 2026-10-18. Customer sending-domain verification and live store/payment walkthroughs remain pending. Both custom domains and an account-verified `workers.dev` origin are supported.
+- An [installable mobile web app](docs/mobile-app.md) with Android/iPhone/desktop instructions, the same account, home-screen icons and a public reconnect screen. Account and payment data require a live connection and are excluded from its offline cache. Native app-store packages remain planned.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
@@ -33,6 +34,7 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 
 - `/`: marketing website; `/#/demo/merchant/overview` opens the sample dashboard.
 - `/account`: create/edit a profile and choose a workspace.
+- `/install`: install the independent web app from a supported browser.
 - `/workspace`: overview, partners, program, store setup, referred orders and settings.
 - `/partner`: affiliate profile, memberships, verified store referral links and own orders.
 - `/payments?view=affiliate`: bank details, commission balances, requests and payment history.
