@@ -14,26 +14,16 @@ Every package currently supports one connected website, one program and one acco
 
 The public Pricing buttons open account selection with the selected package. Brand and agency registration preserve that package through the sealed authentication flow and into the application. The applicant can review the choice before submitting. Owner approval opens the matching portal and saves the approved capacity package.
 
-Approved brand accounts use Packages & billing at `/billing`. Agencies use `/agency/billing`. Saving a change creates a package request. The current package remains active until the owner reviews the request in `/admin/applications`. Downgrades are blocked while approved-partner or agency-directory usage exceeds the target package.
+Approved brand accounts use Packages & billing at `/billing`. Agencies use `/agency/billing`. Saving a change creates a package request. The current package remains active until the owner reviews the request in the private platform control panel. Downgrades are blocked while approved-partner or agency-directory usage exceeds the target package.
 
 Package selection and capacity approval do not charge a card, create a Stripe subscription, mark an invoice paid, alter an existing subscription or send a partner payment.
 
-## Configure subscription checkout
+## Subscription payment
 
-Configure the existing billing account and restricted Stripe key separately from partner payment connections. Keep the payment-data encryption key unchanged. This release reads:
+When secure checkout is available, review the exact package and monthly amount before continuing to Stripe. Creating an account, submitting an application or choosing a package does not charge a card.
 
-- `AFFIMARO_BILLING_STRIPE_KEY`
-- `AFFIMARO_BILLING_ACCOUNT_ID`
-- `AFFIMARO_STARTER_PRICE_ID` — fixed $19 USD monthly price (1900 minor units)
-- `AFFIMARO_GROWTH_PRICE_ID` — fixed $49 USD monthly price (4900 minor units)
-- `AFFIMARO_BUSINESS_PRICE_ID` — fixed $99 USD monthly price (9900 minor units)
-- `AFFIMARO_BILLING_MODE` (`test` or `live`)
-- `AFFIMARO_BILLING_LIVE_ENABLED` and `AFFIMARO_BILLING_REQUIRED`
+Use Packages & billing to check a saved checkout or manage an existing subscription. A test payment does not activate a live subscription. Partner commission payments use a separate workflow.
 
-A missing price configuration does not disable package selection or owner review. The private billing page explains the payment setup still needed and does not offer an unusable checkout button. A test checkout does not provide live paid entitlement. Live paid actions, when billing is required, need a recently verified paid subscription matching the approved package’s exact price and amount.
+## Your account
 
-Every checkout retrieves the provider price, checks the account, mode, fixed monthly currency and approved amount, and shows an explicit review before creating a hosted checkout. An existing subscription is managed before any replacement; package approval does not silently modify it. No provider credentials, real checkout, charge, customer email or external payment was created by the four-portal update.
-
-## Data and access
-
-Exact account roles are stored server-side in `account_portals`. Existing brand/affiliate financial identifiers and records remain in their original accounting families. `plan_requests` stores requested and active package capacity; it is separate from Stripe’s billing tables. The owner-private native Site remains paused for the completed independent migration; its private links hand off to the independent host.
+Brand and agency accounts have separate portals. Creator and affiliate accounts are free. Your saved application and package status remain visible in your own portal.

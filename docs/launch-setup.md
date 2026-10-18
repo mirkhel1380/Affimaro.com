@@ -1,6 +1,6 @@
 # Owner launch setup
 
-Open `/admin/setup` on the independent deployment. Only a stored `platform_admins` grant permits access; provider metadata and email addresses do not grant this permission. The owner navigation links to this page beside Application review.
+Open `/owner/settings` on the independent deployment. Only a stored `platform_admins` grant permits access; provider metadata and email addresses do not grant this permission. The owner navigation links to this page within the independent owner control panel.
 
 The page checks the current deployment, not a different Site or Cloudflare environment. Refresh checks repeats read-only provider requests. It never changes a provider setting, sends an email, creates a checkout or charges a card. Responses never include credentials or raw provider errors.
 

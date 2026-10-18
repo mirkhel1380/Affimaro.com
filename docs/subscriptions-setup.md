@@ -14,7 +14,7 @@ Every package currently supports one connected website, one program and one acco
 
 The public Pricing buttons open account selection with the selected package. Brand and agency registration preserve that package through the sealed authentication flow and into the application. The applicant can review the choice before submitting. Owner approval opens the matching portal and saves the approved capacity package.
 
-Approved brand accounts use Packages & billing at `/billing`. Agencies use `/agency/billing`. Saving a change creates a package request. The current package remains active until the owner reviews the request in `/admin/applications`. Downgrades are blocked while approved-partner or agency-directory usage exceeds the target package.
+Approved brand accounts use Packages & billing at `/billing`. Agencies use `/agency/billing`. Saving a change creates a package request. The current package remains active until the owner reviews the request in `/owner/applications`. Downgrades are blocked while approved-partner or agency-directory usage exceeds the target package.
 
 Package selection and capacity approval do not charge a card, create a Stripe subscription, mark an invoice paid, alter an existing subscription or send a partner payment.
 

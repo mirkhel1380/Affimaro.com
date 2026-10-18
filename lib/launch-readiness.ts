@@ -33,7 +33,7 @@ export async function launchReadiness(db:D1Database,identity:Identity,config:Lau
  const [auth,packages,rows]=await Promise.all([
   emailPolicy(config.auth,fetcher),
   Promise.all(config.billing.map(c=>inspectBillingConfiguration(c,fetcher))),
-  db.prepare("SELECT COALESCE(r.portal,p.portal) AS portal,p.status,count(*) AS total FROM platform_applications p LEFT JOIN account_portals r ON r.user_id=p.user_id GROUP BY COALESCE(r.portal,p.portal),p.status").all<{portal:Portal;status:string;total:number}>(),
+  db.prepare("SELECT COALESCE(r.portal,p.portal) AS portal,p.status,count(*) AS total FROM platform_applications p LEFT JOIN account_portals r ON r.user_id=p.user_id WHERE NOT EXISTS(SELECT 1 FROM platform_admins x WHERE x.user_id=p.user_id) GROUP BY COALESCE(r.portal,p.portal),p.status").all<{portal:Portal;status:string;total:number}>(),
  ]);
  return {checkedAt:new Date().toISOString(),maintenance:config.maintenance,paymentKeyReady:config.paymentKeyReady,auth,emailDelivery:'unverified' as const,packages,portals:portals.map(portal=>({portal,approved:rows.results.filter(r=>r.portal===portal&&r.status==='approved').reduce((n,r)=>n+r.total,0),pending:rows.results.filter(r=>r.portal===portal&&r.status==='pending').reduce((n,r)=>n+r.total,0)}))};
 }

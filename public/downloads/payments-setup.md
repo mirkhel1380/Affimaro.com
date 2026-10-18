@@ -2,7 +2,7 @@
 
 Affimaro can check access to a business owner's Stripe account or Wise business profile. These connections read account information only. These account-access checks do not send money, verify settlement, onboard recipients, create Wise transfers or fund payments. The separate owner-enabled Stripe recipient setup is described in the [Stripe Connect guide](stripe-connect-setup.md). Each business pays from its own accounts. Bank/Wise transfers are completed outside Affimaro; USD Stripe transfers have a separate review and confirmation flow.
 
-Open **Payments → Business payments → Payment connections** while signed in as the business owner. Create a business workspace first. The Site remains private; connecting an account does not change who can access it.
+Open **Payments → Business payments → Payment connections** while signed in as the business owner. Create a business workspace first. Only your authorized account can manage these payment connections.
 
 ## Stripe account access
 
@@ -53,13 +53,9 @@ A Stripe transfer to a connected account is not equivalent to bank settlement an
 
 - Credentials are entered only in the authenticated Site form. Do not paste keys into chat, source, GitHub, URLs or download files.
 - Only the owner of the business workspace can save, inspect the non-secret connection summary, recheck or remove its connections.
-- Credentials use AES-256-GCM with a random IV and authenticated context containing the workspace, provider and connection generation. The existing server-only `PAYMENT_DATA_KEY_V1` encrypts them; do not replace or rotate it without a versioned data migration.
+- Credentials use AES-256-GCM with a random IV and authenticated context containing the workspace, provider and connection generation. Encryption keys are managed by Affimaro; you do not need to configure them.
 - All provider requests use fixed HTTPS endpoints, header authentication, refused redirects, a ten-second timeout per request and a bounded response body. Browser writes require authenticated same-origin JSON.
 - Provider errors are not reflected verbatim or logged with credentials. Connection changes and checks have atomic audit records. Dashboard payloads and CSV exports do not include encrypted or plaintext keys.
-
-## Verification limits
-
-Automated tests use controlled Stripe/Wise responses and exercise encryption boundaries, ownership, mode mismatches, failed credential replacement, source failures, stale checks, removal and rollback. No real merchant credential was supplied; no live Stripe/Wise account check or transfer has been executed. Authenticated browser and mobile-layout walkthroughs remain pending in an environment with supported browser access.
 
 ## Official references
 

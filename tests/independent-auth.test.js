@@ -239,3 +239,32 @@ test('legacy dual records keep the original brand identity and reject affiliate 
   assert.equal(count(f,'auth_sessions'),before);assert.equal((await f.api.resolve(request('/workspace',cookie(signed.cookie)))).userId,'original-legacy-owner');
   assert.equal((await legacy.workspace()).id,workspace.id);assert.equal(count(f,'accounts'),1);assert.equal(count(f,'affiliate_profiles'),1);
 });
+
+test('owner sign-in has no public signup and requires an existing mapped platform grant before creating a session',async t=>{
+ const f=await fixture(t);f.state.user.user_metadata.role='owner';
+ const page=await authPage(request('/auth/owner/login?return_to=%2Fworkspace'),f.api,config.origin),html=await page.text(),flowCookie=cookie(page.headers.getSetCookie()[0]),flow=await f.api.flow(request('/',flowCookie));
+ assert.equal(page.status,200);assert.match(html,/data-portal="owner"/);assert.match(html,/owner control panel/);assert.ok(!html.includes('Create an account'));assert.ok(!html.includes('Choose a different account type'));assert.equal(flow.ownerOnly,true);assert.equal(flow.returnTo,'/owner');
+ const denied=await post(f,'owner/login',flow,flowCookie,{email,password});assert.equal(denied.status,403);assert.equal(count(f,'accounts'),0);assert.equal(count(f,'auth_sessions'),0);assert.equal(count(f,'platform_admins'),0);
+ for(const method of ['GET','POST'])assert.equal((await authPage(request('/auth/owner/signup','',{method}),f.api,config.origin)).status,404);
+ const original=await login(f);await assert.rejects(f.api.login({email,password},'owner-entry',undefined,undefined,true),fails(403));
+ const business=await service(f.db,original.user).createBusiness({name:'Preserved workspace',website:''});f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(original.user.userId,new Date().toISOString());
+ const granted=await f.api.login({email,password},'owner-entry',undefined,undefined,true);assert.equal(granted.user.userId,original.user.userId);assert.equal(count(f,'accounts'),1);assert.equal((await service(f.db,granted.user).workspace()).id,business.id);
+});
+test('owner login and recovery flows cannot be submitted through customer auth paths or promoted through form fields',async t=>{
+ const f=await fixture(t),owner=await f.api.newFlow('login','/owner',undefined,undefined,undefined,undefined,true),regular=await f.api.newFlow('login','/account');
+ const calls=f.state.calls.length;
+ assert.equal((await post(f,'login',owner.flow,cookie(owner.cookie),{email,password})).status,403);
+ assert.equal((await post(f,'owner/login',regular.flow,cookie(regular.cookie),{email,password})).status,403);
+ assert.equal((await post(f,'owner/login',owner.flow,cookie(owner.cookie),{email,password,ownerOnly:'true'})).status,400);
+ assert.equal(f.state.calls.length,calls);assert.equal(count(f,'accounts'),0);
+});
+test('the full owner recovery flow stays inside owner auth and rechecks the grant before password changes',async t=>{
+ const f=await fixture(t),signed=await login(f);f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(signed.user.userId,new Date().toISOString());
+ const start=await authPage(request('/auth/owner/recover'),f.api,config.origin),startCookie=cookie(start.headers.getSetCookie()[0]),startFlow=await f.api.flow(request('/',startCookie));
+ let result=await post(f,'owner/recover',startFlow,startCookie,{email});assert.equal(result.headers.get('location'),'/auth/owner/verify');
+ const verifyCookie=cookie(result.headers.getSetCookie()[0]),verifyFlow=await f.api.flow(request('/',verifyCookie));assert.equal(verifyFlow.ownerOnly,true);
+ result=await post(f,'owner/verify',verifyFlow,verifyCookie,{code:'123456'});assert.equal(result.headers.get('location'),'/auth/owner/reset');
+ const resetSession=cookie(result.headers.getSetCookie()[0]),reset=await authPage(request('/auth/owner/reset',resetSession),f.api,config.origin),resetCookie=cookie(reset.headers.getSetCookie()[0]),resetFlow=await f.api.flow(request('/',resetCookie));assert.equal(resetFlow.ownerOnly,true);
+ f.db.sqlite.prepare('DELETE FROM platform_admins').run();result=await post(f,'owner/reset',resetFlow,resetCookie+'; '+resetSession,{password});assert.equal(result.status,403);
+ f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(signed.user.userId,new Date().toISOString());result=await post(f,'owner/reset',resetFlow,resetCookie+'; '+resetSession,{password});assert.equal(result.status,303);assert.equal(result.headers.get('location'),'/auth/owner/login?password_changed=1');assert.equal(count(f,'auth_sessions'),0);
+});

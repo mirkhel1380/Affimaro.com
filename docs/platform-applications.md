@@ -16,7 +16,7 @@ Pending applicants can withdraw a submission to edit it, then submit again. Requ
 
 ## Owner review
 
-The established owner uses `/admin/applications` or **Application review** from the brand/account navigation. The queue supports status and brand/affiliate filters, counts and the oldest 100 matching requests. Select an applicant to inspect the complete profile and history, then explicitly choose and confirm a decision. Requests for information and rejection require an explanatory message. A reviewer cannot review their own application.
+The established owner uses `/owner/applications` or **Application review** from the independent owner navigation. The queue supports status and brand/affiliate filters, counts and the oldest 100 matching requests. Select an applicant to inspect the complete profile and history, then explicitly choose and confirm a decision. Requests for information and rejection require an explanatory message. A reviewer cannot review their own application.
 
 Authorization comes from `platform_admins` in D1, never email matching, editable provider metadata, a client role flag or the first person to register. Both listing/inspection and decision operations check this authority server-side.
 

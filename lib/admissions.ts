@@ -11,7 +11,7 @@ const resolvedPortal="COALESCE((SELECT portal FROM account_portals r WHERE r.use
 const fields=`p.user_id,${resolvedPortal} AS portal,p.status,p.profile_json,p.revision,p.submitted_at,p.reviewed_at,p.reviewed_by,p.review_note,p.transition_id,p.created_at,p.updated_at`;
 export const getAdmission=(db:D1Database,userId:string)=>db.prepare(`SELECT ${fields} FROM platform_applications p WHERE p.user_id=?`).bind(userId).first<PlatformApplication>();
 export async function isPlatformAdmin(db:D1Database,userId:string){return !!await db.prepare('SELECT user_id FROM platform_admins WHERE user_id=?').bind(userId).first();}
-export async function requirePlatformAdmin(db:D1Database,identity:Identity){if(!await isPlatformAdmin(db,identity.userId))throw new AppError(403,'Only the Affimaro owner can review platform applications.');}
+export async function requirePlatformAdmin(db:D1Database,identity:Identity){if(!await isPlatformAdmin(db,identity.userId))throw new AppError(403,'Only the Affimaro owner can access platform administration.');}
 export async function requireApprovedAccount(db:D1Database,identity:Identity){
   const app=await getAdmission(db,identity.userId);
   if(app?.status!=='approved')throw new AppError(403,app?.status==='pending'?'Your Affimaro application is under review. Open Application status to follow it.':'Complete your Affimaro application and wait for owner approval before using the portal.');

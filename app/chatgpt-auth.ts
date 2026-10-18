@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {emailSignIn} from '../lib/auth-mode';
 import {getRawDb} from '../db';
-import {getAdmission} from '../lib/admissions';
+import {getAdmission,isPlatformAdmin} from '../lib/admissions';
 
 export type ChatGPTUser = {
   userId: string;
@@ -48,6 +48,7 @@ export async function requireChatGPTUser(
 ): Promise<ChatGPTUser> {
   const user = await getChatGPTUser();
   if (user){
+    if(!options.allowApplication&&await isPlatformAdmin(getRawDb(),user.userId))redirect('/owner');
     if(!options.allowApplication&&(await getAdmission(getRawDb(),user.userId))?.status!=='approved')redirect('/application?return_to='+encodeURIComponent(safeRelativeReturnPath(returnTo)));
     return user;
   }
@@ -63,7 +64,8 @@ export function chatGPTSignInPath(returnTo: string): string {
     const specific=/^\/(creator|agency)(\/|$)/.exec(path.pathname)?.[1]||(['creator','agency'].includes(path.searchParams.get('view')||'')?path.searchParams.get('view'):null);
     const affiliate=/^\/(partner|join)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='affiliate';
     const brand=/^\/(workspace|billing)(\/|$)/.test(path.pathname)||path.searchParams.get('view')==='business';
-    if(specific)entry='/auth/'+specific+'/login';
+    if(/^\/(owner|admin)(\/|$)/.test(path.pathname))entry='/auth/owner/login';
+    else if(specific)entry='/auth/'+specific+'/login';
     else if(affiliate||brand)entry='/auth/'+(affiliate?'affiliate':'brand')+'/login';
   }
   return `${entry}?return_to=${encodeURIComponent(safeReturnTo)}`;
