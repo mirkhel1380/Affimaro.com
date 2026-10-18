@@ -15,9 +15,11 @@ import {money} from '../tracking';
 import {BankForm,PaymentAction,RequestPayment,PaymentDetails,DeclinePayment,RecordPayment} from '../payment-controls';
 export const dynamic='force-dynamic';
 export default async function PaymentsPage({searchParams}:{searchParams:Promise<{view?:string;stripe?:string}>}){
-  const user=await requireChatGPTUser('/payments'),db=getRawDb(),s=service(db,user),account=await s.account();if(!account)redirect('/account');
+  const params=await searchParams,requestedPortal=portalForView(params.view);
+  const returnTo='/payments'+(requestedPortal?'?view='+(requestedPortal==='brand'?'business':'affiliate'):'');
+  const user=await requireChatGPTUser(returnTo),db=getRawDb(),s=service(db,user),account=await s.account();if(!account)redirect('/account');
   const portal=await accountPortal(db,user.userId);if(!portal)redirect('/get-started');
-  const business=await s.workspace(),params=await searchParams,merchant=portal==='brand',p=payments(db,user,paymentDataKey());
+  const business=await s.workspace(),merchant=portal==='brand',p=payments(db,user,paymentDataKey());
   if(params.view&&portalForView(params.view)!==portal)redirect('/payments?view='+(merchant?'business':'affiliate'));
   const businessData=merchant?await p.merchantDashboard():null,affiliateData=merchant?null:await p.partnerDashboard();
   const connections=merchant&&business?await paymentConnections(db,user,paymentDataKey()).list():[];
