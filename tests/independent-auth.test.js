@@ -160,6 +160,20 @@ test('separate verified identities remain separate accounts and cannot read anot
   f.state.user={...f.state.user,id:otherUid,email:'other@example.com'};const other=await f.api.login({email:'other@example.com',password},'other-ip');assert.notEqual(other.user.userId,owner.user.userId);assert.equal(await service(f.db,other.user).workspace(),null);assert.equal((await service(f.db,owner.user).workspace()).id,workspace.id);
 });
 
+test('only exact POST store-event paths bypass browser sessions, and maintenance still blocks them',async t=>{
+  const f=await fixture(t),signed=await login(f),cookies=cookie(signed.cookie),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
+  f.state.outage=true;const before=f.state.calls.length;
+  const machine=async req=>{assert.equal(req.headers.get('oai-authenticated-user-id'),null);return Response.json({reached:true});};
+  for(const path of ['/api/custom/event','/api/woocommerce/event']){
+    const response=await independentFetch(request(path,cookies,{method:'POST',headers:{'oai-authenticated-user-id':'spoof'}}),env,machine,f.fetcher);
+    assert.equal(response.status,200);assert.equal(f.state.calls.length,before);
+    const paused=await independentFetch(request(path,cookies,{method:'POST'}),{...env,AFFIMARO_MIGRATION_MAINTENANCE:'true'},async()=>{throw new Error('The paused application must not run.');},f.fetcher);assert.equal(paused.status,503);
+  }
+  for(const [path,method] of [['/api/custom/event','GET'],['/api/custom/manage','POST'],['/api/custom/event/extra','POST'],['/api/woocommerce/manage','POST'],['/api/store','POST']]){
+    const response=await independentFetch(request(path,cookies,{method}),env,async()=>{throw new Error('A browser API must verify its session first.');},f.fetcher);assert.equal(response.status,503);
+  }
+});
+
 test('getting-started routes resolve the verified session and cannot be cached or impersonated',async t=>{
   const f=await fixture(t),signed=await login(f),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
   const app=async req=>Response.json({id:req.headers.get('oai-authenticated-user-id')});

@@ -1,6 +1,6 @@
 # Affimaro
 
-Affimaro is an affiliate management product by Highlink. The independent pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
+Affimaro is an affiliate management product by Highlink. The independent pilot includes a marketing website, an interactive sample dashboard, database-backed accounts/programs, an installable WooCommerce tracking adapter, a Shopify dashboard-sync adapter, a signed custom-website server integration, manual bank/Wise-payment records, verified Stripe/Wise business account-access setup, and owner-confirmed USD Stripe transfers.
 
 ## Available now
 
@@ -9,7 +9,7 @@ Affimaro is an affiliate management product by Highlink. The independent pilot i
 - An [installable mobile web app](docs/mobile-app.md) with Android/iPhone/desktop instructions, the same account, home-screen icons and a public reconnect screen. Account and payment data require a live connection and are excluded from its offline cache. Native app-store packages remain planned.
 - Disabled-by-default owner-only encrypted migration, preserved legacy identities and a manual independent GitHub deployment workflow.
 - A [getting-started guide](docs/getting-started.md) with account-scoped business/affiliate progress, exact next-step links, current referral readiness and clear package availability. It reads existing records and never starts a subscription or payment.
-- One business workspace, editable program and one store connection (WooCommerce or Shopify) per owner.
+- One business workspace, editable program and one store connection (WooCommerce, Shopify or a custom website) per owner.
 - Affiliate profiles, application pages, duplicate-safe applications and owner review.
 - One-time per-store signing keys, rotation, pause/resume and signed connection verification.
 - Consent-based store referral capture and approved affiliates’ referral links after verification.
@@ -54,7 +54,9 @@ Real workspaces begin empty. No demonstration accounts, sales or partners are se
 - `/api/stripe-connect`: owner enablement, affiliate-only hosted onboarding and scoped receiving-account checks.
 - `/api/payment-connections`: authenticated owner-only provider connection, access recheck and removal; no money-movement API.
 - `/api/shopify`: authenticated store verification, pause/resume and bounded dashboard sync.
-- `/api/woocommerce/event`: separately authenticated machine endpoint for store ping, referral and order events.
+- `/api/woocommerce/event`: separately authenticated WooCommerce machine endpoint for store ping, referral and order events.
+- `/api/custom/event`: separately authenticated custom-website machine endpoint, isolated by connection platform.
+- `/downloads/affimaro-custom.mjs`, `/downloads/custom-website-setup.md`: server-only Node client and setup/protocol guide.
 - `/downloads/affimaro-woocommerce.zip`: generic installable plugin, with no credentials.
 - `/downloads/stripe-transfers-setup.md`: USD Stripe commission-transfer and recovery guide.
 - `/downloads/stripe-connect-setup.md`: Stripe receiving-account onboarding guide.
@@ -86,6 +88,14 @@ Primary implementation references:
 - [HPOS extension recipe book](https://developer.woocommerce.com/docs/features/orders/high-performance-order-storage/recipe-book/)
 - [WordPress PHP-WASM tooling](https://developer.wordpress.org/playground/developers/local-development/php-wasm-node/)
 
+## Custom website integration
+
+[The custom website guide](integrations/custom/README.md) documents a server-only Node.js 22.13+ client and the signed HTTP protocol for other backends. Owners create a `custom` connection in Store settings and receive its signing key once. The distinct machine endpoint accepts only that platform, with UUID event IDs, five-minute HMAC signatures, atomic replay protection and bounded strict payloads. Custom order IDs support stable ASCII identifiers up to 128 characters; WooCommerce and Shopify retain their numeric ID contracts.
+
+The shared engine handles locked attribution, integer commission, cumulative refunds, review holds and monotonic revisions, then feeds the existing orders, reports and business approval workflow. The downloadable client requires persisted event IDs for referrals/orders, rejects redirects, and bounds/validates responses. Merchants supply trusted server sessions, consent handling, order/payment verification and a durable outbox with monitoring. There is no browser secret, automatic installation, payment-provider reconciliation or affiliate money movement. Isolated tests cover the client-to-receiver journey; a real merchant implementation still needs a staging checkout/refund walkthrough. No schema migration or new Affimaro runtime secret is required.
+
+Run `npm run custom:package` after changing the client or guide; tests require exact matching public downloads.
+
 ## Shopify dashboard sync
 
 Source/setup: [Shopify adapter guide](integrations/shopify/README.md). The adapter uses the merchant-owned app client-credentials flow and Admin GraphQL API `2026-10`. The app and store must belong to the same Shopify organization. This is not an App Store app or multi-merchant OAuth installation flow.
@@ -102,7 +112,7 @@ The [Stripe Connect guide](integrations/payments/stripe-connect-setup.md) descri
 
 ## Manual bank-payment workflow
 
-For bank and Wise payments, the business sends the funds outside Affimaro and records the completed transfer here. Affimaro does not create a bank transfer, verify bank settlement, hold funds or offer an automatic cash-out. Stripe and Wise account access can be checked through the owner-only setup described in the [payment setup guide](integrations/payments/README.md). Owner-confirmed USD Stripe account transfers are implemented separately; Wise API transfers and direct bank payout APIs remain unimplemented. The Shopify adapter uses outgoing dashboard sync; Paddle and custom-site adapters remain pending.
+For bank and Wise payments, the business sends the funds outside Affimaro and records the completed transfer here. Affimaro does not create a bank transfer, verify bank settlement, hold funds or offer an automatic cash-out. Stripe and Wise account access can be checked through the owner-only setup described in the [payment setup guide](integrations/payments/README.md). Owner-confirmed USD Stripe account transfers are implemented separately; Wise API transfers and direct bank payout APIs remain unimplemented. The Shopify adapter uses outgoing dashboard sync; The Paddle adapter remains pending.
 
 1. The business approves an accrued order’s current revision and amount. A stale or ineligible order cannot be approved.
 2. The affiliate saves a bank destination. Details are encrypted and dashboards show only currency and the last four account characters.
@@ -148,6 +158,6 @@ Use Node 24 for tests and the Sites helpers for install/build. Preserve the lock
 
 ## Remaining product work
 
-Connect a real staging store and verify checkout/refunds end to end, verify customer email sending after the owner purchases a domain, then complete live subscription configuration, broader subscription tiers, Paddle/custom-site adapters, broader currency and payout support, and native app-store packages. The independent host, owner sign-in/recovery and installable web app are already online. Starter currently follows the existing one-store/program/owner limits; future package limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
+Connect a real staging store and verify checkout/refunds end to end, verify customer email sending after the owner purchases a domain, then complete live subscription configuration, broader subscription tiers, the Paddle adapter, broader currency and payout support, and native app-store packages. The independent host, owner sign-in/recovery and installable web app are already online. Starter currently follows the existing one-store/program/owner limits; future package limits remain provisional. Affimaro holds no affiliate funds. Each business pays directly from its own bank, Wise or Stripe account; the Stripe path requires explicit per-request confirmation.
 
 The private GitHub repository is connected to Cloudflare Workers Builds on `main` and publishes the independent host automatically. Native Sites source/version synchronization is maintained separately; its owner-private source remains paused with migration export disabled and the original payment key preserved. GitHub Pages is not used. The owner will purchase the custom domain elsewhere; domain connection is deferred.

@@ -2,24 +2,28 @@ import {z} from 'zod';
 import {effectiveCommission,shopifyHold,trackedOrderColumns} from './commission-query.ts';
 import {AppError,service,type Identity} from './service.ts';
 
-export type Connection={id:string;store_url:string;active:number;last_seen:string|null;created_at:string;platform:'woocommerce'|'shopify'};
+export type StorePlatform='woocommerce'|'shopify'|'custom';
+export type Connection={id:string;store_url:string;active:number;last_seen:string|null;created_at:string;platform:StorePlatform};
 type PrivateConnection=Connection&{workspace_id:string;signing_key:string};
 export type TrackedOrder={id:string;store_id:string;referral_id:string;application_id:string;external_id:string;revision:number;currency:string;decimals:number;basis:number;refunded_basis:number;rate_bps:number;commission:number;status:string;commission_state:string;needs_review:number;created_at:string;received_at:string;partner_name?:string;business_name?:string};
 type Referral={id:string;store_id:string;application_id:string;rate_bps:number;created_at:string;expires_at:string};
 const uuid=z.string().uuid();
 const storeUrl=z.string().max(300).transform(v=>v.trim().replace(/\/+$/,'' )).refine(v=>{
   try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&u.hostname.includes('.')&&!/^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.)/.test(u.hostname);}catch{return false;}
-},'Use the public HTTPS home URL of your WooCommerce store.');
+},'Use the public HTTPS home URL of your store or website.');
+const signedPlatform=z.enum(['woocommerce','custom']).default('woocommerce');
 const inputSchema=z.discriminatedUnion('action',[
-  z.object({action:z.literal('connect'),storeUrl}).strict(),
-  z.object({action:z.enum(['rotate','disconnect','resume'])}).strict(),
+  z.object({action:z.literal('connect'),storeUrl,platform:signedPlatform}).strict(),
+  z.object({action:z.enum(['rotate','disconnect','resume']),platform:signedPlatform}).strict(),
 ]);
 const amount=z.number().int().min(0).max(1_000_000_000_000);
-const eventSchema=z.discriminatedUnion('kind',[
+const eventSchema=(orderId:z.ZodString)=>z.discriminatedUnion('kind',[
   z.object({kind:z.literal('ping'),storeUrl}).strict(),
   z.object({kind:z.literal('referral'),applicationId:uuid}).strict(),
-  z.object({kind:z.literal('order'),orderId:z.string().regex(/^[1-9][0-9]{0,19}$/),revision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),referralId:uuid,createdAt:z.string().datetime(),currency:z.string().regex(/^[A-Z]{3}$/),decimals:z.number().int().min(0).max(6),basis:amount,refundedBasis:amount,status:z.enum(['pending','on-hold','processing','completed','cancelled','failed','refunded']),refundUnallocated:z.boolean()}).strict(),
+  z.object({kind:z.literal('order'),orderId,revision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),referralId:uuid,createdAt:z.string().datetime(),currency:z.string().regex(/^[A-Z]{3}$/),decimals:z.number().int().min(0).max(6),basis:amount,refundedBasis:amount,status:z.enum(['pending','on-hold','processing','completed','cancelled','failed','refunded']),refundUnallocated:z.boolean()}).strict(),
 ]);
+const numericEvents=eventSchema(z.string().regex(/^[1-9][0-9]{0,19}$/));
+const customEvents=eventSchema(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/));
 function parse<S extends z.ZodTypeAny>(schema:S,value:unknown):z.output<S>{const r=schema.safeParse(value);if(!r.success)throw new AppError(400,r.error.issues[0]?.message||'Invalid store request.');return r.data;}
 const encoder=new TextEncoder();
 const hex=(bytes:ArrayBuffer)=>Array.from(new Uint8Array(bytes),v=>v.toString(16).padStart(2,'0')).join('');
@@ -44,15 +48,15 @@ export function commerce(db:D1Database,identity:Identity){
   return {
     async configure(input:unknown){
       const value=parse(inputSchema,input),w=await workspace();
-      const existing=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at FROM store_connections WHERE workspace_id=?',w.id);
-      if(existing){const kind=await one<{platform:string}>(db,'SELECT platform FROM store_connections WHERE id=?',existing.id);if(kind?.platform!=='woocommerce')throw new AppError(409,'Manage this store through its Shopify connection settings.');}
+      const existing=await one<Connection>(db,'SELECT id,store_url,active,last_seen,created_at,platform FROM store_connections WHERE workspace_id=?',w.id);
+      if(existing&&existing.platform!==value.platform)throw new AppError(409,'Manage the existing store through its own connection settings. A workspace connects one store.');
       const at=new Date().toISOString();let key:string|undefined;
       if(value.action==='connect'){
         if(existing)throw new AppError(409,'This workspace already has a store. Resume or rotate its key instead.');
         key=hex(crypto.getRandomValues(new Uint8Array(32)).buffer);
         const storeId=crypto.randomUUID();
         await db.batch([
-          db.prepare('INSERT INTO store_connections (id,workspace_id,store_url,signing_key,active,created_at) VALUES (?,?,?,?,1,?)').bind(storeId,w.id,value.storeUrl,key,at),
+          db.prepare('INSERT INTO store_connections (id,workspace_id,store_url,signing_key,platform,active,created_at) VALUES (?,?,?,?,?,1,?)').bind(storeId,w.id,value.storeUrl,key,value.platform,at),
           db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),w.id,identity.userId,'store_configured',at),
         ]);
       }else{
@@ -92,7 +96,7 @@ async function rawBody(request:Request){
   const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}
   try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new AppError(400,'Invalid UTF-8.');}
 }
-export async function receiveStoreEvent(db:D1Database,request:Request,clock=new Date(),expectedPlatform:'woocommerce'|'shopify'='woocommerce'){
+export async function receiveStoreEvent(db:D1Database,request:Request,clock=new Date(),expectedPlatform:StorePlatform='woocommerce'){
   const storeId=request.headers.get('x-affimaro-store')||'',eventId=request.headers.get('x-affimaro-event')||'',timestamp=request.headers.get('x-affimaro-timestamp')||'',signature=request.headers.get('x-affimaro-signature')||'';
   if(!uuid.safeParse(storeId).success||!uuid.safeParse(eventId).success||!/^\d{10}$/.test(timestamp)||Math.abs(clock.getTime()/1000-Number(timestamp))>300)throw new AppError(401,'Invalid or expired store signature.');
   const connection=await one<PrivateConnection>(db,'SELECT * FROM store_connections WHERE id=?',storeId);
@@ -103,7 +107,7 @@ export async function receiveStoreEvent(db:D1Database,request:Request,clock=new 
   const replay=async()=>{const old=await one<{payload_hash:string;response:string}>(db,'SELECT payload_hash,response FROM store_events WHERE store_id=? AND event_id=?',storeId,eventId);if(old&&old.payload_hash!==hash)throw new AppError(409,'Event ID was already used for another payload.');return old?JSON.parse(old.response):null;};
   const previous=await replay();if(previous)return previous;
   let input:unknown;try{input=JSON.parse(raw);}catch{throw new AppError(400,'Invalid JSON.');}
-  const event=parse(eventSchema,input),at=clock.toISOString(),statements:D1PreparedStatement[]=[];let result:Record<string,unknown>;
+  const event=parse(expectedPlatform==='custom'?customEvents:numericEvents,input),at=clock.toISOString(),statements:D1PreparedStatement[]=[];let result:Record<string,unknown>;
   if(event.kind==='ping'){
     if(event.storeUrl!==connection.store_url)throw new AppError(409,'The store home URL does not match this connection.');
     result={connected:true};

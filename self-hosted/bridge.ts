@@ -22,7 +22,8 @@ export async function independentFetch(request:Request,env:Bindings,application:
     const auth=emailAuth(env.DB,config,fetcher);
     if(isAuthPath(url.pathname))return authPage(request,auth,config.origin);
     // Public assets and HMAC-signed store events do not need a browser identity.
-    const accountRoute=/^\/(account|start|workspace|partner|payments|reports|billing|join|migration)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/api/woocommerce/');
+    const signedStoreEvent=request.method==='POST'&&['/api/woocommerce/event','/api/custom/event'].includes(url.pathname);
+    const accountRoute=/^\/(account|start|workspace|partner|payments|reports|billing|join|migration)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent;
     const user=accountRoute?await auth.resolve(request):null;
     const response=await application(verifiedRequest(request,user)),headers=new Headers(response.headers);
     if(accountRoute){headers.set('Cache-Control','private, no-store');headers.append('Vary','Cookie');}

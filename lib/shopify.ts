@@ -79,7 +79,7 @@ export function shopify(db:D1Database,identity:Identity,key:string|undefined,fet
       return {shop_domain:a.shop_domain,client_id:a.client_id,scopes:a.scopes.split(','),synced_through:a.synced_through,in_progress:!!a.sync_until,last_result:a.last_result?JSON.parse(a.last_result):null,pending:await all(db,'SELECT order_id,reason FROM shopify_pending WHERE store_id=? ORDER BY updated_at ASC LIMIT 20',c.id)};
     },
     async connect(input:unknown){
-      const value=parse(credentialsSchema,input),w=await workspace(),existing=await store();if(existing&&existing.platform!=='shopify')throw new AppError(409,'This workspace already has a WooCommerce store. One store is supported per workspace.');
+      const value=parse(credentialsSchema,input),w=await workspace(),existing=await store();if(existing&&existing.platform!=='shopify')throw new AppError(409,'This workspace already has a different store connection. One store is supported per workspace.');
       const p=await one<{window_days:number}>(db,'SELECT window_days FROM programs WHERE workspace_id=?',w.id);if(p&&p.window_days>30)throw new AppError(409,'Set your program attribution window to 30 days or less before connecting Shopify.');
       const previous=existing?await account(existing.id):null;if(previous?.lease_until&&Date.parse(previous.lease_until)>Date.now())throw new AppError(409,'Wait for the current sync before replacing credentials.');
       const id=existing?.id||crypto.randomUUID(),secret=await sealPayment(value.clientSecret,key,`shopify/secret/${id}`),token=await exchange(fetcher,value.shopDomain,value.clientId,value.clientSecret);
