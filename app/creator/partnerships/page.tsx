@@ -1,3 +1,3 @@
-import {PartnerView} from '../../partner/page';
+import {RelationshipsView} from '../../relationships-view';
 export const dynamic='force-dynamic';
-export default function CreatorPartnerships(){return PartnerView({portal:'creator',path:'/creator/partnerships'});}
+export default function Page({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){return RelationshipsView({portal:'creator',searchParams});}

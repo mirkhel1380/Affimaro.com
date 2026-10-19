@@ -24,7 +24,7 @@ export function writePortal(path:string,method:string,body:unknown):{portal:Port
   const action=body&&typeof body==='object'&&'action' in body?body.action:null;
   if(path==='/api/business')return {portal:'brand',allowUnset:method==='POST'};
   if(path==='/api/affiliate')return {portal:'affiliate',allowUnset:true};
-  if(['/api/program','/api/store','/api/shopify','/api/billing','/api/payment-connections','/api/stripe-transfers'].includes(path))return {portal:'brand',allowUnset:false};
+  if(['/api/program','/api/store','/api/shopify','/api/billing','/api/payment-connections','/api/stripe-transfers','/api/program-resources'].includes(path))return {portal:'brand',allowUnset:false};
   if(path==='/api/applications')return {portal:method==='POST'?'affiliate':'brand',allowUnset:false};
   if(path==='/api/stripe-connect'&&['configure','start','check'].includes(String(action)))return {portal:action==='configure'?'brand':'affiliate',allowUnset:false};
   if(path==='/api/payments'){

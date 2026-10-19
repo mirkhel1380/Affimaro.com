@@ -1,5 +1,5 @@
 import {service,type Identity} from './service.ts';
-import {storeReferralLink} from './referral-link.ts';
+import {trackedReferralPath} from './referral-link.ts';
 import {accountPortal,businessPortal} from './portal-policy.ts';
 
 type Stage='owner'|'brand'|'closed'|'account'|'profile'|'apply'|'pending'|'approved'|'suspended'|'rejected'|'updated';
@@ -24,7 +24,7 @@ export async function programInvitation(db:D1Database,identity:Identity,programI
     {id:'application',title:'Send application',complete:!!application},
   ];
   const current=steps.find(step=>!step.complete)?.id;
-  return {program,account,profile,portal,stage,path:`/join/${program.id}`,referralLink:link?storeReferralLink(link):null,referralPlatform:link?.platform||null,
+  return {program,account,profile,portal,stage,path:`/join/${program.id}`,referralLink:link?trackedReferralPath(link.application_id):null,referralPlatform:link?.platform||null,
     steps:steps.map(step=>({...step,current:step.id===current})),completed:steps.filter(step=>step.complete).length};
 }
 export type ProgramInvitation=Awaited<ReturnType<typeof programInvitation>>;

@@ -48,7 +48,7 @@ test('custom website connection is owner-scoped, one per workspace and verified 
   assert.deepEqual(await client.ping(),{connected:true});
   const dashboard=await f.store.dashboard(),tracking=await commerce(f.db,identity('affiliate')).partnerTracking();
   assert.ok(dashboard.connection.last_seen);assert.ok(!JSON.stringify(dashboard).includes(f.key));assert.ok(!('signing_key' in dashboard.connection));
-  assert.equal(tracking.links[0].url,home+'/?affimaro_ref='+f.application.id);
+  assert.equal(tracking.links[0].url,'/r/'+f.application.id);
   const guide=await gettingStarted(f.db,identity('owner'));assert.match(JSON.stringify(guide),/website backend/);
   await assert.rejects(f.store.configure({action:'connect',platform:'custom',storeUrl:'https://another.example'}),status(409));
   await assert.rejects(f.store.configure({action:'rotate'}),status(409));

@@ -17,5 +17,5 @@ async function AuthenticatedProgram({programId}:{programId:string}){
   let invitation;
   try{invitation=await programInvitation(getRawDb(),user,programId);}
   catch(error){if(error instanceof AppError&&error.status===404)notFound();throw error;}
-  return <Shell name={invitation.account?.display_name||user.fullName||user.email.split('@')[0]} email={user.email} active="partner" portal={invitation.portal||'affiliate'}><InvitationView invitation={invitation} user={user} independent={emailSignIn}/></Shell>;
+  return <Shell name={invitation.account?.display_name||user.fullName||user.email.split('@')[0]} email={user.email} active="relationships" portal={invitation.portal||'affiliate'}><InvitationView invitation={invitation} user={user} independent={emailSignIn}/></Shell>;
 }
