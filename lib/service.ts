@@ -137,7 +137,7 @@ export function service(db:D1Database,identity:Identity) {
         db.prepare(`UPDATE applications SET status=?,updated_at=? WHERE id=? AND program_id IN (SELECT id FROM programs WHERE workspace_id=?)
           AND (?<>'approved' OR status='approved' OR (SELECT count(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=? AND a.status='approved') < COALESCE((SELECT CASE active_plan WHEN 'growth' THEN 500 WHEN 'business' THEN 2000 ELSE 100 END FROM plan_requests WHERE user_id=?),100))`).bind(value.status,at,value.applicationId,business.id,value.status,business.id,identity.userId),
         db.prepare("INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_reviewed',? WHERE EXISTS(SELECT 1 FROM applications WHERE id=? AND status=? AND updated_at=?)").bind(id(),business.id,identity.userId,at,value.applicationId,value.status,at),
-      ]);const saved=await one<{status:string}>("SELECT status FROM applications WHERE id=?",value.applicationId);if(saved?.status!==value.status)throw new AppError(409,'Your approved-partner package limit has been reached. Request a larger package before approving another partner.');return {id:value.applicationId,status:value.status};
+      ]);const saved=await one<{status:string}>("SELECT status FROM applications WHERE id=?",value.applicationId);if(saved?.status!==value.status)throw new AppError(409,'Your approved-partner package limit has been reached. Choose a larger package in billing and complete payment before approving another partner.');return {id:value.applicationId,status:value.status};
     },
   };
 }

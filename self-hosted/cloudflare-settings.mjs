@@ -10,8 +10,11 @@ export function cloudflareSettings(values={}){
   const accountId=(account??selectedProject.accountId).toLowerCase(),databaseId=(database??selectedProject.databaseId).toLowerCase();
   if(!/^[a-f0-9]{32}$/.test(accountId)||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(databaseId)||/^00000000-/.test(databaseId))throw new Error('Use the real Cloudflare account and D1 database IDs.');
   if(accountId!==selectedProject.accountId&&(!database||!origin))throw new Error('Override the Cloudflare account, D1 database and origin together for another account.');
-  const routing=independentRouting(origin??selectedProject.origin);
-  const defaults=!origin||routing.origin===selectedProject.origin;
+  // The selected project’s former APP_ORIGIN can remain in build settings.
+  // The authorized cutover promotes that exact owned legacy host to its canonical domain.
+  const canonical=accountId===selectedProject.accountId&&origin===selectedProject.legacyOrigin?selectedProject.origin:origin;
+  const routing=independentRouting(canonical??selectedProject.origin);
+  const defaults=!canonical||routing.origin===selectedProject.origin;
   const owner=ownerRouting(routing.origin,get('OWNER_ORIGIN')??(defaults?selectedProject.ownerOrigin:undefined));
   const legacy=legacyRouting(routing.origin,get('LEGACY_ORIGIN')??(defaults?selectedProject.legacyOrigin:undefined));
   if(legacy.origin)routing.config.workers_dev=true;

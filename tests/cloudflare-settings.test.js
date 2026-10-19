@@ -10,7 +10,8 @@ test('the independent target selects the owner-supplied Cloudflare account and n
   assert.equal(independentWorkerName,'affimaro-com');
   assert.equal(selected.accountId,'72d03e04f40638313952d19c5739c34d');
   assert.equal(selected.databaseId,'9b4539f6-dd2a-4ce7-85c5-4733f799ed11');
-  assert.equal(selected.origin,'https://affimaro-com.m-mirkhel20.workers.dev');
+  assert.equal(selected.origin,'https://affimaro.com');assert.equal(selected.ownerOrigin,'https://admin.affimaro.com');assert.equal(selected.legacyOrigin,'https://affimaro-com.m-mirkhel20.workers.dev');assert.equal(selected.routing.workers_dev,true);
+  assert.equal(cloudflareSettings({APP_ORIGIN:selected.legacyOrigin}).origin,selected.origin);
   assert.equal(selected.workersSubdomain,'m-mirkhel20');
   assert.throws(()=>deploymentSettings({}),/Missing deployment settings/);
   const ready=deploymentSettings({CLOUDFLARE_API_TOKEN:'FIXTURE_TOKEN',AUTH_SESSION_ENCRYPTION_KEY:'cd'.repeat(32)});
@@ -23,7 +24,7 @@ test('Cloudflare overrides cannot mix a new account with the selected database o
   const custom=cloudflareSettings({APP_ORIGIN:'https://affimaro.example'});assert.equal(custom.databaseId,cloudflareSettings().databaseId);assert.equal(custom.routing.workers_dev,false);
 });
 test('migration target checks reject a stale Worker or database even when the account and origin match',()=>{
-  const selected=cloudflareSettings(),config={name:independentWorkerName,account_id:selected.accountId,vars:{APP_ORIGIN:selected.origin},d1_databases:[{binding:'DB',database_id:selected.databaseId}],...selected.routing};
+  const selected=cloudflareSettings(),config={name:independentWorkerName,account_id:selected.accountId,vars:{APP_ORIGIN:selected.origin,OWNER_ORIGIN:selected.ownerOrigin,LEGACY_ORIGIN:selected.legacyOrigin},d1_databases:[{binding:'DB',database_id:selected.databaseId}],...selected.routing};
   verifyCloudflareTarget(config,selected);
   for(const mutate of [c=>c.name='affimaro',c=>c.d1_databases[0].database_id='11111111-1111-4111-8111-111111111111',c=>c.d1_databases.push({binding:'OTHER',database_id:selected.databaseId}),c=>c.d1_databases[0].binding='OTHER']){const wrong=structuredClone(config);mutate(wrong);assert.throws(()=>verifyCloudflareTarget(wrong,selected));}
 });
