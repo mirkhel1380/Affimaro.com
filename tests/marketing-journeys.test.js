@@ -79,3 +79,6 @@ test('old sample links redirect to their dedicated role document with the reques
     assert.equal(destination,'/demo/'+portal+'#/demo/'+old+'/overview');
   }
 });
+
+
+test('store setup links open readable branded HTML guides instead of raw Markdown files',()=>{const sprite=read('content/icon-sprite.html');for(const [integration,guide] of [['woocommerce','woocommerce'],['shopify','shopify'],['custom','custom-website']]){const detail=renderMarketingDocument('/integrations/'+integration,sprite),html=renderMarketingDocument('/guides/'+guide+'-setup',sprite);assert.ok(detail.includes('href="/guides/'+guide+'-setup"'));assert.ok(!detail.includes('/downloads/'+guide+'-setup.md'));assert.match(detail,/Read setup guide/);assert.ok(html.startsWith('<!doctype html>'));assert.match(html,/charset="utf-8"/);assert.match(html,/class="container m-guide"/);assert.match(html,/Store settings|store settings/);assert.ok(!html.includes('Optional: owner-private ChatGPT Sites access'));assert.ok(!html.includes('â€™')&&!html.includes('â†’'));}const workspace=read('app/workspace/page.tsx');for(const platform of ['shopify','woocommerce']){assert.ok(workspace.includes('/guides/'+platform+'-setup'));assert.ok(!workspace.includes('/downloads/'+platform+'-setup.md'));}});

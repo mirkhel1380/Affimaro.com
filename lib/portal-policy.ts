@@ -1,6 +1,7 @@
 export const portals=['brand','affiliate','creator','agency'] as const;
 export type Portal=typeof portals[number];
 export const businessPortal=(p:Portal)=>p==='brand'||p==='agency';
+export const discoveryRoles=(p:Portal):Portal[]=>businessPortal(p)?['affiliate','creator']:['brand','agency'];
 export const portalFamily=(p:Portal)=>businessPortal(p)?'brand':'affiliate';
 export const portalHome=(p:Portal)=>({brand:'/workspace',affiliate:'/partner',creator:'/creator',agency:'/agency'})[p];
 export const portalName=(p:Portal)=>({brand:'Brand',affiliate:'Affiliate',creator:'Creator',agency:'Agency'})[p];

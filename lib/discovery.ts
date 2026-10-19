@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {requireApprovedAccount} from './admissions.ts';
-import {accountPortal,businessPortal,type Portal} from './portal-policy.ts';
+import {accountPortal,businessPortal,discoveryRoles,type Portal} from './portal-policy.ts';
 import {assertVerifiedProfile} from './media-properties.ts';
 const now=()=>new Date().toISOString(),id=z.string().min(1).max(200);
 const roles=['brand','affiliate','creator','agency'] as const;
@@ -23,7 +23,7 @@ export function discovery(db:D1Database,user:Identity){
   profile,
   async listing(){await approved();return await one<{listed:number}>('SELECT listed FROM discovery_listings WHERE user_id=?',user.userId)||{listed:0};},
   async setListing(input:unknown){const v=parse(z.object({listed:z.boolean()}).strict(),input),app=await approved();if(v.listed)await assertVerifiedProfile(db,user.userId,JSON.parse(app.profile_json));await db.prepare('INSERT INTO discovery_listings(user_id,listed,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET listed=excluded.listed,updated_at=excluded.updated_at').bind(user.userId,v.listed?1:0,now()).run();return {listed:v.listed};},
-  async browse(input:unknown){await approved();const v=parse(z.object({role:z.enum(roles),q:z.string().trim().max(100).default(''),industry:z.string().trim().max(80).default(''),country:z.string().trim().max(80).default(''),platform:z.string().trim().max(80).default(''),saved:z.boolean().default(false),sort:z.enum(['newest','name']).default('newest'),page:z.number().int().min(1).max(10000).default(1)}).strict(),input),since=cutoff(),conditions=[visible,`${role}=?`,'a.user_id<>?'],values:unknown[]=[since,since,v.role,user.userId];
+  async browse(input:unknown){await approved();const v=parse(z.object({role:z.enum(roles).optional(),q:z.string().trim().max(100).default(''),industry:z.string().trim().max(80).default(''),country:z.string().trim().max(80).default(''),platform:z.string().trim().max(80).default(''),saved:z.boolean().default(false),sort:z.enum(['newest','name']).default('newest'),page:z.number().int().min(1).max(10000).default(1)}).strict(),input),since=cutoff(),ownRole=await accountPortal(db,user.userId),targets=v.role?[v.role]:discoveryRoles(ownRole||'affiliate'),conditions=[visible,`${role} IN (${targets.map(()=>'?').join(',')})`,'a.user_id<>?'],values:unknown[]=[since,since,...targets,user.userId];
   if(v.q){conditions.push("(instr(lower(COALESCE(json_extract(a.profile_json,'$.name'),'')||' '||COALESCE(json_extract(a.profile_json,'$.businessName'),'')||' '||COALESCE(json_extract(a.profile_json,'$.agencyName'),'')||' '||COALESCE(json_extract(a.profile_json,'$.description'),'')),lower(?))>0)");values.push(v.q);}
   for(const field of ['industry','country'] as const)if(v[field]){conditions.push(`json_extract(a.profile_json,'$.${field}')=?`);values.push(v[field]);}
   if(v.platform){conditions.push("EXISTS(SELECT 1 FROM media_properties m WHERE m.user_id=a.user_id AND m.archived=0 AND m.status='verified' AND m.platform=?)");values.push(v.platform);}
