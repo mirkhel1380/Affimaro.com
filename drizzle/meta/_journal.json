@@ -120,6 +120,13 @@
       "when": 1792399353994,
       "tag": "0016_bored_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792400428854,
+      "tag": "0017_closed_account_guards",
+      "breakpoints": true
     }
   ]
 }
