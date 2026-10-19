@@ -4,6 +4,14 @@ The established Affimaro owner signs in at `/auth/owner/login` and manages the s
 
 The public footer includes **Owner sign in**, a direct link to `/auth/owner/login` that works from another browser or device. The native preview forwards this link to the independent host; the independent website keeps it on its own domain. This is only a sign-in entry, not access to owner tools.
 
+## Separate owner hostname
+
+The independent build supports `OWNER_ORIGIN=https://admin.affimaro.com` alongside `APP_ORIGIN=https://affimaro.com`. These are optional cutover settings, not active defaults. The working Workers origin remains selected until DNS, TLS and the saved subscription origin have been reconciled. See [the domain cutover procedure](domain-cutover.md).
+
+With `OWNER_ORIGIN` enabled, the public footer's **Owner sign in** link forwards to the separate owner hostname. Existing `/owner` and `/admin` bookmarks do the same. Owner authentication and owner APIs run only on the owner hostname; public-host mutations are rejected instead of forwarding passwords or action bodies. The owner hostname serves its dedicated control panel and required assets, not customer signup, pricing or any of the four customer portals. Its root opens `/owner` and its public-website link returns to the configured public domain.
+
+Owner login and recovery flow cookies are sealed for the owner origin. Session cookies remain `__Host-` cookies without a parent-domain attribute. Every private owner-host request checks the stored owner grant, including when a customer session token is replayed manually. There is no public owner registration. The existing account, grant, database and payment settings remain in place.
+
 The owner entry does not offer public registration. Its sealed login/recovery flows are distinct from the four customer flows. A verified provider identity must already map to an account with a stored owner grant before an owner session is issued. Email, display name, user metadata, a submitted role and URL parameters never grant owner access. Every owner page and data operation checks the stored grant again. Removing the grant removes access even from an existing session.
 
 The control panel contains:

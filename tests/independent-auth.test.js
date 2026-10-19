@@ -45,6 +45,29 @@ test('independent configuration rejects native hosting, redirects and privileged
   assert.equal(safeReturnTo('/join/program-1?tab=one'),'/join/program-1?tab=one');
   assert.equal(safeReturnTo('/'+'😊'.repeat(100)),'/account');
 });
+
+test('the separate owner host exposes its own login, rejects customer pages and never replays owner POSTs across hosts',async t=>{
+ const f=await fixture(t),ownerOrigin='https://admin.affimaro.example',env={DB:f.db,APP_ORIGIN:config.origin,OWNER_ORIGIN:ownerOrigin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey};
+ const app=async()=>{throw new Error('No application dispatch expected');};
+ const page=await independentFetch(new Request(ownerOrigin+'/auth/owner/login'),env,app,f.fetcher),html=await page.text();assert.equal(page.status,200);assert.match(html,/data-portal="owner"/);assert.ok(!/Create an account|Selected package/.test(html));assert.match(page.headers.get('set-cookie'),/; HttpOnly; Secure; SameSite=Lax/);assert.ok(!page.headers.get('set-cookie').includes('Domain='));assert.match(page.headers.get('X-Robots-Tag'),/noindex/);
+ const ownerAuth=emailAuth(f.db,{...config,origin:ownerOrigin},f.fetcher),flowCookie=cookie(page.headers.get('set-cookie'));assert.ok(await ownerAuth.flow(new Request(ownerOrigin,{headers:{Cookie:flowCookie}})));assert.equal(await f.api.flow(request('/',flowCookie)),null);
+ for(const path of ['/pricing','/auth/affiliate/signup','/creator','/api/billing/webhook'])assert.equal((await independentFetch(new Request(ownerOrigin+path),env,app,f.fetcher)).status,404);
+ assert.equal((await independentFetch(new Request(ownerOrigin+'/auth/owner/signup'),env,app,f.fetcher)).status,404);
+ const moved=await independentFetch(request('/owner/users?role=affiliate'),env,app,f.fetcher);assert.equal(moved.headers.get('location'),ownerOrigin+'/owner/users?role=affiliate');
+ for(const path of ['/auth/owner/login','/api/admin/applications'])assert.equal((await independentFetch(request(path,'',{method:'POST'}),env,app,f.fetcher)).status,403);
+ assert.equal(f.state.calls.length,0);
+});
+
+test('the owner hostname requires the stored owner grant for every private page and API',async t=>{
+ const f=await fixture(t),ownerOrigin='https://admin.affimaro.example',env={DB:f.db,APP_ORIGIN:config.origin,OWNER_ORIGIN:ownerOrigin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey},signed=await login(f);
+ let calls=0;const app=async req=>{calls++;return Response.json({id:req.headers.get('oai-authenticated-user-id')});},req=(path,cookies='')=>new Request(ownerOrigin+path,{headers:{Cookie:cookies,'oai-authenticated-user-id':'forged-owner'}});
+ const anonymous=await independentFetch(req('/owner'),env,app,f.fetcher);assert.equal(anonymous.status,307);assert.equal(anonymous.headers.get('location'),'/auth/owner/login?return_to=%2Fowner');assert.equal((await independentFetch(req('/api/admin/applications'),env,app,f.fetcher)).status,401);
+ assert.equal((await independentFetch(req('/owner',cookie(signed.cookie)),env,app,f.fetcher)).status,403);assert.equal(calls,0);
+ f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(signed.user.userId,new Date().toISOString());
+ const ownerAuth=emailAuth(f.db,{...config,origin:ownerOrigin},f.fetcher),ownerSession=await ownerAuth.login({email,password},'owner-host-fixture',null,undefined,true);
+ for(const path of ['/owner','/api/admin/applications']){const response=await independentFetch(req(path,cookie(ownerSession.cookie)),env,app,f.fetcher);assert.equal(response.status,200);assert.equal((await response.json()).id,signed.user.userId);assert.match(response.headers.get('X-Robots-Tag'),/noindex/);}
+ assert.equal(calls,2);f.db.sqlite.prepare('DELETE FROM platform_admins WHERE user_id=?').run(signed.user.userId);assert.equal((await independentFetch(req('/owner',cookie(ownerSession.cookie)),env,app,f.fetcher)).status,403);assert.equal(calls,2);
+});
 test('sessions use opaque secure cookies, hashed database tokens and separately encrypted provider credentials',async t=>{
   const f=await fixture(t),signed=await login(f),row=session(f);
   assert.match(signed.cookie,/^__Host-affimaro_session=[a-f0-9]{64}; Path=\/; HttpOnly; Secure; SameSite=Lax/);
