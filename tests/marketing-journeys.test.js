@@ -29,7 +29,7 @@ test('home publishes the current authored pages, with separate portal entry and 
   const html=renderMarketingDocument('/',sprite),header=html.match(/<header class="site-header"[\s\S]*?<\/header>/)[0];
   assert.equal(read('public/demo/index.html'),html);
   for(const path of ['/platform','/brands','/affiliates','/resources','/pricing'])assert.ok(header.includes('href="'+path+'"'));
-  assert.ok(!header.includes('/auth/owner/login'));assert.match(html,/<footer [\s\S]*?href="\/auth\/owner\/login">Owner sign in<\/a>/);
+  assert.ok(!html.includes('/auth/owner/login'));assert.ok(!html.includes('Owner sign in'));
   assert.ok(!header.includes('/install'));assert.match(html,/<a class="corner-install" href="\/install"/);
   assert.ok(!/<section[^>]*(?:id="pricing"|class="plans-section)/.test(html));
   assert.match(html,/href="\/auth\/brand\/signup"/);assert.match(html,/href="\/auth\/affiliate\/signup"/);

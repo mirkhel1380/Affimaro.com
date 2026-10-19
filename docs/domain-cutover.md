@@ -36,6 +36,6 @@ Keep the working application available until that transition is ready. Update Su
 
 ## Verify before announcing the new addresses
 
-Check DNS and TLS for both hosts; public home, free affiliate/creator entry and paid brand/agency entry; owner footer navigation, owner login/recovery and real manual review; cross-role and cross-host denial; and signed Stripe updates and original Checkout returns. Verify actual checkout navigation without creating a real charge. Keep the owner-private source Site and its paused source database intact.
+Check DNS and TLS for both hosts; public home, free affiliate/creator entry and paid brand/agency entry; the absence of owner/admin links from the public footer, direct owner login/recovery and real manual review; cross-role and cross-host denial; and signed Stripe updates and original Checkout returns. Verify actual checkout navigation without creating a real charge. Keep the owner-private source Site and its paused source database intact.
 
 Primary references: [Workers Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/), [add a Cloudflare zone](https://developers.cloudflare.com/fundamentals/manage-domains/add-site/), and [Namecheap nameserver changes](https://www.namecheap.com/support/knowledgebase/article.aspx/767/10/how-to-change-dns-for-a-domain/).

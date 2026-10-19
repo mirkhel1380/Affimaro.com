@@ -2,13 +2,13 @@
 
 The established Affimaro owner signs in at `/auth/owner/login` and manages the service at `/owner`. This uses the existing verified provider identity, original account ID, `platform_admins` grant and central D1 database. No replacement owner, database, workspace, payment key or migration import is created.
 
-The public footer includes **Owner sign in**, a direct link to `/auth/owner/login` that works from another browser or device. The native preview forwards this link to the independent host; the independent website keeps it on its own domain. This is only a sign-in entry, not access to owner tools.
+The public footer and customer navigation have no owner sign-in link. The owner opens `/auth/owner/login` directly or saves that address as a private bookmark. The current working address is `https://affimaro-com.m-mirkhel20.workers.dev/auth/owner/login`; after the domain cutover, use `https://admin.affimaro.com/auth/owner/login`.
 
 ## Separate owner hostname
 
 The independent build supports `OWNER_ORIGIN=https://admin.affimaro.com` alongside `APP_ORIGIN=https://affimaro.com`. These are optional cutover settings, not active defaults. The working Workers origin remains selected until DNS, TLS and the saved subscription origin have been reconciled. See [the domain cutover procedure](domain-cutover.md).
 
-With `OWNER_ORIGIN` enabled, the public footer's **Owner sign in** link forwards to the separate owner hostname. Existing `/owner` and `/admin` bookmarks do the same. Owner authentication and owner APIs run only on the owner hostname; public-host mutations are rejected instead of forwarding passwords or action bodies. The owner hostname serves its dedicated control panel and required assets, not customer signup, pricing or any of the four customer portals. Its root opens `/owner` and its public-website link returns to the configured public domain.
+With `OWNER_ORIGIN` enabled, existing owner sign-in, `/owner` and `/admin` bookmarks forward to the separate owner hostname. No owner link is added to the public footer. Owner authentication and owner APIs run only on the owner hostname; public-host mutations are rejected instead of forwarding passwords or action bodies. The owner hostname serves its dedicated control panel and required assets, not customer signup, pricing or any of the four customer portals. Its root opens `/owner` and its public-website link returns to the configured public domain.
 
 Owner login and recovery flow cookies are sealed for the owner origin. Session cookies remain `__Host-` cookies without a parent-domain attribute. Every private owner-host request checks the stored owner grant, including when a customer session token is replayed manually. There is no public owner registration. The existing account, grant, database and payment settings remain in place.
 

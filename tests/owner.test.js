@@ -50,6 +50,6 @@ test('owner routes reject every customer role and a revoked owner while customer
 });
 test('public pages and customer downloads contain no platform administration links or operator setup variables',()=>{
  const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8');
- for(const path of Object.keys(marketingPages)){const html=renderMarketingDocument(path,sprite);assert.ok(!/href="\/(?:owner|admin)(?:[/?"])/.test(html),path);assert.ok(!/AUTH_SESSION_ENCRYPTION_KEY|AFFIMARO_BILLING_|PAYMENT_DATA_KEY_V1/.test(html),path);}
+ for(const path of Object.keys(marketingPages)){const html=renderMarketingDocument(path,sprite);assert.ok(!/href="\/(?:owner|admin|auth\/owner)(?:[/?"])/.test(html),path);assert.ok(!/AUTH_SESSION_ENCRYPTION_KEY|AFFIMARO_BILLING_|PAYMENT_DATA_KEY_V1/.test(html),path);}
  for(const file of ['subscriptions-setup.md','payments-setup.md']){const text=readFileSync(new URL('../public/downloads/'+file,import.meta.url),'utf8');assert.ok(!/\/admin\/|AFFIMARO_BILLING_|PAYMENT_DATA_KEY_V1|AUTH_SESSION_ENCRYPTION_KEY/.test(text),file);}
 });
