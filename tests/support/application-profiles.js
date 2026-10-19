@@ -4,3 +4,9 @@ export function applicationProfile(portal='affiliate'){
   if(portal==='agency')return {...applicationProfile('brand'),organizationType:'Agency',agencyName:'Example Agency',agencyWebsite:'https://agency.example',clientCount:'2–5',agencyServices:['Program management','Reporting & analysis']};
   return portal==='brand'?{...common,name:'Brand Owner',businessName:'Example Brand',legalBusinessName:'Example Brand LLC',registrationNumber:'',teamSize:'2–10',monthlyOrders:'100–999',currency:'USD',partnerGoals:'Build a program with relevant content publishers and reward eligible referred purchases.'}:{...common,channel:'Blog',previousPartnerships:'Software reviews and business guides.'};
 }
+
+// Explicit evidence fixtures for tests that start after a successful ownership review.
+export function seedVerifiedProperties(db,userId,profile){
+ const urls=[...new Set([profile.primaryUrl,...(profile.additionalUrls||[]),profile.agencyWebsite,profile.portfolioUrl].filter(Boolean))],at=new Date().toISOString();
+ for(const raw of urls){const url=new URL(raw).href;if(db.sqlite.prepare('SELECT id FROM media_properties WHERE user_id=? AND url=? AND archived=0').get(userId,url))continue;db.sqlite.prepare("INSERT INTO media_properties(id,user_id,kind,platform,name,url,relationship,challenge,challenge_expires_at,method,status,verified_at,created_at,updated_at) VALUES (?,?,'Website','Website / blog','Verified test property',?,'Owner',?,?,'public_challenge','verified',?,?,?)").run(crypto.randomUUID(),userId,url,'affimaro-verify='+crypto.randomUUID(),new Date(Date.now()+86400000).toISOString(),at,at,at);}
+}

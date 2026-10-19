@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {applicationProfile,seedVerifiedProperties} from './support/application-profiles.js';
 import {database} from './support/db.js';
 import {service,AppError} from '../lib/service.ts';
 import {ownerRecords,ownerOverview,ownerAccount,ownerDatasets} from '../lib/owner.ts';
@@ -37,6 +38,7 @@ test('operational projections retain real amounts and never return stored provid
  db.sqlite.prepare("INSERT INTO billing_accounts(id,workspace_id,platform_id,mode,created_at,updated_at) VALUES ('bill',?,'acct_fixture','live',?,?)").run(workspace.id,at,at);
  db.sqlite.prepare("INSERT INTO agency_clients VALUES ('client','agency','Agency client','https://client.example','contact@example.com','active','PRIVATE_DIRECTORY_NOTE',?,?)").run(at,at);
  db.sqlite.prepare("INSERT INTO creator_content VALUES ('content','creator',NULL,'Creator plan','Blog','idea',NULL,'PRIVATE_CREATOR_NOTE',?,?)").run(at,at);
+ seedVerifiedProperties(db,'affiliate',applicationProfile());db.sqlite.prepare('INSERT INTO account_closures VALUES (?,?,?)').run('creator','Member requested closure.',at);
  for(const key of Object.keys(ownerDatasets)){const data=await ownerRecords(db,owner,key);assert.ok(data.rows.length>0,key);const json=JSON.stringify(data);assert.ok(!/PRIVATE_|encrypted_|signing_key|token_hash/.test(json),key);}
  const overview=await ownerOverview(db,owner);assert.equal(overview.roles.filter(r=>r.portal!=='owner').reduce((n,r)=>n+r.total,0),4);assert.equal(overview.counts.programs,1);assert.equal(overview.counts.open_payouts,1);assert.equal(overview.money.find(r=>r.currency==='USD').net_sales,8000);assert.equal(overview.money.find(r=>r.currency==='AFN').net_sales,1000);
  const detail=await ownerAccount(db,owner,'brand');assert.equal(detail.totals.workspaces,1);assert.equal(detail.detail.account.email,'brand@example.com');

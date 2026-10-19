@@ -25,7 +25,7 @@ test('both real application forms collect the complete profile and expose an exp
     assert.match(html,/<form[^>]*action="\/api\/application"/);assert.match(html,/<form[^>]*method="post"/);
     for(const field of ['contactName','name','phone','country','city','primaryUrl','additionalUrls','industry','monthlyAudience','audienceCountries','promotionMethods','experience','description','promotionPlan','authorityConfirmed','dataConfirmed'])assert.ok(html.includes('name="'+field+'"'),portal+' includes '+field);
     assert.equal(html.includes('name="legalBusinessName"'),portal==='brand');assert.equal(html.includes('name="monthlyOrders"'),portal==='brand');assert.equal(html.includes('name="channel"'),portal==='affiliate');
-    assert.match(html,/Submit application for review/);assert.match(html,/no subscription or payment starts/);
+    assert.match(html,/Save &amp; continue/);assert.match(html,/STEP 1 OF 6/);assert.match(html,/hidden=""/);assert.match(html,/no subscription or payment starts/);
     for(const field of ['status','userId','role','bankAccount','passport','password'])assert.ok(!html.includes('name="'+field+'"'));
   }
 });

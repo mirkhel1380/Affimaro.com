@@ -1,3 +1,4 @@
+import {isAccountClosed} from '../lib/account-state';
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {emailSignIn} from '../lib/auth-mode';
@@ -48,6 +49,7 @@ export async function requireChatGPTUser(
 ): Promise<ChatGPTUser> {
   const user = await getChatGPTUser();
   if (user){
+    if(await isAccountClosed(getRawDb(),user.userId))redirect('/account-closed');
     if(!options.allowApplication&&await isPlatformAdmin(getRawDb(),user.userId))redirect('/owner');
     if(!options.allowApplication&&(await getAdmission(getRawDb(),user.userId))?.status!=='approved')redirect('/application?return_to='+encodeURIComponent(safeRelativeReturnPath(returnTo)));
     return user;

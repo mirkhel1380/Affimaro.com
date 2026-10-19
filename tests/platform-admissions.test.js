@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {database} from './support/db.js';
-import {applicationProfile} from './support/application-profiles.js';
+import {applicationProfile,seedVerifiedProperties} from './support/application-profiles.js';
 import {admissions,requireApprovedAccount,isPlatformAdmin,getAdmission} from '../lib/admissions.ts';
 import {admissionGate} from '../lib/admission-gate.ts';
 import {service,AppError} from '../lib/service.ts';
@@ -18,7 +18,7 @@ async function fixture(t,portal='affiliate'){
   return {db,operator,applicant,api,owner,app,portal};
 }
 async function submit(f,profile=applicationProfile(f.portal)){const app=await f.api.own();return f.api.submit({revision:app.revision,profile});}
-async function approve(f){const app=await f.api.own();return f.owner.review({userId:f.applicant.userId,revision:app.revision,decision:'approved',note:'Reviewed and approved.'});}
+async function approve(f){const app=await f.api.own();seedVerifiedProperties(f.db,f.applicant.userId,app.profile);return f.owner.review({userId:f.applicant.userId,revision:app.revision,decision:'approved',note:'Reviewed and approved.'});}
 
 test('a verified account needs a complete submitted profile and manual review before either portal is provisioned',async t=>{
   for(const portal of ['brand','affiliate']){

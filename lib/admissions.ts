@@ -1,7 +1,9 @@
+import {assertAccountOpen} from './account-state.ts';
+import {assertVerifiedProfile,mediaPropertiesFor} from './media-properties.ts';
 import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {accountPortal,portalFamily,businessPortal,type Portal} from './portal-policy.ts';
-import {applicationProfile,type ApplicationProfile} from './application-profile.ts';
+import {applicationProfile,applicationDraft,type ApplicationProfile} from './application-profile.ts';
 
 export type AdmissionStatus='draft'|'pending'|'changes_requested'|'approved'|'rejected';
 export type PlatformApplication={user_id:string;portal:Portal;status:AdmissionStatus;profile_json:string;revision:number;submitted_at:string|null;reviewed_at:string|null;reviewed_by:string|null;review_note:string;transition_id:string|null;created_at:string;updated_at:string};
@@ -13,6 +15,7 @@ export const getAdmission=(db:D1Database,userId:string)=>db.prepare(`SELECT ${fi
 export async function isPlatformAdmin(db:D1Database,userId:string){return !!await db.prepare('SELECT user_id FROM platform_admins WHERE user_id=?').bind(userId).first();}
 export async function requirePlatformAdmin(db:D1Database,identity:Identity){if(!await isPlatformAdmin(db,identity.userId))throw new AppError(403,'Only the Affimaro owner can access platform administration.');}
 export async function requireApprovedAccount(db:D1Database,identity:Identity){
+  await assertAccountOpen(db,identity.userId);
   const app=await getAdmission(db,identity.userId);
   if(app?.status!=='approved')throw new AppError(403,app?.status==='pending'?'Your Affimaro application is under review. Open Application status to follow it.':'Complete your Affimaro application and wait for owner approval before using the portal.');
   return app;
@@ -41,6 +44,7 @@ export function admissions(db:D1Database,identity:Identity){
   }
   return {
     start,
+    async save(input:unknown){await assertAccountOpen(db,identity.userId);const v=z.object({revision:z.number().int().positive(),profile:z.unknown()}).strict().safeParse(input);if(!v.success)throw new AppError(400,'Check the draft request.');const app=await own();if(!app||!['draft','changes_requested','rejected'].includes(app.status)||app.revision!==v.data.revision)throw new AppError(409,'This application changed. Reload before saving.');const draft=applicationDraft(app.portal,v.data.profile);if(!draft.success)throw new AppError(400,draft.error.issues[0]?.path.join('.')+': '+draft.error.issues[0]?.message);const token=uuid();await db.prepare("UPDATE platform_applications SET profile_json=?,revision=revision+1,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status IN ('draft','changes_requested','rejected')").bind(JSON.stringify(draft.data),token,now(),identity.userId,app.revision).run();const saved=await own();if(saved?.transition_id!==token)throw new AppError(409,'Your draft changed. Reload before continuing.');return view(saved);},
     async own(){const row=await own();return row?view(row):null;},
     async history(){return (await db.prepare('SELECT action,revision,note,created_at FROM platform_review_events WHERE applicant_id=? ORDER BY rowid DESC LIMIT 20').bind(identity.userId).all<{action:string;revision:number;note:string;created_at:string}>()).results;},
     async submit(input:unknown){
@@ -68,14 +72,15 @@ export function admissions(db:D1Database,identity:Identity){
       await requirePlatformAdmin(db,identity);
       if(!['pending','changes_requested','approved','rejected','draft'].includes(status))throw new AppError(400,'Choose a valid application status.');
       const conditions=portal?` AND ${resolvedPortal}=?`:'',args=portal?[status,portal]:[status];
-      const results=await db.prepare(`SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email FROM platform_applications p JOIN accounts a ON a.id=p.user_id WHERE p.status=?${conditions} ORDER BY p.submitted_at,p.user_id LIMIT 101`).bind(...args).all<{user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string}>();
-      return {applications:results.results.slice(0,100),truncated:results.results.length>100,counts:(await db.prepare(`SELECT p.status,${resolvedPortal} AS portal,count(*) AS total FROM platform_applications p GROUP BY p.status,${resolvedPortal}`).all<{status:AdmissionStatus;portal:Portal;total:number}>()).results};
+      const results=await db.prepare(`SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email FROM platform_applications p JOIN accounts a ON a.id=p.user_id WHERE p.status=? AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id)${conditions} ORDER BY p.submitted_at,p.user_id LIMIT 101`).bind(...args).all<{user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string}>();
+      return {applications:results.results.slice(0,100),truncated:results.results.length>100,counts:(await db.prepare(`SELECT p.status,${resolvedPortal} AS portal,count(*) AS total FROM platform_applications p WHERE NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id) GROUP BY p.status,${resolvedPortal}`).all<{status:AdmissionStatus;portal:Portal;total:number}>()).results};
     },
     async inspect(userId:string){
       await requirePlatformAdmin(db,identity);const row=await getAdmission(db,userId);if(!row)throw new AppError(404,'Application not found.');
       const account=await db.prepare('SELECT display_name,email FROM accounts WHERE id=?').bind(userId).first<{display_name:string;email:string}>();
+      const properties=await mediaPropertiesFor(db,userId);
       const history=(await db.prepare('SELECT action,revision,note,created_at FROM platform_review_events WHERE applicant_id=? ORDER BY rowid DESC LIMIT 50').bind(userId).all()).results;
-      return {application:view(row),account,history};
+      return {application:view(row),account,history,properties};
     },
     async review(input:unknown){
       await requirePlatformAdmin(db,identity);
@@ -85,9 +90,10 @@ export function admissions(db:D1Database,identity:Identity){
       const app=await getAdmission(db,value.userId);if(!app)throw new AppError(404,'Application not found.');
       if(app.status!=='pending'||app.revision!==value.revision)throw new AppError(409,'This application changed or has already been reviewed. Reload before deciding.');
       const profile=applicationProfile(app.portal,JSON.parse(app.profile_json));if(!profile.success)throw new AppError(409,'A complete valid profile is required before review.');
+      await assertAccountOpen(db,value.userId);const verified=value.decision==='approved'?await assertVerifiedProfile(db,value.userId,profile.data):[];
       const p=profile.data,at=now(),token=uuid(),workspaceId=uuid(),programId=uuid();
       const statements=[
-        db.prepare(`UPDATE platform_applications SET status=?,revision=revision+1,reviewed_at=?,reviewed_by=?,review_note=?,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status='pending'`).bind(value.decision,at,identity.userId,value.note,token,at,value.userId,value.revision),
+        db.prepare(`UPDATE platform_applications SET status=?,revision=revision+1,reviewed_at=?,reviewed_by=?,review_note=?,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status='pending' AND NOT EXISTS(SELECT 1 FROM account_closures WHERE user_id=?) AND (?<>'approved' OR (NOT EXISTS(SELECT 1 FROM media_properties m WHERE m.user_id=platform_applications.user_id AND m.archived=0 AND (m.status<>'verified' OR m.verified_at IS NULL OR m.verified_at<?)) AND NOT EXISTS(SELECT 1 FROM json_each(?) snapshot WHERE NOT EXISTS(SELECT 1 FROM media_properties m WHERE m.id=json_extract(snapshot.value,'$.id') AND m.revision=json_extract(snapshot.value,'$.revision') AND m.archived=0 AND m.status='verified'))))`).bind(value.decision,at,identity.userId,value.note,token,at,value.userId,value.revision,value.userId,value.decision,new Date(Date.now()-180*86400000).toISOString(),JSON.stringify(verified.map(p=>({id:p.id,revision:p.revision})))),
         db.prepare(`INSERT INTO platform_review_events (id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,?,revision,?,? FROM platform_applications WHERE user_id=? AND transition_id=?`).bind(uuid(),identity.userId,value.decision,value.note,at,value.userId,token),
       ];
       if(value.decision==='approved'){

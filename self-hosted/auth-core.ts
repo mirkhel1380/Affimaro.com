@@ -1,3 +1,5 @@
+import {isAccountClosed,assertAccountOpen} from '../lib/account-state.ts';
+import {closeAccount} from '../lib/account-closure.ts';
 import {z} from 'zod';
 import {AppError,service} from '../lib/service.ts';
 import {accountPortal,businessPortal,type Portal} from '../lib/portal-policy.ts';
@@ -92,7 +94,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
       const mapped=await one<{user_id:string}>(db,'SELECT user_id FROM auth_identities WHERE provider_id=?',user.id);
       if(!mapped||!await isPlatformAdmin(db,mapped.user_id))throw new AppError(403,'This sign-in is reserved for the Affimaro owner.');
     }
-    const userId=await identity(user);
+    const userId=await identity(user);await assertAccountOpen(db,userId);
     if(portal){
       const actual=await accountPortal(db,userId);
       if(actual&&actual!==portal)throw new AppError(403,`This email belongs to a ${actual} account. Use its own sign-in page.`);
@@ -117,6 +119,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     const value=cookieValue(request,SESSION_COOKIE);if(!value||!/^[a-f0-9]{64}$/.test(value))return null;
     const row=await one<Session>(db,'SELECT * FROM auth_sessions WHERE token_hash=?',await hash(value)),at=Math.floor(Date.now()/1000);
     if(!row)return null;
+    if(await isAccountClosed(db,row.user_id)){await db.prepare('DELETE FROM auth_sessions WHERE user_id=?').bind(row.user_id).run();return null;}
     if(row.expires_at<=at){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}
     if(row.recovery_only&&!recoveryAllowed)return null;
     let tokens:Tokens;try{tokens=storedTokens.parse(await openAuth(row.encrypted_tokens,config.encryptionKey,`auth-session/${row.id}`));}catch{throw new AppError(503,'Your session could not be opened. Sign in again.');}
@@ -136,7 +139,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     }
     let user:ProviderUser;try{user=checkedUser(await provider('/user','GET',undefined,tokens.access_token));}catch(error){if(error instanceof AppError&&[401,403].includes(error.status)){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}throw error;}
     const mapped=await one<{user_id:string}>(db,'SELECT user_id FROM auth_identities WHERE provider_id=?',row.provider_id);
-    if(user.id!==row.provider_id||mapped?.user_id!==row.user_id){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}
+    if(await isAccountClosed(db,row.user_id)||user.id!==row.provider_id||mapped?.user_id!==row.user_id){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}
     return {row,tokens,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
   return {
@@ -156,6 +159,17 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     async resolve(request:Request){return (await session(request))?.user||null;},
     async canReset(request:Request,ownerOnly=false){const current=await session(request,true);return Boolean(current?.row.recovery_only&&(!ownerOnly||await isPlatformAdmin(db,current.row.user_id)));},
     async reset(request:Request,input:unknown,ownerOnly=false){const value=parse(z.object({password:z.string().min(12).max(128)}).strict(),input),current=await session(request,true);if(!current?.row.recovery_only)throw new AppError(403,'Verify a password-recovery code first.');if(ownerOnly&&!await isPlatformAdmin(db,current.row.user_id))throw new AppError(403,'This recovery is reserved for the Affimaro owner.');const result=checkedUser(await provider('/user','PUT',{password:value.password},current.tokens.access_token));if(result.id!==current.row.provider_id)throw new AppError(403,'Password update identity could not be verified.');await db.prepare('DELETE FROM auth_sessions WHERE provider_id=?').bind(current.row.provider_id).run();try{await provider('/logout?scope=global','POST',{},current.tokens.access_token);}catch{}return clearAuthCookie(SESSION_COOKIE);},
+    async closeAccount(request:Request,input:unknown){
+      const v=parse(z.object({password:z.string().min(1).max(128),confirmation:z.literal('CLOSE'),acknowledged:z.literal(true),reason:z.string().trim().max(1000).default('')}).strict(),input),current=await session(request);
+      if(!current)throw new AppError(401,'Sign in again before closing your account.');
+      if(await isPlatformAdmin(db,current.user.userId))throw new AppError(403,'The platform owner account cannot be closed here.');
+      await rate('close-account',current.user.email,request.headers.get('cf-connecting-ip')||'unknown',5);
+      const fresh=tokenSchema.safeParse(await provider('/token?grant_type=password','POST',{email:current.user.email,password:v.password}));
+      if(!fresh.success)throw new AppError(401,'Confirm your current password.');
+      const checked=checkedUser(await provider('/user','GET',undefined,fresh.data.access_token));
+      if(checked.id!==current.row.provider_id||checked.email.toLowerCase()!==current.user.email.toLowerCase())throw new AppError(403,'The account identity could not be confirmed.');
+      let result;try{result=await closeAccount(db,current.user,v.reason);}catch(error){try{await provider('/logout?scope=local','POST',{},fresh.data.access_token);}catch{}throw error;}try{await provider('/logout?scope=global','POST',{},fresh.data.access_token);}catch{}return result;
+    },
     async logout(request:Request){const value=cookieValue(request,SESSION_COOKIE);if(value&&/^[a-f0-9]{64}$/.test(value)){const current=await one<Session>(db,'SELECT * FROM auth_sessions WHERE token_hash=?',await hash(value));if(current){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(current.id).run();try{const tokens=storedTokens.parse(await openAuth(current.encrypted_tokens,config.encryptionKey,`auth-session/${current.id}`));await provider('/logout?scope=local','POST',{},tokens.access_token);}catch{}}}return clearAuthCookie(SESSION_COOKIE);},
   };
 }

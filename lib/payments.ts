@@ -23,6 +23,8 @@ const coverage=coverageFor();
 const walletQuery=`SELECT a.id AS application_id,p.workspace_id,w.name AS business_name,f.display_name AS partner_name,a.affiliate_user_id,a.status AS application_status,o.currency,o.decimals,SUM(${effectiveCommission()}) AS estimated,SUM(MIN(${effectiveCommission()},COALESCE(ca.amount,0))) AS approved,(SELECT COALESCE(SUM(${netDisbursed('pr')}),0) FROM payout_requests pr WHERE pr.application_id=a.id AND pr.currency=o.currency AND pr.decimals=o.decimals AND pr.status IN ('paid','transferred')) AS paid,(SELECT COALESCE(SUM(pr.amount),0) FROM payout_requests pr WHERE pr.application_id=a.id AND pr.currency=o.currency AND pr.decimals=o.decimals AND pr.status IN ('requested','approved','processing')) AS reserved FROM orders o JOIN applications a ON a.id=o.application_id JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id JOIN affiliate_profiles f ON f.user_id=a.affiliate_user_id LEFT JOIN commission_approvals ca ON ca.order_id=o.id`;
 function wallet(row:Omit<Wallet,'available'|'debt'>):Wallet{const net=row.approved-row.paid-row.reserved;return {...row,available:Math.max(0,net),debt:Math.max(0,row.paid-row.approved)};}
 
+export const closureBalanceHoldsSql=`${walletQuery} WHERE (a.affiliate_user_id=(SELECT user_id FROM closing) OR w.owner_id=(SELECT user_id FROM closing)) GROUP BY a.id,o.currency,o.decimals HAVING estimated<>paid OR reserved<>0 OR paid>approved`;
+
 export function payments(db:D1Database,identity:Identity,key?:string){
   const s=service(db,identity),at=()=>new Date().toISOString();
   const profile=()=>one<BankProfile>(db,'SELECT user_id,account_hint,currency,updated_at FROM bank_profiles WHERE user_id=?',identity.userId);

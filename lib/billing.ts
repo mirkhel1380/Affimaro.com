@@ -38,7 +38,7 @@ export function billingRedirect(value:string,kind:'checkout'|'portal'){
 }
 async function api(fetcher:Fetcher,config:BillingConfig,path:string,body?:URLSearchParams,idem?:string){
   const url=new URL('https://api.stripe.com'+path);
-  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
+  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}\/expire$/.test(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
   if(url.origin!=='https://api.stripe.com'||!allowed)throw new AppError(500,'Unsupported subscription endpoint.');
   let response:Response;try{response=await fetcher(url.href,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${config.secret}`,'Stripe-Version':STRIPE_VERSION,Accept:'application/json',...(body?{'Content-Type':'application/x-www-form-urlencoded',...(idem?{'Idempotency-Key':idem}:{})}:{})},...(body?{body:body.toString()}:{})});}catch{throw new AppError(502,'Stripe did not confirm this billing request. Check its saved status before trying again.');}
   if(!response.ok){await response.body?.cancel();throw new AppError(response.status===429?429:502,'Stripe could not confirm billing. Check the configured account, permissions and saved status.');}
@@ -141,6 +141,17 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
       parse(z.object({}).strict(),input);const w=await workspace();let a=await current(w.id);if(!a)throw new AppError(404,'No saved subscription checkout is available to check.');const lease=await lock(a);let attempt:BillingCheckout|undefined;
       try{a=(await current(w.id))!;await source();attempt=await pending(a.id)||undefined;if(attempt){if(!attempt.session_id)throw new AppError(409,'The checkout result is unknown. Open a fresh review to retry the same saved attempt safely.');return await acceptSession(a,attempt,await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}`));}if(!a.subscription_id)throw new AppError(404,'No subscription is saved.');return {outcome:'subscription',account:await readSubscription(a,a.subscription_id)};}
       catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
+    },
+    async cancelCheckout(input:unknown){
+      parse(z.object({confirmed:z.literal(true)}).strict(),input);const w=await workspace();let a=await current(w.id);if(!a)throw new AppError(404,'No saved subscription checkout exists.');const lease=await lock(a);let attempt:BillingCheckout|undefined;
+      try{a=(await current(w.id))!;await source();attempt=await pending(a.id)||undefined;if(!attempt)throw new AppError(404,'No open checkout is saved.');if(!attempt.session_id)throw new AppError(409,'Resume the saved checkout first so its result can be verified safely.');
+        const raw=await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}`),checked=await acceptSession(a,attempt,raw);
+        if(checked.outcome==='subscription')throw new AppError(409,'Payment is already complete. Manage the subscription instead.');
+        if(checked.outcome==='expired')return checked;
+        const expired=await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}/expire`,new URLSearchParams(),`affimaro-expire-${attempt.id}`);
+        const parsed=sessionSchema.safeParse(expired);if(!parsed.success||parsed.data.status!=='expired')throw new AppError(409,'The checkout cancellation is not yet confirmed. Check subscription status.');
+        return await acceptSession(a,attempt,expired);
+      }catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
     },
     // Only the signed webhook handler calls this; it is not a browser API action.
     async notification(reference:{checkoutId?:string;sessionId?:string}){

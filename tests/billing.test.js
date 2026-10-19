@@ -25,7 +25,8 @@ async function fixture(t,{mode='live',required=false}={}){
       const idem=init.headers['Idempotency-Key'];assert.ok(idem);result=state.byKey.get(idem);
       if(!result){state.created++;result={object:'checkout.session',id:`cs_${mode}_FIXTURESESSION${state.created}`,livemode:mode==='live',mode:'subscription',client_reference_id:body.get('client_reference_id'),metadata:{affimaro_workspace:body.get('metadata[affimaro_workspace]'),affimaro_checkout:body.get('metadata[affimaro_checkout]')},status:'open',payment_status:'unpaid',customer:body.get('customer'),subscription:null,currency:'usd',amount_subtotal:state.price.unit_amount,amount_total:state.price.unit_amount,expires_at:Math.floor(Date.now()/1000)+86400,url:`https://checkout.stripe.com/c/pay/FIXTURESESSION${state.created}#PRIVATE_CHECKOUT_SECRET`};if(body.get('ui_mode')==='embedded_page'){result.ui_mode='embedded_page';result.client_secret=result.id+'_secret_FIXTURECLIENT123456';result.url=null;}state.byKey.set(idem,result);state.sessions.set(result.id,result);}
       if(state.lose){state.lose=false;throw new Error('Fixture lost creation response');}
-    }else if(u.pathname.startsWith('/v1/checkout/sessions/'))result=state.sessions.get(u.pathname.split('/').at(-1));
+    }else if(u.pathname.endsWith('/expire')&&init.method==='POST'){result=state.sessions.get(u.pathname.split('/').at(-2));if(result)result.status='expired';}
+    else if(u.pathname.startsWith('/v1/checkout/sessions/'))result=state.sessions.get(u.pathname.split('/').at(-1));
     else if(u.pathname.startsWith('/v1/subscriptions/')){assert.equal(u.searchParams.get('expand[]'),'latest_invoice');result=state.subs.get(u.pathname.split('/').at(-1));}
     else if(u.pathname==='/v1/billing_portal/sessions')result={object:'billing_portal.session',customer:body.get('customer'),livemode:mode==='live',url:'https://billing.stripe.com/p/session/PRIVATE_PORTAL_SECRET'};
     else throw new Error('Unsupported fixture request '+u.pathname);
@@ -280,3 +281,7 @@ test('embedded session secrets are validated and a pending checkout cannot be re
  f.state.mutate=null;await start(f);f.config.plan='growth';f.config.priceId='price_GROWTHBILLING123';f.state.price={...f.state.price,id:f.config.priceId,unit_amount:4900};const before=posts(f).length;
  await assert.rejects(start(f),fails(409));assert.equal(posts(f).length,before);
 });
+
+test('an unpaid owned checkout can be expired, while another workspace or a completed payment cannot be canceled',async t=>{const f=await fixture(t);await start(f);await assert.rejects(f.api.cancelCheckout({confirmed:false}),fails(400));const other=billing(f.db,identity('other'),f.config,key,f.fetcher);await assert.rejects(other.cancelCheckout({confirmed:true}),fails(404));const result=await f.api.cancelCheckout({confirmed:true});assert.equal(result.outcome,'expired');assert.equal(checkout(f).state,'expired');assert.equal(f.state.calls.filter(c=>c.path.endsWith('/expire')).length,1);assert.equal(account(f).subscription_id,null);});
+
+test('canceling a completed checkout verifies its subscription and never sends an expire request',async t=>{const f=await fixture(t);await start(f);complete(f);await assert.rejects(f.api.cancelCheckout({confirmed:true}),fails(409));assert.equal(checkout(f).state,'completed');assert.equal(account(f).status,'active');assert.equal(f.state.calls.filter(c=>c.path.endsWith('/expire')).length,0);});

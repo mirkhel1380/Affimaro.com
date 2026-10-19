@@ -1,3 +1,4 @@
+import {assertAccountOpen} from './account-state';
 import {getChatGPTUser} from '../app/chatgpt-auth';
 import {getRawDb} from '../db';
 import {AppError,type Identity} from './service';
@@ -7,7 +8,7 @@ export async function admissionAction(request:Request,operation:(db:D1Database,i
   const headers={'Cache-Control':'private, no-store','Vary':'Cookie'};
   try{
     const user=await getChatGPTUser();if(!user)throw new AppError(401,'Sign in to continue.');
-    assertSameOrigin(request);const body=await readJson(request);
+    await assertAccountOpen(getRawDb(),user.userId);assertSameOrigin(request);const body=await readJson(request,new URL(request.url).pathname==='/api/application'?32768:16384);
     return Response.json({ok:true,data:await operation(getRawDb(),user,body)},{headers});
   }catch(error){return Response.json({ok:false,error:error instanceof AppError?error.message:'We could not save the application. Please try again.'},{status:error instanceof AppError?error.status:500,headers});}
 }

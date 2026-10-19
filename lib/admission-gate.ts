@@ -1,3 +1,4 @@
+import {isAccountClosed} from './account-state.ts';
 import {portalHome} from './portal-policy.ts';
 import type {Identity} from './service.ts';
 import {getAdmission,isPlatformAdmin} from './admissions.ts';
@@ -6,6 +7,8 @@ import {getAdmission,isPlatformAdmin} from './admissions.ts';
 // Signed store events use their existing HMAC boundary and never enter here.
 export async function admissionGate(request:Request,db:D1Database,user:Identity){
   const url=new URL(request.url),path=url.pathname,headers={'Cache-Control':'private, no-store','Vary':'Cookie'};
+  if(await isAccountClosed(db,user.userId))return Response.json({ok:false,error:'This Affimaro account is closed.'},{status:403,headers});
+  if(path==='/account/close'||path==='/api/account-closure'||path==='/application/media'||path==='/api/media-properties')return null;
   const owner=await isPlatformAdmin(db,user.userId);
   if(/^\/(owner|admin|api\/(owner|admin))(\/|$)/.test(path))return owner?null:Response.json({ok:false,error:'Only the Affimaro owner can open the control panel.'},{status:403,headers});
   if(owner&&['GET','HEAD'].includes(request.method)&&!path.startsWith('/api/'))return new Response(null,{status:307,headers:{...headers,Location:'/owner'}});

@@ -24,6 +24,7 @@ async function fixture(t){
     if(path==='/user'&&init.method==='GET'){if(state.revoked)return new Response('PRIVATE_ACCESS_TOKEN',{status:401});return Response.json(state.mutate?state.mutate(structuredClone(state.user),'user'):state.user);}
     if(path==='/user'&&init.method==='PUT'){assert.equal(body.password,password);return Response.json(state.user);}
     if(path.startsWith('/logout?'))return new Response(null,{status:204});
+    if(path==='/token?grant_type=password'&&body.password!==password)return new Response('PRIVATE_CREDENTIAL_ERROR',{status:401});
     if(path==='/signup')return Response.json(response());
     if(path==='/recover'||path==='/resend')return Response.json({});
     if(path==='/verify'&&body.token!==(state.code||'123456'))return new Response('PRIVATE_CODE_ERROR',{status:403});
@@ -290,4 +291,20 @@ test('the full owner recovery flow stays inside owner auth and rechecks the gran
  const resetSession=cookie(result.headers.getSetCookie()[0]),reset=await authPage(request('/auth/owner/reset',resetSession),f.api,config.origin),resetCookie=cookie(reset.headers.getSetCookie()[0]),resetFlow=await f.api.flow(request('/',resetCookie));assert.equal(resetFlow.ownerOnly,true);
  f.db.sqlite.prepare('DELETE FROM platform_admins').run();result=await post(f,'owner/reset',resetFlow,resetCookie+'; '+resetSession,{password});assert.equal(result.status,403);
  f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(signed.user.userId,new Date().toISOString());result=await post(f,'owner/reset',resetFlow,resetCookie+'; '+resetSession,{password});assert.equal(result.status,303);assert.equal(result.headers.get('location'),'/auth/owner/login?password_changed=1');assert.equal(count(f,'auth_sessions'),0);
+});
+
+test('closing an account requires its current session, fresh matching identity, current password and explicit confirmation',async t=>{
+ const f=await fixture(t),first=await login(f),second=await login(f),local=first.user.userId,req=request('/api/account-closure',cookie(first.cookie)),value={password,confirmation:'CLOSE',acknowledged:true,reason:'No longer using Affimaro.'};
+ await assert.rejects(f.api.closeAccount(request('/api/account-closure'),value),fails(401));await assert.rejects(f.api.closeAccount(req,{...value,password:'Wrong password'}),fails(401));await assert.rejects(f.api.closeAccount(req,{...value,confirmation:'close'}),fails(400));
+ f.state.mutate=(raw,kind)=>kind==='user'?{...raw,id:otherUid}:raw;await assert.rejects(f.api.closeAccount(req,value),fails(401));assert.equal(count(f,'account_closures'),0);f.state.mutate=null;
+ const result=await f.api.closeAccount(request('/api/account-closure',cookie(second.cookie)),value);assert.equal(result.closed,true);assert.equal(count(f,'auth_sessions'),0);assert.equal(count(f,'accounts'),1);assert.equal(count(f,'auth_identities'),1);assert.equal(f.db.sqlite.prepare('SELECT user_id FROM account_closures').get().user_id,local);assert.ok(f.state.calls.some(c=>c.path==='/logout?scope=global'));
+ assert.equal(await f.api.resolve(req),null);await assert.rejects(login(f),fails(403));assert.equal(count(f,'auth_sessions'),0);
+});
+test('the independent closure endpoint checks same-origin requests and clears both host-only cookies after success',async t=>{
+ const f=await fixture(t),signed=await login(f),env={DB:f.db,APP_ORIGIN:config.origin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey},body=JSON.stringify({password,confirmation:'CLOSE',acknowledged:true,reason:''});const app=async()=>{throw new Error('Closure must remain inside the auth boundary.');};
+ const send=origin=>independentFetch(request('/api/account-closure',cookie(signed.cookie),{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body}),env,app,f.fetcher);
+ assert.equal((await send('https://evil.example')).status,403);assert.equal(count(f,'account_closures'),0);const r=await send(config.origin);assert.equal(r.status,200);const cookies=r.headers.get('set-cookie');assert.ok(cookies.includes(SESSION_COOKIE+'=;'));assert.ok(cookies.includes(FLOW_COOKIE+'=;'));assert.ok(!cookies.includes('Domain='));assert.equal(r.headers.get('cache-control'),'private, no-store');
+});
+test('the platform owner is protected from the closure endpoint and a retained tombstone rejects stale sessions before token refresh',async t=>{
+ const f=await fixture(t),signed=await login(f),local=signed.user.userId;f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(local,new Date().toISOString());await assert.rejects(f.api.closeAccount(request('/api/account-closure',cookie(signed.cookie)),{password,confirmation:'CLOSE',acknowledged:true,reason:''}),fails(403));assert.equal(count(f,'account_closures'),0);f.db.sqlite.prepare('DELETE FROM platform_admins').run();f.db.sqlite.prepare('INSERT INTO account_closures VALUES (?,?,?)').run(local,'fixture closure',new Date().toISOString());const before=f.state.calls.length;assert.equal(await f.api.resolve(request('/account',cookie(signed.cookie))),null);assert.equal(f.state.calls.length,before);assert.equal(count(f,'auth_sessions'),0);
 });

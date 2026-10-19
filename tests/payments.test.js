@@ -127,3 +127,11 @@ test('request coverage is calculated per partner, never across other partners’
   const f2={...f,application,partner:payments(f.db,identity('second'),dataKey),referral:await send(f,{kind:'referral',applicationId:application.id})};await f2.partner.saveBank(bank);const o=await sale(f2,{orderId:'124',basis:100000});await approve(f,o);await f2.partner.request(request(f2));
   const dashboard=await f.merchant.merchantDashboard();assert.equal(dashboard.requests.length,2);assert.ok(dashboard.requests.every(r=>r.covered===1));
 });
+
+test('account closure blocks estimated commission, open requests and refund debt',async t=>{
+ const {accountClosureStatus,closeAccount}=await import('../lib/account-closure.ts'),f=await fixture(t);
+ for(const userId of ['owner','affiliate'])assert.ok((await accountClosureStatus(f.db,userId)).blockers.some(b=>b.code==='balance'));
+ const order=f.db.sqlite.prepare('SELECT * FROM orders').get();await f.merchant.approveCommission({orderId:order.id,revision:order.revision});const p=await f.partner.request({requestId:crypto.randomUUID(),applicationId:f.application.id,currency:'USD',decimals:2});assert.ok((await accountClosureStatus(f.db,'affiliate')).blockers.some(b=>b.code==='payout'));
+ await f.merchant.review({requestId:p.id,status:'approved',reason:''});await f.merchant.recordPaid({requestId:p.id,receipt:{method:'bank',reference:'CLOSURE-FIXTURE-BANK-REFERENCE',paidDate:today(),receiptUrl:'',confirmed:true}});assert.equal((await accountClosureStatus(f.db,'affiliate')).eligible,true);
+ await sale(f,{revision:2,refundedBasis:6000});assert.ok((await accountClosureStatus(f.db,'affiliate')).blockers.some(b=>b.code==='balance'));await assert.rejects(closeAccount(f.db,identity('affiliate'),''),fails(409));assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM account_closures').get().n,0);assert.equal(f.db.sqlite.prepare('SELECT status FROM payout_requests WHERE id=?').get(p.id).status,'paid');
+});

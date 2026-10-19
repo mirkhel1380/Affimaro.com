@@ -1,3 +1,5 @@
+import {assertSameOrigin,readJson} from '../lib/request.ts';
+import {clearAuthCookie,SESSION_COOKIE,FLOW_COOKIE} from './auth-core.ts';
 import {AppError} from '../lib/service.ts';
 import {emailAuth,validateAuthConfig,type AuthConfig,type AuthUser} from './auth-core.ts';
 import {authPage,isAuthPath} from './auth-pages.ts';
@@ -32,12 +34,13 @@ export async function independentFetch(request:Request,env:Bindings,application:
     // Public assets and HMAC-signed store events do not need a browser identity.
     const signedStoreEvent=request.method==='POST'&&['/api/woocommerce/event','/api/custom/event'].includes(url.pathname);
     const signedBillingEvent=request.method==='POST'&&url.pathname==='/api/billing/webhook';
-    const accountRoute=/^\/(account|start|get-started|workspace|partner|creator|agency|payments|reports|billing|join|migration|application|admin|owner)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent&&!signedBillingEvent;
+    const accountRoute=/^\/(account|start|get-started|workspace|partner|creator|agency|payments|reports|billing|join|migration|application|admin|owner|discover)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent&&!signedBillingEvent;
     const user=accountRoute?await auth.resolve(request):null;
     if(ownerHost&&!ownerAsset(url.pathname)){
       if(!user){if(url.pathname.startsWith('/api/'))throw new AppError(401,'Sign in to the owner portal.');return new Response(null,{status:307,headers:{Location:'/auth/owner/login?return_to='+encodeURIComponent(url.pathname+url.search),'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'}});}
       await requirePlatformAdmin(env.DB,user);
     }
+    if(url.pathname==='/api/account-closure'){if(request.method!=='POST')throw new AppError(405,'Use the account closure form.');if(!user)throw new AppError(401,'Sign in to continue.');assertSameOrigin(request);const result=await auth.closeAccount(request,await readJson(request));const headers=new Headers({'Cache-Control':'private, no-store','Vary':'Cookie'});headers.append('Set-Cookie',clearAuthCookie(SESSION_COOKIE));headers.append('Set-Cookie',clearAuthCookie(FLOW_COOKIE));return Response.json({ok:true,data:result},{headers});}
     if(user){const blocked=await admissionGate(request,env.DB,user);if(blocked)return blocked;}
     const response=await application(verifiedRequest(request,user)),headers=new Headers(response.headers);
     if(accountRoute){headers.set('Cache-Control','private, no-store');headers.append('Vary','Cookie');}

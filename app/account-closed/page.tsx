@@ -1,0 +1,3 @@
+import {Logo} from '../ui';
+export const metadata={title:'Account closed | Affimaro',robots:{index:false,follow:false}};
+export default function AccountClosed(){return <main className="a-closed-page"><Logo/><section className="a-card a-card-body"><span className="a-eyebrow">ACCOUNT ACCESS</span><h1>Your account is closed.</h1><p>This Affimaro account can no longer sign in or take part in new partnerships. Existing financial and review records remain on file.</p><p>For help with retained records, <a href="/contact">contact Affimaro support</a>.</p><a className="a-btn a-btn-dark" href="/">Return to Affimaro</a></section></main>;}

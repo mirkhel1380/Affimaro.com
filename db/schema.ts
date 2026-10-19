@@ -365,3 +365,23 @@ export const platformBillingSettings=sqliteTable('platform_billing_settings',{
 export const billingWebhookEvents=sqliteTable('billing_webhook_events',{
  eventId:text('event_id').primaryKey(),status:text('status').notNull(),leaseId:text('lease_id').notNull(),leaseUntil:text('lease_until').notNull(),createdAt:text('created_at').notNull(),processedAt:text('processed_at'),
 },t=>[check('billing_webhook_status',sql`${t.status} IN ('processing','processed')`)]);
+
+export const accountClosures=sqliteTable('account_closures',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),reason:text('reason').notNull().default(''),closedAt:text('closed_at').notNull(),
+});
+export const mediaProperties=sqliteTable('media_properties',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),kind:text('kind').notNull(),platform:text('platform').notNull(),name:text('name').notNull(),url:text('url').notNull(),relationship:text('relationship').notNull(),description:text('description').notNull().default(''),audience:text('audience').notNull().default(''),language:text('language').notNull().default('English'),challenge:text('challenge').notNull(),challengeExpiresAt:text('challenge_expires_at').notNull(),method:text('method').notNull(),status:text('status').notNull(),proofUrl:text('proof_url').notNull().default(''),reviewNote:text('review_note').notNull().default(''),verifiedAt:text('verified_at'),lastCheckedAt:text('last_checked_at'),revision:integer('revision').notNull().default(1),archived:integer('archived').notNull().default(0),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('media_property_user').on(t.userId,t.archived),index('media_property_queue').on(t.status,t.updatedAt),check('media_property_status',sql`${t.status} IN ('unverified','review_pending','verified','changes_requested','revoked')`),check('media_property_method',sql`${t.method} IN ('dns_txt','public_challenge')`),check('media_property_archived',sql`${t.archived} IN (0,1) AND ${t.revision}>0`)]);
+export const mediaPropertyReviews=sqliteTable('media_property_reviews',{
+ id:text('id').primaryKey(),propertyId:text('property_id').notNull().references(()=>mediaProperties.id),actorId:text('actor_id').notNull().references(()=>accounts.id),decision:text('decision').notNull(),note:text('note').notNull(),createdAt:text('created_at').notNull(),
+},t=>[index('media_review_property').on(t.propertyId,t.createdAt)]);
+
+export const discoveryListings=sqliteTable('discovery_listings',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),listed:integer('listed').notNull().default(0),updatedAt:text('updated_at').notNull(),
+},t=>[check('discovery_listed',sql`${t.listed} IN (0,1)`)]);
+export const discoverySaved=sqliteTable('discovery_saved',{
+ userId:text('user_id').notNull().references(()=>accounts.id),targetId:text('target_id').notNull().references(()=>accounts.id),createdAt:text('created_at').notNull(),
+},t=>[uniqueIndex('discovery_saved_pair').on(t.userId,t.targetId)]);
+export const discoveryInvitations=sqliteTable('discovery_invitations',{
+ id:text('id').primaryKey(),senderId:text('sender_id').notNull().references(()=>accounts.id),recipientId:text('recipient_id').notNull().references(()=>accounts.id),programId:text('program_id').notNull().references(()=>programs.id),note:text('note').notNull(),status:text('status').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('discovery_invite_inbox').on(t.recipientId,t.status),index('discovery_invite_sender').on(t.senderId,t.createdAt),uniqueIndex('discovery_invite_pending').on(t.programId,t.recipientId).where(sql`${t.status}='pending'`),check('discovery_invite_status',sql`${t.status} IN ('pending','accepted','declined','withdrawn')`)]);

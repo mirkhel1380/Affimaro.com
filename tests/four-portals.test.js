@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {database} from './support/db.js';
-import {applicationProfile} from './support/application-profiles.js';
+import {applicationProfile,seedVerifiedProperties} from './support/application-profiles.js';
 import {service,AppError} from '../lib/service.ts';
 import {admissions,getAdmission} from '../lib/admissions.ts';
 import {accountPortal,portalHome,portalFamily} from '../lib/portal-policy.ts';
@@ -15,7 +15,7 @@ import {authPage} from '../self-hosted/auth-pages.ts';
 import {renderMarketingDocument} from '../lib/marketing-content.mjs';
 import {pricingSection} from '../lib/pricing-catalog.mjs';
 const identity=userId=>({userId,email:userId+'@example.com'}),fails=n=>e=>e instanceof AppError&&e.status===n;
-async function fixture(t){const db=database(t),owner=identity('owner');await service(db,owner).saveAccount({name:'Owner Account'});db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(owner.userId,new Date().toISOString());return {db,owner,async add(role,id=role){const user=identity(id);await service(db,user).saveAccount({name:role+' Person'});const api=admissions(db,user);await api.start(role);const pending=await api.submit({revision:1,profile:applicationProfile(role)});await admissions(db,owner).review({userId:id,revision:pending.revision,decision:'approved',note:'Profile reviewed.'});return user;}};}
+async function fixture(t){const db=database(t),owner=identity('owner');await service(db,owner).saveAccount({name:'Owner Account'});db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(owner.userId,new Date().toISOString());return {db,owner,async add(role,id=role){const user=identity(id);await service(db,user).saveAccount({name:role+' Person'});const api=admissions(db,user);await api.start(role);const pending=await api.submit({revision:1,profile:applicationProfile(role)});seedVerifiedProperties(db,user.userId,applicationProfile(role));await admissions(db,owner).review({userId:id,revision:pending.revision,decision:'approved',note:'Profile reviewed.'});return user;}};}
 
 test('all four admissions preserve exact roles, open different homes and cannot switch to another role in their accounting family',async t=>{const f=await fixture(t);for(const role of ['brand','affiliate','creator','agency']){const user=await f.add(role);assert.equal(await accountPortal(f.db,user.userId),role);assert.equal((await getAdmission(f.db,user.userId)).portal,role);await requireAccountPortal(f.db,user,portalFamily(role));for(const other of ['brand','affiliate','creator','agency'].filter(x=>x!==role)){await assert.rejects(admissions(f.db,user).start(other),fails(403));const response=await admissionGate(new Request('https://affimaro.example'+portalHome(other)),f.db,user);assert.equal(response.status,307);assert.equal(response.headers.get('location'),portalHome(role));}assert.equal(await admissionGate(new Request('https://affimaro.example'+portalHome(role)),f.db,user),null);}assert.equal(new Set(['brand','affiliate','creator','agency'].map(portalHome)).size,4);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_accounts').get().n,0);});
 
