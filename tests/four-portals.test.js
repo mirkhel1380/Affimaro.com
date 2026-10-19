@@ -13,6 +13,7 @@ import {planRequests,getPlanRequest} from '../lib/plan-requests.ts';
 import {emailAuth,FLOW_COOKIE} from '../self-hosted/auth-core.ts';
 import {authPage} from '../self-hosted/auth-pages.ts';
 import {renderMarketingDocument} from '../lib/marketing-content.mjs';
+import {pricingSection} from '../lib/pricing-catalog.mjs';
 const identity=userId=>({userId,email:userId+'@example.com'}),fails=n=>e=>e instanceof AppError&&e.status===n;
 async function fixture(t){const db=database(t),owner=identity('owner');await service(db,owner).saveAccount({name:'Owner Account'});db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(owner.userId,new Date().toISOString());return {db,owner,async add(role,id=role){const user=identity(id);await service(db,user).saveAccount({name:role+' Person'});const api=admissions(db,user);await api.start(role);const pending=await api.submit({revision:1,profile:applicationProfile(role)});await admissions(db,owner).review({userId:id,revision:pending.revision,decision:'approved',note:'Profile reviewed.'});return user;}};}
 
@@ -40,3 +41,36 @@ test('approved-partner capacity is enforced in the write and an approved upgrade
 
 
 test('the four-way sign-in choice preserves an invitation and rejects external continuation URLs',()=>{const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8'),path='/join/'+crypto.randomUUID(),html=renderMarketingDocument('/login',sprite,{returnTo:path});for(const role of ['brand','affiliate','creator','agency'])assert.ok(html.includes('/auth/'+role+'/login?return_to='+encodeURIComponent(path)));const bad=renderMarketingDocument('/login',sprite,{returnTo:'https://attacker.example/steal'});assert.ok(!bad.includes('attacker.example'));});
+
+test('pricing has dedicated free affiliate and creator cards whose signup links never select a paid package',()=>{
+ const html=pricingSection();
+ for(const role of ['affiliate','creator']){
+  const card=html.match(new RegExp('<article data-account-type="'+role+'"[\\s\\S]*?<\\/article>'))?.[0];
+  assert.ok(card,'Dedicated free '+role+' card');assert.match(card,/>Free</);assert.ok(!/\$|plan=|\/billing/.test(card));
+  assert.ok(card.includes('href="/auth/'+role+'/signup"'));
+ }
+ assert.match(html,/Monthly plans for brands &amp; agencies/);
+ for(const plan of ['starter','growth','business'])assert.ok(html.includes('/get-started?plan='+plan));
+});
+
+test('choosing a free account drops a subscription continuation but preserves an actual program invitation',()=>{
+ const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8');
+ for(const kind of ['login','get-started'])for(const target of ['/billing?plan=growth','/agency/billing?plan=growth']){
+  const html=renderMarketingDocument('/'+kind,sprite,{plan:'growth',returnTo:target}),choices=html.match(/<div class="m-audience-paths">[\s\S]*?<\/section>/)?.[0];assert.ok(choices);
+  for(const role of ['affiliate','creator']){
+   const href=choices.match(new RegExp('href="(/auth/'+role+'/'+(kind==='login'?'login':'signup')+'[^\"]*)"'))?.[1];assert.ok(href);
+   const url=new URL(href.replaceAll('&amp;','&'),'https://affimaro.example');assert.equal(url.searchParams.has('plan'),false);assert.equal(url.searchParams.get('return_to'),portalHome(role));
+  }
+  assert.match(html,/Free · no subscription/);
+ }
+});
+
+test('free registration ignores old paid return links and explicitly shows no subscription or card requirement',async t=>{
+ const config={origin:'https://affimaro.example',supabaseUrl:'https://fixture.supabase.co',publishableKey:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',encryptionKey:'bc'.repeat(32)};
+ for(const role of ['affiliate','creator'])for(const target of ['/billing?plan=starter','/agency/billing?plan=business']){
+  let calls=0;const api=emailAuth(database(t),config,async()=>{calls++;throw new Error('No provider call on signup GET');});
+  const response=await authPage(new Request(config.origin+'/auth/'+role+'/signup?plan=starter&return_to='+encodeURIComponent(target)),api,config.origin),html=await response.text();
+  assert.equal(response.status,200);assert.match(html,new RegExp('Free '+role+' account'));assert.match(html,/No subscription or card required/);assert.ok(!/\$19|Selected package|name="businessName"/.test(html));
+  const cookie=response.headers.get('set-cookie').split(';')[0],flow=await api.flow(new Request(config.origin,{headers:{Cookie:cookie}}));assert.equal(flow.returnTo,portalHome(role));assert.equal(flow.plan,undefined);assert.equal(calls,0);
+ }
+});

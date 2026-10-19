@@ -49,6 +49,17 @@ test('missing billing configuration preserves pilot access and does not contact 
   assert.equal(billingConfigured({...f.config,liveEnabled:false}),false);assert.equal(billingConfigured({...f.config,secret:'pk_live_NOTASECRET'}),false);
 });
 
+test('affiliate and creator accounts cannot enter subscription billing even when an old business workspace exists',async t=>{
+ for(const role of ['affiliate','creator']){
+  const f=await fixture(t,{required:true}),quote=await f.api.preview({});
+  f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner',role,new Date().toISOString());
+  const calls=f.state.calls.length;
+  for(const operation of [()=>f.api.dashboard(),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
+  assert.equal(f.state.calls.length,calls);assert.equal(f.state.created,0);
+  for(const table of ['billing_accounts','billing_checkouts'])assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM '+table).get().n,0);
+ }
+});
+
 test('independent checkout freezes its return origin so retries keep the original idempotent payload',async t=>{
   const f=await fixture(t);f.config.origin='https://affimaro.example';f.state.lose=true;await assert.rejects(start(f),fails(502));assert.equal(checkout(f).return_origin,'https://affimaro.example');
   const first=posts(f)[0].body.toString();f.config.origin='https://new.affimaro.example';await start(f);assert.equal(posts(f)[1].body.toString(),first);assert.equal(posts(f)[1].body.get('success_url'),'https://affimaro.example/billing?checkout_return=1');

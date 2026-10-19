@@ -50,8 +50,9 @@ function form(flow:AuthFlow,error?:string){
   const links=purpose==='login'?(flow.ownerOnly?'':'<a href="'+link('signup')+'">Create an account</a>')+'<a href="'+link('recover')+'">Forgot password?</a>':purpose==='logout'?'<a href="'+escape(flow.returnTo)+'">Keep working</a>':'<a href="'+link('login')+'">Back to sign in</a>';
   const separate=purpose==='login'&&!flow.ownerOnly?'<p class="foot">Your account has its own portal. <a href="/login?return_to='+encodeURIComponent(flow.returnTo)+'">Choose a different account type</a>.</p>':'';
   const selected=flow.plan&&flow.portal&&businessPortal(flow.portal)?'<p class="selected-plan"><strong>'+planNames[flow.plan]+'</strong><br>Selected package · Account review comes first. Registration does not charge a card.</p>':'';
+  const free=flow.portal&&!businessPortal(flow.portal)&&['signup','login'].includes(purpose)?'<p class="selected-plan" data-account-price="free"><strong>Free '+portalName(flow.portal).toLowerCase()+' account</strong><br>No subscription or card required. Email verification and owner review still apply.</p>':'';
 
-  return '<h2>'+title[0]+'</h2><p class="muted">'+title[1]+'</p>'+selected+alert+'<form method="post" action="'+authPath(purpose,flow.portal,flow.ownerOnly)+'">'+hidden(flow)+fields+'<button type="submit">'+title[2]+'</button></form><div class="links">'+links+'</div>'+separate;
+  return '<h2>'+title[0]+'</h2><p class="muted">'+title[1]+'</p>'+selected+free+alert+'<form method="post" action="'+authPath(purpose,flow.portal,flow.ownerOnly)+'">'+hidden(flow)+fields+'<button type="submit">'+title[2]+'</button></form><div class="links">'+links+'</div>'+separate;
 }
 async function readForm(request:Request){
   if(request.headers.get('content-type')?.split(';')[0].trim().toLowerCase()!=='application/x-www-form-urlencoded')throw new AppError(415,'Submit the form from this page.');

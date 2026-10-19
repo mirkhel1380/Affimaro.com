@@ -4,6 +4,7 @@ import {getRawDb} from '../../db';
 import {admissions,isPlatformAdmin} from '../../lib/admissions';
 import {portalHome,portalName} from '../../lib/portal-policy';
 import {safeReturnTo} from '../../self-hosted/auth-core';
+import {accountReturnTo} from '../../lib/account-journey.mjs';
 import {Shell,PageHeading,Card,Badge,Icon} from '../ui';
 import {ApplicationForm,ApplicationEdit,ApplicationTypeChoice} from './application-form';
 import {ProfileDetails} from './profile-details';
@@ -13,7 +14,7 @@ export default async function ApplicationPage({searchParams}:{searchParams:Promi
   const query=await searchParams,user=await requireChatGPTUser('/application'+(query.return_to?'?return_to='+encodeURIComponent(safeReturnTo(query.return_to)):''),{allowApplication:true}),db=getRawDb(),api=admissions(db,user),application=await api.own(),admin=await isPlatformAdmin(db,user.userId);
   if(admin)redirect('/owner');
   const status=application?.status,portal=application?.portal||'brand',approved=status==='approved',editable=!!application&&['draft','changes_requested','rejected'].includes(application.status);
-  const next=safeReturnTo(query.return_to),continueTo=next==='/application'||next.startsWith('/application?')||next==='/account'?portalHome(portal):next;
+  const next=accountReturnTo(portal,safeReturnTo(query.return_to)),continueTo=next==='/application'||next.startsWith('/application?')||next==='/account'?portalHome(portal):next;
   return <Shell name={user.fullName||user.email.split('@')[0]} email={user.email} active="application" portal={portal} reviewOnly={!approved}><PageHeading eyebrow={application?portal.toUpperCase()+' APPLICATION':'APPLY TO AFFIMARO'} title={approved?'Your application is approved.':status==='pending'?'Your application is under review.':status==='changes_requested'?'A little more detail is needed.':status==='rejected'?'Review your application.':'A complete profile. A considered review.'} description="Brand, affiliate, creator and agency accounts each have a reviewed profile and a separate portal."/>
     <div className="a-application-progress" aria-label="Account approval progress"><span className="is-complete"><b>01</b>Email verified</span><span className={status&&status!=='draft'?'is-complete':''}><b>02</b>Complete application</span><span className={approved?'is-complete':status==='pending'?'is-current':''}><b>03</b>Owner review</span><span className={approved?'is-complete':''}><b>04</b>Portal access</span></div>
     {application&&<div className="a-application-state"><Badge status={application.status.replaceAll('_',' ')}/><strong>{user.email}</strong>{application.submitted_at&&<span>Submitted {new Date(application.submitted_at).toUTCString()}</span>}</div>}

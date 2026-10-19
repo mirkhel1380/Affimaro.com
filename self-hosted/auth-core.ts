@@ -4,6 +4,7 @@ import {accountPortal,businessPortal,type Portal} from '../lib/portal-policy.ts'
 import {admissions,isPlatformAdmin} from '../lib/admissions.ts';
 import {openAuth,sealAuth} from './auth-seal.ts';
 import {trustedPublicOrigin} from '../lib/public-origin.ts';
+import {accountReturnTo} from '../lib/account-journey.mjs';
 
 export type AuthConfig={origin:string;supabaseUrl:string;publishableKey:string;encryptionKey:string};
 export type AuthUser={userId:string;email:string;fullName:string|null};
@@ -139,8 +140,8 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     return {row,tokens,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
   return {
-    async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding,plan?:'starter'|'growth'|'business',ownerOnly=false){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:safeReturnTo(returnTo),...(email?{email}:{}),...(portal?{portal}:{}),...(ownerOnly?{ownerOnly:true}:{}),...(onboarding?{onboarding}:{}),...(plan?{plan}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
-    async flow(request:Request){const value=cookieValue(request,FLOW_COOKIE);if(!value||value.length>4096)return null;try{const data=flowSchema.parse(await openAuth(value,config.encryptionKey,`auth-flow/${config.origin}`));return data.expires>Math.floor(Date.now()/1000)&&data.expires<=Math.floor(Date.now()/1000)+905?data:null;}catch{return null;}},
+    async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding,plan?:'starter'|'growth'|'business',ownerOnly=false){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:accountReturnTo(portal,safeReturnTo(returnTo)),...(email?{email}:{}),...(portal?{portal}:{}),...(ownerOnly?{ownerOnly:true}:{}),...(onboarding?{onboarding}:{}),...(plan?{plan}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
+    async flow(request:Request){const value=cookieValue(request,FLOW_COOKIE);if(!value||value.length>4096)return null;try{const data=flowSchema.parse(await openAuth(value,config.encryptionKey,`auth-flow/${config.origin}`));return data.expires>Math.floor(Date.now()/1000)&&data.expires<=Math.floor(Date.now()/1000)+905?{...data,returnTo:accountReturnTo(data.portal,safeReturnTo(data.returnTo))}:null;}catch{return null;}},
     async login(input:unknown,ip:string,previousCookie?:string|null,portal?:Portal,ownerOnly=false){const value=parse(z.object({email:emailSchema,password:z.string().min(1).max(128)}).strict(),input);await rate('login',value.email,ip,8);await emailProvider();return issue(await provider('/token?grant_type=password','POST',{email:value.email,password:value.password}),value.email,false,previousCookie,portal,undefined,ownerOnly);},
     async signup(input:unknown,ip:string,portal?:Portal){
       const base=z.object({email:emailSchema,password:z.string().min(12).max(128),name:z.string().trim().min(2).max(60)});

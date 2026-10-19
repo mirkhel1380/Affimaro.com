@@ -5,7 +5,7 @@ import {AppError,service,type Identity} from './service.ts';
 import {openPayment,sealPayment} from './payment-crypto.ts';
 import {STRIPE_VERSION} from './payment-connections.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
-import {accountPortal} from './portal-policy.ts';
+import {accountPortal,businessPortal} from './portal-policy.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 export type BillingConfig={plan?:Plan;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;portalConfigurationId?:string};
@@ -65,7 +65,7 @@ export async function inspectBillingConfiguration(config:BillingConfig,fetcher:F
   catch(error){return {...result,status:error instanceof AppError&&error.status===409?'attention' as const:'unavailable' as const,message:error instanceof AppError?error.message:'Stripe verification is temporarily unavailable.'};}
 }
 export function billing(db:D1Database,identity:Identity,config:BillingConfig,key?:string,fetcher:Fetcher=fetch){
-  const s=service(db,identity),workspace=async()=>{const w=await s.workspace();if(!w)throw new AppError(404,'Create a business workspace before choosing a business subscription.');return w;};
+  const s=service(db,identity),workspace=async()=>{const portal=await accountPortal(db,identity.userId);if(portal&&!businessPortal(portal))throw new AppError(403,'Affiliate and creator accounts are free. Subscriptions are only for brand and agency accounts.');const w=await s.workspace();if(!w)throw new AppError(404,'Create a business workspace before choosing a business subscription.');return w;};
   const current=(wid:string)=>one<BillingAccount>(db,`SELECT ${accountFields} FROM billing_accounts WHERE workspace_id=? AND platform_id=? AND mode=?`,wid,config.platformId||'',config.mode);
   const pending=(aid:string)=>one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE account_id=? AND state IN ('creating','open','review') ORDER BY rowid DESC LIMIT 1`,aid);
   const audit=(wid:string,action:string)=>db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),wid,identity.userId,action,now());
