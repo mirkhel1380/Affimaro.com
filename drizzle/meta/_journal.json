@@ -134,6 +134,13 @@
       "when": 1792401651748,
       "tag": "0018_dapper_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792414842364,
+      "tag": "0019_big_tarantula",
+      "breakpoints": true
     }
   ]
 }

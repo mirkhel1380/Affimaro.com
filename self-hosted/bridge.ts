@@ -34,7 +34,7 @@ export async function independentFetch(request:Request,env:Bindings,application:
     // Public assets and HMAC-signed store events do not need a browser identity.
     const signedStoreEvent=request.method==='POST'&&['/api/woocommerce/event','/api/custom/event'].includes(url.pathname);
     const signedBillingEvent=request.method==='POST'&&url.pathname==='/api/billing/webhook';
-    const accountRoute=/^\/(account|start|get-started|workspace|partner|creator|agency|payments|reports|billing|join|migration|application|admin|owner|discover)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent&&!signedBillingEvent;
+    const accountRoute=/^\/(account|settings|start|get-started|workspace|partner|creator|agency|payments|reports|billing|join|migration|application|admin|owner|discover)(\/|$)/.test(url.pathname)||url.pathname.startsWith('/api/')&&!signedStoreEvent&&!signedBillingEvent;
     const user=accountRoute?await auth.resolve(request):null;
     if(ownerHost&&!ownerAsset(url.pathname)){
       if(!user){if(url.pathname.startsWith('/api/'))throw new AppError(401,'Sign in to the owner portal.');return new Response(null,{status:307,headers:{Location:'/auth/owner/login?return_to='+encodeURIComponent(url.pathname+url.search),'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'}});}

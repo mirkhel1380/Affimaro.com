@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>{emailSignIn&&<><link rel="manifest" href="/manifest.webmanifest"/><link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png"/><meta name="theme-color" content="#153b32"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="Affimaro"/></>}</head>
+      <head><script src="/portal-theme.js"/>{emailSignIn&&<><link rel="manifest" href="/manifest.webmanifest"/><link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png"/><meta name="theme-color" content="#153b32"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="Affimaro"/></>}</head>
       <body className="antialiased">{children}{emailSignIn&&<script src="/install-app.js" defer/>}</body>
     </html>
   );

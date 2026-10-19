@@ -395,3 +395,7 @@ export const programCoupons=sqliteTable('program_coupons',{
 export const linkClicks=sqliteTable('link_clicks',{
  id:text('id').primaryKey(),applicationId:text('application_id').notNull().references(()=>applications.id),source:text('source').notNull(),medium:text('medium').notNull(),referrerHost:text('referrer_host').notNull(),device:text('device').notNull(),country:text('country').notNull(),clickedAt:text('clicked_at').notNull(),
 },t=>[index('link_click_application_time').on(t.applicationId,t.clickedAt),index('link_click_retention').on(t.clickedAt)]);
+
+export const accountPreferences=sqliteTable('account_preferences',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),preferencesJson:text('preferences_json').notNull(),revision:integer('revision').notNull().default(1),updatedAt:text('updated_at').notNull(),
+},t=>[check('account_preferences_valid',sql`json_valid(${t.preferencesJson}) AND ${t.revision}>0`)]);

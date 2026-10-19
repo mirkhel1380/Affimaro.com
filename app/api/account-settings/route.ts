@@ -1,0 +1,8 @@
+import {getChatGPTUser} from '../../chatgpt-auth';
+import {getRawDb} from '../../../db';
+import {action} from '../../../lib/http';
+import {AppError} from '../../../lib/service';
+import {accountSettings,requestSessionHash} from '../../../lib/account-settings';
+export const dynamic='force-dynamic';
+export async function GET(){try{const user=await getChatGPTUser();if(!user)throw new AppError(401,'Sign in to continue.');return Response.json({ok:true,data:await accountSettings(getRawDb(),user).snapshot()},{headers:{'Cache-Control':'private, no-store','Vary':'Cookie'}});}catch(e){return Response.json({ok:false,error:e instanceof AppError?e.message:'Settings could not be loaded.'},{status:e instanceof AppError?e.status:500,headers:{'Cache-Control':'no-store'}});}}
+export async function POST(request:Request){return action(request,async(_s,body,user)=>{if(!body||typeof body!=='object'||!('action' in body)||!('data' in body)||Object.keys(body).some(k=>!['action','data'].includes(k)))throw new AppError(400,'Check the settings request.');const api=accountSettings(getRawDb(),user);if(body.action==='preferences')return api.savePreferences(body.data);if(body.action==='profile')return api.profile(body.data);if(body.action==='listing')return api.listing(body.data);if(body.action==='revokeOthers'){if(JSON.stringify(body.data)!=='{}')throw new AppError(400,'Check the session request.');return api.revokeOthers(await requestSessionHash(request));}if(body.action==='export'){if(JSON.stringify(body.data)!=='{}')throw new AppError(400,'Check the export request.');return api.exportData();}throw new AppError(400,'Unknown settings action.');});}
