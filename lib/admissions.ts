@@ -103,8 +103,8 @@ export function admissions(db:D1Database,identity:Identity){
       }
       if(value.decision==='approved'&&businessPortal(app.portal)&&'plan' in p){
         statements.push(db.prepare(`INSERT INTO plan_requests (user_id,requested_plan,active_plan,status,revision,updated_at)
-          SELECT user_id,?,?,'approved',1,? FROM platform_applications WHERE user_id=? AND transition_id=? AND status='approved'
-          ON CONFLICT(user_id) DO UPDATE SET requested_plan=excluded.requested_plan,active_plan=excluded.active_plan,status='approved',revision=plan_requests.revision+1,updated_at=excluded.updated_at`).bind(p.plan,p.plan,at,value.userId,token));
+          SELECT user_id,?,NULL,'approved',1,? FROM platform_applications WHERE user_id=? AND transition_id=? AND status='approved'
+          ON CONFLICT(user_id) DO UPDATE SET requested_plan=excluded.requested_plan,status='approved',revision=plan_requests.revision+1,updated_at=excluded.updated_at`).bind(p.plan,at,value.userId,token));
       }
       await db.batch(statements);const saved=await getAdmission(db,value.userId);if(saved?.transition_id!==token)throw new AppError(409,'This application changed. Your decision was not saved.');return view(saved);
     },

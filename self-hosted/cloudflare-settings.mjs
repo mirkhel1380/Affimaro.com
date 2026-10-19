@@ -1,5 +1,6 @@
 import selectedProject from './cloudflare-project.json' with {type:'json'};
 import {independentRouting} from './routing.mjs';
+import {legacyRouting} from './legacy-routing.mjs';
 import {ownerRouting} from './owner-routing.mjs';
 
 // Public deployment identifiers only. Tokens and encryption keys have no defaults.
@@ -10,7 +11,10 @@ export function cloudflareSettings(values={}){
   if(!/^[a-f0-9]{32}$/.test(accountId)||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(databaseId)||/^00000000-/.test(databaseId))throw new Error('Use the real Cloudflare account and D1 database IDs.');
   if(accountId!==selectedProject.accountId&&(!database||!origin))throw new Error('Override the Cloudflare account, D1 database and origin together for another account.');
   const routing=independentRouting(origin??selectedProject.origin);
-  const owner=ownerRouting(routing.origin,get('OWNER_ORIGIN'));
+  const defaults=!origin||routing.origin===selectedProject.origin;
+  const owner=ownerRouting(routing.origin,get('OWNER_ORIGIN')??(defaults?selectedProject.ownerOrigin:undefined));
+  const legacy=legacyRouting(routing.origin,get('LEGACY_ORIGIN')??(defaults?selectedProject.legacyOrigin:undefined));
+  if(legacy.origin)routing.config.workers_dev=true;
   if(owner.route)routing.config.routes.push(owner.route);
-  return {accountId,databaseId,origin:routing.origin,ownerOrigin:owner.origin,routing:routing.config,workersSubdomain:routing.workersSubdomain};
+  return {accountId,databaseId,origin:routing.origin,ownerOrigin:owner.origin,legacyOrigin:legacy.origin,routing:routing.config,workersSubdomain:legacy.workersSubdomain||routing.workersSubdomain};
 }

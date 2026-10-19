@@ -1,3 +1,4 @@
 import {admissionAction} from '../../../../lib/admission-http';
-import {planRequests} from '../../../../lib/plan-requests';
-export async function POST(request:Request){return admissionAction(request,(db,user,body)=>planRequests(db,user).review(body));}
+import {requirePlatformAdmin} from '../../../../lib/admissions';
+import {AppError} from '../../../../lib/service';
+export async function POST(request:Request){return admissionAction(request,async(db,user)=>{await requirePlatformAdmin(db,user);throw new AppError(410,'Package approval is no longer required. Approved accounts purchase directly; verified payment activates the package.');});}

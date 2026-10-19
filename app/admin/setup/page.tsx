@@ -2,7 +2,7 @@ import {env} from 'cloudflare:workers';
 import {ownerContext} from '../../owner/context';
 import {OwnerBillingSetup} from '../../owner/billing-setup';
 import {platformBillingSummary} from '../../../lib/platform-billing';
-import {publicOrigin} from '../../../lib/public-origin-runtime';
+import {billingOrigin} from '../../../lib/public-origin-runtime';
 import {getRawDb} from '../../../db';
 import {billingConfig} from '../../../lib/billing-runtime';
 import {paymentDataKey} from '../../../lib/payment-runtime';
@@ -19,7 +19,7 @@ const statusName={ready:'Policy verified',attention:'Needs attention',unavailabl
 export default async function LaunchSetupPage(){
  const {user,db}=await ownerContext('/owner/settings'),values=env as unknown as Record<string,unknown>,get=(name:string)=>typeof values[name]==='string'?values[name] as string:'',url=get('SUPABASE_URL'),key=get('SUPABASE_PUBLISHABLE_KEY');
  const state=await launchReadiness(db,user,{auth:url&&key?{supabaseUrl:url,publishableKey:key}:undefined,billing:await Promise.all([billingConfig('starter'),billingConfig('growth'),billingConfig('business')]),paymentKeyReady:/^[a-f0-9]{64}$/i.test(paymentDataKey()||''),maintenance:get('AFFIMARO_MIGRATION_MAINTENANCE')==='true'});
- const stripe=await platformBillingSummary(db,user,publicOrigin());
+ const stripe=await platformBillingSummary(db,user,billingOrigin());
  // Provider links always use a validated project reference, never arbitrary env URLs.
  const ref=/^https:\/\/([a-z0-9-]{6,80})\.supabase\.co$/.exec(url)?.[1]||selectedProject.projectRef,authDashboard='https://supabase.com/dashboard/project/'+ref+'/auth/';
  return <OwnerShell name={user.fullName||'Owner'} email={user.email} active="setup"><PageHeading eyebrow="OWNER · LAUNCH SETUP" title="A clear view of what is ready." description="Check account access, email policy and the three monthly packages from your owner account."><a href="/owner/settings" className="a-btn a-btn-outline a-btn-small">Refresh checks<Icon name="arrow"/></a></PageHeading>

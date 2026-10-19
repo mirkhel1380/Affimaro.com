@@ -3,6 +3,7 @@ import {emailAuth,validateAuthConfig,type AuthConfig,type AuthUser} from './auth
 import {authPage,isAuthPath} from './auth-pages.ts';
 import {migrationMaintenance} from './migration.ts';
 import {admissionGate} from '../lib/admission-gate.ts';
+import {legacyRouting,legacyHostRoute} from './legacy-routing.mjs';
 import {ownerRouting,ownerHostRoute,ownerAsset} from './owner-routing.mjs';
 import {requirePlatformAdmin} from '../lib/admissions.ts';
 
@@ -20,7 +21,9 @@ export function verifiedRequest(request:Request,user:AuthUser|null){
 export async function independentFetch(request:Request,env:Bindings,application:(request:Request)=>Promise<Response>,fetcher:typeof fetch=fetch){
   try{
     const publicConfig=independentConfig(env),url=new URL(request.url),owner=ownerRouting(publicConfig.origin,typeof env.OWNER_ORIGIN==='string'?env.OWNER_ORIGIN:undefined),ownerHost=!!owner.origin&&url.origin===owner.origin;
-    if(url.origin!==publicConfig.origin&&!ownerHost)throw new AppError(403,'Use the configured Affimaro application domain.');
+    const legacy=legacyRouting(publicConfig.origin,typeof env.LEGACY_ORIGIN==='string'?env.LEGACY_ORIGIN:undefined),legacyHost=!!legacy.origin&&url.origin===legacy.origin;
+    if(url.origin!==publicConfig.origin&&!ownerHost&&!legacyHost)throw new AppError(403,'Use the configured Affimaro application domain.');
+    const moved=legacyHostRoute(request,publicConfig.origin,owner.origin,legacy.origin);if(moved)return moved;
     const destination=ownerHostRoute(request,publicConfig.origin,owner.origin);if(destination)return destination;
     const config=ownerHost?{...publicConfig,origin:owner.origin!}:publicConfig;
     const paused=migrationMaintenance(request,env);if(paused)return paused;

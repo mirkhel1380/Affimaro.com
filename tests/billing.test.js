@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {database} from './support/db.js';
 import {service,AppError} from '../lib/service.ts';
 import {billing,billingConfigured,billingRedirect,starterEntitled,BILLING_ORIGIN} from '../lib/billing.ts';
+import {getPlanRequest,planRequests} from '../lib/plan-requests.ts';
 import {sealPayment} from '../lib/payment-crypto.ts';
 const key='bc'.repeat(32),identity=userId=>({userId,email:userId+'@example.com'}),fails=status=>error=>error instanceof AppError&&error.status===status;
 async function fixture(t,{mode='live',required=false}={}){
@@ -22,7 +23,7 @@ async function fixture(t,{mode='live',required=false}={}){
     else if(u.pathname.startsWith('/v1/prices/'))result=state.price;
     else if(u.pathname==='/v1/checkout/sessions'&&init.method==='POST'){
       const idem=init.headers['Idempotency-Key'];assert.ok(idem);result=state.byKey.get(idem);
-      if(!result){state.created++;result={object:'checkout.session',id:`cs_${mode}_FIXTURESESSION${state.created}`,livemode:mode==='live',mode:'subscription',client_reference_id:body.get('client_reference_id'),metadata:{affimaro_workspace:body.get('metadata[affimaro_workspace]'),affimaro_checkout:body.get('metadata[affimaro_checkout]')},status:'open',payment_status:'unpaid',customer:body.get('customer'),subscription:null,currency:'usd',amount_subtotal:1900,amount_total:1900,expires_at:Math.floor(Date.now()/1000)+86400,url:`https://checkout.stripe.com/c/pay/FIXTURESESSION${state.created}#PRIVATE_CHECKOUT_SECRET`};state.byKey.set(idem,result);state.sessions.set(result.id,result);}
+      if(!result){state.created++;result={object:'checkout.session',id:`cs_${mode}_FIXTURESESSION${state.created}`,livemode:mode==='live',mode:'subscription',client_reference_id:body.get('client_reference_id'),metadata:{affimaro_workspace:body.get('metadata[affimaro_workspace]'),affimaro_checkout:body.get('metadata[affimaro_checkout]')},status:'open',payment_status:'unpaid',customer:body.get('customer'),subscription:null,currency:'usd',amount_subtotal:state.price.unit_amount,amount_total:state.price.unit_amount,expires_at:Math.floor(Date.now()/1000)+86400,url:`https://checkout.stripe.com/c/pay/FIXTURESESSION${state.created}#PRIVATE_CHECKOUT_SECRET`};if(body.get('ui_mode')==='embedded_page'){result.ui_mode='embedded_page';result.client_secret=result.id+'_secret_FIXTURECLIENT123456';result.url=null;}state.byKey.set(idem,result);state.sessions.set(result.id,result);}
       if(state.lose){state.lose=false;throw new Error('Fixture lost creation response');}
     }else if(u.pathname.startsWith('/v1/checkout/sessions/'))result=state.sessions.get(u.pathname.split('/').at(-1));
     else if(u.pathname.startsWith('/v1/subscriptions/')){assert.equal(u.searchParams.get('expand[]'),'latest_invoice');result=state.subs.get(u.pathname.split('/').at(-1));}
@@ -255,4 +256,27 @@ test('webhook database failures remain retryable and cannot leave a partially fu
 test('signed notifications cannot correlate a checkout from one workspace to another, even when their metadata is forged',async t=>{
  const f=await fixture(t);await start(f);const other=billing(f.db,identity('other'),f.config,key,f.fetcher),q=await other.preview({});await other.checkout({reviewToken:q.reviewToken,confirmed:true});const h=await webhookFixture(f),{session}=complete(f),otherAttempt=f.db.sqlite.prepare('SELECT c.id FROM billing_checkouts c WHERE c.workspace_id<>?').get(f.workspace.id);
  const forged={...session,metadata:{...session.metadata,affimaro_checkout:otherAttempt.id}};assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',forged)))).status,200);assert.equal((await f.api.dashboard()).entitled,false);assert.equal((await other.dashboard()).entitled,false);assert.equal(f.state.created,2);
+});
+
+
+test('embedded checkout stays on site, freezes retries, resumes the same session and activates paid capacity automatically',async t=>{
+ const f=await fixture(t,{required:true}),at=new Date().toISOString();f.config.plan='growth';f.config.priceId='price_GROWTHBILLING123';f.config.publishableKey='pk_live_FIXTUREPUBLICKEY123456';f.config.origin='https://affimaro.example';f.state.price={...f.state.price,id:f.config.priceId,unit_amount:4900};
+ f.db.sqlite.prepare("INSERT INTO account_portals VALUES ('owner','brand',?)").run(at);
+ f.db.sqlite.prepare("INSERT INTO platform_applications(user_id,portal,status,created_at,updated_at) VALUES ('owner','brand','approved',?,?)").run(at,at);
+ f.db.sqlite.prepare("INSERT INTO plan_requests(user_id,requested_plan,active_plan,status,updated_at) VALUES ('owner','starter','starter','pending',?)").run(at);
+ const selected=await planRequests(f.db,identity('owner')).choose({plan:'growth',revision:1});assert.equal(selected.status,'approved');assert.equal(selected.active_plan,'starter');
+ f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();assert.equal(checkout(f).payload_version,3);
+ f.config.origin='https://different.example';const result=await start(f);assert.equal(result.outcome,'embedded');assert.equal(result.publishableKey,f.config.publishableKey);assert.ok(result.clientSecret.startsWith(checkout(f).session_id+'_secret_'));assert.equal(result.url,undefined);assert.equal(posts(f)[1].body.toString(),first);
+ const body=posts(f)[0].body;assert.equal(body.get('ui_mode'),'embedded_page');assert.equal(body.get('redirect_on_completion'),'if_required');assert.equal(body.get('return_url'),'https://affimaro.example/billing?checkout_return=1');assert.equal(body.has('success_url'),false);assert.equal(body.has('cancel_url'),false);
+ assert.equal(checkout(f).encrypted_url,null);assert.ok(!JSON.stringify(checkout(f)).includes('FIXTURECLIENT'));assert.equal((await getPlanRequest(f.db,'owner')).active_plan,'starter');
+ const calls=posts(f).length;const resumed=await start(f);assert.equal(resumed.clientSecret,result.clientSecret);assert.equal(posts(f).length,calls);
+ complete(f);await f.api.refresh({});assert.equal((await getPlanRequest(f.db,'owner')).active_plan,'growth');assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM platform_review_events').get().n,0);
+ await assert.rejects(start(f),fails(409));
+});
+
+test('embedded session secrets are validated and a pending checkout cannot be reused for another quoted package',async t=>{
+ const f=await fixture(t);f.config.publishableKey='pk_live_FIXTUREPUBLICKEY123456';f.state.mutate=(raw,call)=>call.path==='/v1/checkout/sessions'?{...raw,client_secret:'cs_live_OTHERSESSION_secret_FIXTURESECRET123'}:raw;
+ await assert.rejects(start(f),fails(502));assert.equal(checkout(f).state,'review');
+ f.state.mutate=null;await start(f);f.config.plan='growth';f.config.priceId='price_GROWTHBILLING123';f.state.price={...f.state.price,id:f.config.priceId,unit_amount:4900};const before=posts(f).length;
+ await assert.rejects(start(f),fails(409));assert.equal(posts(f).length,before);
 });

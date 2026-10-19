@@ -64,3 +64,5 @@
 
 .a-launch-portals{grid-template-columns:repeat(4,minmax(0,1fr))}.a-launch-portals a{display:inline-flex;align-items:center;gap:8px;line-height:1.6}
 @media(max-width:1050px){.a-launch-portals{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.a-launch-portals{grid-template-columns:1fr}}
+
+.a-embedded-payment{margin-top:1.25rem;border:1px solid #dbe4dc;border-radius:16px;overflow:hidden;background:#fff}.a-embedded-payment-heading{padding:1.5rem;background:#f3f6ef}.a-embedded-payment-heading h3{margin:.5rem 0}.a-embedded-payment-frame{min-height:480px;width:100%}.o-embedded-setup{border-top:1px solid #dbe4dc;margin-top:1.5rem;padding-top:1.5rem}

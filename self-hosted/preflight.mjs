@@ -42,6 +42,7 @@ export async function verifiedAdmissionBootstrap(settings,apiToken,fetcher=fetch
   if(value?.success!==true||result?.success!==true||result.results?.length!==1||result.results[0]?.owner_ready!==1)throw new Error(message);
 }
 export function verifyCloudflareTarget(config,settings){
+  if((config.vars?.LEGACY_ORIGIN||null)!==(settings.legacyOrigin||null))throw new Error('Rebuild with the original legacy callback origin preserved.');
   if((config.vars?.OWNER_ORIGIN||null)!==(settings.ownerOrigin||null))throw new Error('Rebuild the independent package with the selected owner portal domain.');
   if(config.name!==independentWorkerName||config.vars?.APP_ORIGIN!==settings.origin||config.account_id!==settings.accountId||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='DB'||config.d1_databases[0].database_id!==settings.databaseId||config.workers_dev!==settings.routing.workers_dev||config.preview_urls!==false||JSON.stringify(config.routes??[])!==JSON.stringify(settings.routing.routes))throw new Error('Rebuild the independent package with these exact deployment settings.');
 }

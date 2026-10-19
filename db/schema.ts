@@ -357,6 +357,7 @@ export const creatorContent=sqliteTable('creator_content',{
 
 // Independent platform subscription credentials; never merchant connections.
 export const platformBillingSettings=sqliteTable('platform_billing_settings',{
+ publishableKey:text('publishable_key'),
  id:text('id').primaryKey(),setupId:text('setup_id').notNull(),accountId:text('account_id').notNull(),mode:text('mode').notNull(),origin:text('origin').notNull(),
  encryptedCredential:text('encrypted_credential').notNull(),webhookPayload:text('webhook_payload').notNull(),portalPayload:text('portal_payload').notNull(),portalConfigurationId:text('portal_configuration_id'),encryptedWebhookSecret:text('encrypted_webhook_secret'),webhookId:text('webhook_id'),status:text('status').notNull(),
  configuredBy:text('configured_by').notNull().references(()=>accounts.id),leaseId:text('lease_id'),leaseUntil:text('lease_until'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),

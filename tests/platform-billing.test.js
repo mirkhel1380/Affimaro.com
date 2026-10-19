@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {database} from './support/db.js';
 import {service,AppError} from '../lib/service.ts';
-import {connectPlatformBilling,readPlatformBilling,platformBillingSummary,platformWebhookCredentials} from '../lib/platform-billing.ts';
+import {connectPlatformBilling,saveBillingPublishableKey,readPlatformBilling,platformBillingSummary,platformWebhookCredentials} from '../lib/platform-billing.ts';
 import {platformBillingCatalog,subscriptionEvents} from '../lib/platform-billing-catalog.ts';
 import {openPayment} from '../lib/payment-crypto.ts';
 import {STRIPE_VERSION} from '../lib/payment-connections.ts';
@@ -43,4 +43,15 @@ test('wrong Stripe identities or package amounts cannot persist a key, and pendi
 test('approved business package clicks go to their own payment page while pending, free-role and owner accounts keep their correct destination',async t=>{
  const f=await fixture(t);assert.equal(await checkoutDestination(f.db,owner,'starter'),'/owner');
  for(const portal of ['brand','agency','creator','affiliate']){const u={userId:portal,email:portal+'@example.com'};await service(f.db,u).saveAccount({name:portal});const at=new Date().toISOString();f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run(portal,portal,at);f.db.sqlite.prepare("INSERT INTO platform_applications(user_id,portal,status,created_at,updated_at) VALUES (?,?,'pending',?,?)").run(portal,['brand','agency'].includes(portal)?'brand':'affiliate',at,at);assert.ok((await checkoutDestination(f.db,u,'growth')).startsWith('/application?return_to='));f.db.sqlite.prepare("UPDATE platform_applications SET status='approved' WHERE user_id=?").run(portal);assert.equal(await checkoutDestination(f.db,u,'growth'),{brand:'/billing?plan=growth',agency:'/agency/billing?plan=growth',creator:'/creator',affiliate:'/partner'}[portal]);}
+});
+
+
+test('only the owner can enable on-site payments and saving a publishable key preserves encrypted setup and provider resources',async t=>{
+ const f=await fixture(t),input={action:'publishable',publishableKey:'pk_live_FIXTUREPUBLICKEY123456',confirmed:true};await f.connect();
+ const before=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get(),calls=f.state.calls.length;
+ await assert.rejects(saveBillingPublishableKey(f.db,{userId:'customer',email:'customer@example.com'},input),e=>e.status===403);
+ for(const publishableKey of ['sk_live_FIXTURESECRET123456','pk_test_FIXTUREPUBLICKEY123456','not-a-key'])await assert.rejects(saveBillingPublishableKey(f.db,owner,{...input,publishableKey}),e=>e.status===400);
+ assert.deepEqual(await saveBillingPublishableKey(f.db,owner,input),{embeddedReady:true});const after=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get();
+ for(const field of ['setup_id','encrypted_credential','encrypted_webhook_secret','webhook_payload','portal_payload','webhook_id','portal_configuration_id','origin'])assert.equal(after[field],before[field]);
+ assert.equal(f.state.calls.length,calls);assert.equal((await readPlatformBilling(f.db,key,'growth',origin,{mode:'live',liveEnabled:false,required:true})).publishableKey,input.publishableKey);assert.equal((await platformBillingSummary(f.db,owner,origin)).embeddedReady,true);
 });

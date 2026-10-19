@@ -20,3 +20,5 @@ Agency client records store a contact, website, engagement status and notes. The
 See `subscriptions-setup.md` for package capacities and the separation between capacity requests and actual subscription payment.
 
 Verification uses isolated SQLite/D1-compatible transactions, real server-rendered TSX, four mocked provider authentication journeys, full existing regression tests, TypeScript, both production builds and live public/anonymous HTTP checks. Browser/device visual QA is unavailable in this environment; no authenticated production owner session is fabricated.
+
+Approved brands and agencies choose a paid package and proceed directly to payment. The owner reviews profiles, not package purchases. Verified live payment activates capacity automatically; affiliate and creator accounts remain free.

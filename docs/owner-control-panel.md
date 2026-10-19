@@ -31,3 +31,5 @@ The owner panel monitors existing financial state. Opening it does not send paym
 Platform setup guidance is kept in owner administration and private source documentation. Public subscription guidance contains customer package/payment steps only. Merchant-owned store/payment connection instructions still belong in the merchant portal.
 
 Validation uses migrated SQLite fixtures, real server-rendered page components and independent authentication/provider-boundary tests. Browser layout verification remains dependent on a supported browser environment.
+
+Profile applications remain in the owner review queue. Package review has been removed: an approved business account can purchase directly, and verified paid subscription evidence activates its capacity automatically. The retired package-review mutation returns 410 and cannot grant paid access.

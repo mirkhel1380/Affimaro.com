@@ -1,3 +1,4 @@
+import {prepareCustomDomains} from '../self-hosted/custom-domains.mjs';
 import {spawnSync} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -14,6 +15,7 @@ try{
   const run=(args,input)=>{const result=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js',...args,'--config',path],{stdio:input?['pipe','inherit','inherit']:'inherit',input,env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_WRITE_LOGS:'false'}});if(result.status!==0)throw new Error('Cloudflare command did not complete. Review its result before retrying.');};
   if(mode==='--dry-run'){run(['deploy','--dry-run']);process.exit(0);}
   deploymentAuthorization(process.env);
+  await prepareCustomDomains(settings,process.env.CLOUDFLARE_API_TOKEN);
   run(['d1','migrations','apply','DB','--remote']);
   run(['d1','execute','DB','--remote','--file',fileURLToPath(new URL('../self-hosted/admission-bootstrap.sql',import.meta.url))]);
   await verifiedAdmissionBootstrap(settings,process.env.CLOUDFLARE_API_TOKEN);

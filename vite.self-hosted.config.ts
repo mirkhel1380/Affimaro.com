@@ -23,7 +23,7 @@ export default defineConfig(async()=>{
         name:independentWorkerName,main:'./self-hosted/worker.ts',compatibility_date:'2026-05-15',compatibility_flags:['nodejs_compat'],
         ...hosting.routing,account_id:hosting.accountId,
         d1_databases:[{binding:'DB',database_name:'affimaro',database_id:hosting.databaseId,migrations_dir:'./drizzle'}],
-        vars:{APP_ORIGIN:hosting.origin,...(hosting.ownerOrigin?{OWNER_ORIGIN:hosting.ownerOrigin}:{}),SUPABASE_URL:provider.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:provider.publishableKey},
+        vars:{APP_ORIGIN:hosting.origin,...(hosting.legacyOrigin?{LEGACY_ORIGIN:hosting.legacyOrigin}:{}),...(hosting.ownerOrigin?{OWNER_ORIGIN:hosting.ownerOrigin}:{}),SUPABASE_URL:provider.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:provider.publishableKey},
       },
     })],
   };

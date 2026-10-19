@@ -8,12 +8,12 @@ import {platformBillingCatalog,subscriptionEvents} from './platform-billing-cata
 import {trustedPublicOrigin} from './public-origin.ts';
 import type {Plan} from './plan-requests.ts';
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
-type Settings={id:string;setup_id:string;account_id:string;mode:'test'|'live';origin:string;encrypted_credential:string;webhook_payload:string;portal_payload:string;portal_configuration_id:string|null;encrypted_webhook_secret:string|null;webhook_id:string|null;status:'pending'|'ready';configured_by:string;lease_id:string|null;lease_until:string|null;created_at:string;updated_at:string};
+type Settings={publishable_key:string|null;id:string;setup_id:string;account_id:string;mode:'test'|'live';origin:string;encrypted_credential:string;webhook_payload:string;portal_payload:string;portal_configuration_id:string|null;encrypted_webhook_secret:string|null;webhook_id:string|null;status:'pending'|'ready';configured_by:string;lease_id:string|null;lease_until:string|null;created_at:string;updated_at:string};
 const now=()=>new Date().toISOString();
 const settings=(db:D1Database)=>db.prepare("SELECT * FROM platform_billing_settings WHERE id='stripe'").first<Settings>();
 const portalConfiguration=z.object({id:z.string().regex(/^bpc_[A-Za-z0-9]{6,160}$/),object:z.literal('billing_portal.configuration'),livemode:z.literal(true),active:z.literal(true),features:z.object({invoice_history:z.object({enabled:z.literal(true)}),payment_method_update:z.object({enabled:z.literal(true)}),subscription_cancel:z.object({enabled:z.literal(true),mode:z.literal('at_period_end')}),subscription_update:z.object({enabled:z.literal(false)})}),metadata:z.record(z.string())});
 const endpoint=z.object({id:z.string().regex(/^we_[A-Za-z0-9]{6,160}$/),object:z.literal('webhook_endpoint'),livemode:z.boolean(),url:z.string(),status:z.literal('enabled'),api_version:z.literal(STRIPE_VERSION),enabled_events:z.array(z.string()),metadata:z.record(z.string()),secret:z.string().regex(/^whsec_[A-Za-z0-9]{12,240}$/).optional()});
-export type PlatformBillingSummary={status:'missing'|'pending'|'ready';accountId:string;mode:'test'|'live';webhookUrl:string;portalConfigured:boolean;checkedAt:string|null};
+export type PlatformBillingSummary={status:'missing'|'pending'|'ready';accountId:string;mode:'test'|'live';webhookUrl:string;portalConfigured:boolean;checkedAt:string|null;embeddedReady?:boolean};
 async function webhookApi(fetcher:Fetcher,secret:string,path:string,body?:URLSearchParams,idem?:string){
  if(!/^\/v1\/(?:account|webhook_endpoints(?:\/we_[A-Za-z0-9]{6,160})?|billing_portal\/configurations)$/.test(path))throw new AppError(500,'Unsupported billing setup operation.');
  let response:Response;try{response=await fetcher('https://api.stripe.com'+path,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Authorization:'Bearer '+secret,'Stripe-Version':STRIPE_VERSION,Accept:'application/json',...(body?{'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':idem!}:{})},...(body?{body:body.toString()}:{})});}catch{throw new AppError(502,'Stripe did not confirm webhook setup. Retry this saved setup; no customer payment was started.');}
@@ -23,11 +23,11 @@ async function webhookApi(fetcher:Fetcher,secret:string,path:string,body?:URLSea
 }
 export async function platformBillingSummary(db:D1Database,user:Identity,origin:string):Promise<PlatformBillingSummary>{
  await requirePlatformAdmin(db,user);const row=await settings(db),url=trustedPublicOrigin(origin)+'/api/billing/webhook';
- return {status:row?.status==='ready'&&!!row.portal_configuration_id&&row.origin===origin?'ready':row?'pending':'missing',accountId:row?.account_id||platformBillingCatalog.accountId,mode:row?.mode||'live',webhookUrl:url,portalConfigured:!!row?.portal_configuration_id,checkedAt:row?.updated_at||null};
+ return {status:row?.status==='ready'&&!!row.portal_configuration_id&&row.origin===origin?'ready':row?'pending':'missing',accountId:row?.account_id||platformBillingCatalog.accountId,mode:row?.mode||'live',webhookUrl:url,portalConfigured:!!row?.portal_configuration_id,checkedAt:row?.updated_at||null,embeddedReady:!!row?.publishable_key};
 }
 export async function readPlatformBilling(db:D1Database,key:string|undefined,plan:Plan,origin:string,fallback:BillingConfig):Promise<BillingConfig>{
  const row=await settings(db);if(!row)return fallback;
- const base={plan,origin,platformId:row.account_id,priceId:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
+ const base={plan,origin,publishableKey:row.publishable_key||undefined,platformId:row.account_id,priceId:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
  if(row.status!=='ready'||row.origin!==origin||!row.encrypted_webhook_secret||!row.portal_configuration_id)return base;
  return {...base,portalConfigurationId:row.portal_configuration_id,secret:await openPayment<string>(row.encrypted_credential,key,'platform-billing/key/'+row.setup_id),liveEnabled:row.mode==='live'};
 }
@@ -70,4 +70,16 @@ export async function connectPlatformBilling(db:D1Database,user:Identity,key:str
   if((await settings(db))?.status!=='ready')throw new AppError(409,'Billing setup changed. Check its current status.');
   return platformBillingSummary(db,user,selectedOrigin);
  }finally{await db.prepare("UPDATE platform_billing_settings SET lease_id=NULL,lease_until=NULL WHERE id='stripe' AND lease_id=?").bind(lease).run();}
+}
+
+// The publishable key is safe for the payment iframe. Secret and webhook keys stay encrypted.
+export async function saveBillingPublishableKey(db:D1Database,user:Identity,input:unknown){
+ await requirePlatformAdmin(db,user);
+ const parsed=z.object({action:z.literal('publishable'),publishableKey:z.string().regex(/^pk_live_[A-Za-z0-9]{12,240}$/),confirmed:z.literal(true)}).strict().safeParse(input);
+ if(!parsed.success)throw new AppError(400,'Enter the live publishable key from the displayed Stripe account and confirm it.');
+ const row=await settings(db);if(row?.status!=='ready'||row.mode!=='live')throw new AppError(409,'Complete the existing Stripe connection before enabling the payment form.');
+ const pending=await db.prepare("SELECT id FROM billing_checkouts WHERE state IN ('creating','open','review') AND payload_version=3 LIMIT 1").first();
+ if(pending&&row.publishable_key!==parsed.data.publishableKey)throw new AppError(409,'Reconcile the current payment forms before replacing their publishable key.');
+ await db.prepare("UPDATE platform_billing_settings SET publishable_key=?,updated_at=? WHERE id='stripe' AND status='ready' AND setup_id=?").bind(parsed.data.publishableKey,now(),row.setup_id).run();
+ return {embeddedReady:true};
 }
