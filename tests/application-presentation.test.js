@@ -13,6 +13,7 @@ import {emailAuth} from '../self-hosted/auth-core.ts';
 import {authPage} from '../self-hosted/auth-pages.ts';
 import {renderMarketingDocument} from '../lib/marketing-content.mjs';
 import {pricingSection,launchPrices} from '../lib/pricing-catalog.mjs';
+import {applicationJourney} from '../lib/application-journey.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url)),cache=join(root,'node_modules/.cache');mkdirSync(cache,{recursive:true});
 const temp=mkdtempSync(join(cache,'affimaro-applicant-views-'));after(()=>rmSync(temp,{recursive:true,force:true}));
@@ -27,6 +28,29 @@ test('both real application forms collect the complete profile and expose an exp
     assert.equal(html.includes('name="legalBusinessName"'),portal==='brand');assert.equal(html.includes('name="monthlyOrders"'),portal==='brand');assert.equal(html.includes('name="channel"'),portal==='affiliate');
     assert.match(html,/Save &amp; continue/);assert.match(html,/STEP 1 OF 6/);assert.match(html,/hidden=""/);assert.match(html,/no subscription or payment starts/);
     for(const field of ['status','userId','role','bankAccount','passport','password'])assert.ok(!html.includes('name="'+field+'"'));
+  }
+});
+test('ownership verification returns every role to its application without losing its allowed destination',()=>{
+  for(const portal of ['brand','affiliate','creator','agency']){
+    const target=portal==='brand'?'/billing?plan=growth&source=pricing#checkout':portal==='agency'?'/agency/billing?plan=business':'/join/program-example?source=invite#rules';
+    const journey=applicationJourney(portal,target),channels=new URL(journey.channels,'https://affimaro.example');
+    assert.equal(channels.pathname,'/application/media');assert.equal(channels.searchParams.get('return_to'),target);
+    const back=new URL(applicationJourney(portal,channels.searchParams.get('return_to')).resume,'https://affimaro.example');
+    assert.equal(back.pathname,'/application');assert.equal(back.searchParams.get('step'),'channels');assert.equal(back.searchParams.get('return_to'),target);
+    assert.equal(new URL(journey.application,'https://affimaro.example').searchParams.get('return_to'),target);
+  }
+  for(const portal of ['affiliate','creator'])for(const target of ['/billing?plan=growth','/agency/billing?plan=business'])assert.equal(applicationJourney(portal,target).destination,portal==='affiliate'?'/partner':'/creator');
+  for(const target of ['https://outside.example/steal','//outside.example','/\\outside.example','/auth/reset','/callback','/a\r\nb']){
+    const journey=applicationJourney('brand',target);assert.equal(journey.destination,'/account');assert.ok(!journey.resume.includes('outside.example'));
+  }
+});
+test('all four application forms resume Channels with saved profile fields and leave a fresh application at Contact',()=>{
+  for(const portal of ['brand','affiliate','creator','agency']){
+    const profile=applicationProfile(portal),resumed=renderToStaticMarkup(createElement(ApplicationForm,{portal,revision:4,profile,resumeChannels:true}));
+    assert.match(resumed,/STEP 4 OF 6/);assert.match(resumed,/<fieldset data-step="3">/);assert.match(resumed,/<fieldset data-step="0" hidden=""/);
+    assert.ok(resumed.includes('value="'+profile.contactName+'"'));assert.ok(resumed.includes('value="'+profile.primaryUrl+'"'));
+    assert.match(resumed,/Save &amp; continue/);assert.ok(!resumed.includes('type="submit"'));assert.match(resumed,/Owner approval is required/);
+    const fresh=renderToStaticMarkup(createElement(ApplicationForm,{portal,revision:4,profile}));assert.match(fresh,/STEP 1 OF 6/);assert.match(fresh,/<fieldset data-step="0">/);
   }
 });
 test('pending navigation exposes only the application, while approval controls are explicit and profile text is escaped',()=>{
