@@ -19,7 +19,7 @@ test('public journeys have real destinations, valid fragment targets and no miss
       const url=new URL(href,'https://affimaro.example');
       if(url.origin!=='https://affimaro.example')continue;
       const destination=url.pathname;
-      assert.ok(Object.hasOwn(marketingPages,destination)||privatePaths.has(destination)||/^\/auth\/(brand|affiliate|creator|agency)\/(login|signup)$/.test(destination)||existsSync(new URL('../public'+destination,import.meta.url)),path+' links to '+destination);
+      assert.ok(Object.hasOwn(marketingPages,destination)||privatePaths.has(destination)||/^\/auth\/(brand|affiliate|creator|agency)\/(login|signup)$/.test(destination)||existsSync(new URL('../app'+destination+'/page.tsx',import.meta.url))||existsSync(new URL('../public'+destination,import.meta.url)),path+' links to '+destination);
     }
   }
   assert.equal(renderMarketingDocument('/unknown',sprite),null);
