@@ -2,7 +2,7 @@
   "account_id": "acct_1URuU7EOXOLDxQKu",
   "livemode": true,
   "operation": "POST /v1/prices",
-  "status": "Pending Stripe app reauthentication; not created by this release",
+  "status": "Created and verified in the existing live Highlink LLC account on 2026-10-23",
   "prices": [
     {
       "currency": "usd",
@@ -91,5 +91,10 @@
         }
       }
     }
-  ]
+  ],
+  "verified_price_ids": {
+    "starter": "price_1UTmkyEOXOLDxQKunnZv73Xo",
+    "growth": "price_1UTmlkEOXOLDxQKuyi4APK4f",
+    "business": "price_1UTmlvEOXOLDxQKuYkhEr0TE"
+  }
 }

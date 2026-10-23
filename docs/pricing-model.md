@@ -18,7 +18,9 @@ The shared catalog supplies public pricing, signup, application forms, billing s
 
 Existing paid subscriptions and unresolved saved checkouts retain their original verified price, payload, callback and idempotency key. Legacy agency prices can be used only for an existing subscription or its unresolved saved checkout, never a later new purchase. No existing subscription is migrated or repriced.
 
-Provider catalog creation is separate from deployment. At implementation time the Stripe app rejected the catalog write with `UNAUTHORIZED` / `Reauthentication required`; no new provider price was created. Reconnect the Stripe app, create the three documented agency prices, and recheck all six prices in owner Launch readiness. The website resolves those fixed lookup keys automatically once present. Do not mark agency payments active before provider verification succeeds.
+The three separate agency products and monthly prices were created and verified in the existing live Highlink LLC account on 2026-10-23 after renewed Stripe authorization. Their exact identifiers are recorded in `agency-price-catalog.json`. Fresh provider lookups returned exactly one active USD monthly price for each agency catalog key, and the production price resolver accepted all three live responses. The original three brand price and product records were unchanged. The deployed application resolves the agency keys automatically; no runtime key, webhook, callback or existing subscription was replaced.
+
+Catalog verification does not exercise a real customer payment or independently verify the saved runtime key. Owner Launch readiness can check all six current prices using that runtime connection.
 
 ## Current market context
 
