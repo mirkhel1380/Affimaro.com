@@ -10,9 +10,16 @@ const byId=(db:D1Database,id:string,userId:string)=>db.prepare('SELECT * FROM me
 const edit=z.object({id:z.string().uuid(),revision:z.number().int().positive()}).strict();
 function parse<T extends z.ZodTypeAny>(schema:T,input:unknown):z.output<T>{const r=schema.safeParse(input);if(!r.success)throw new AppError(400,r.error.issues[0]?.message||'Check the property details.');return r.data;}
 export async function mediaPropertiesFor(db:D1Database,userId:string){return (await db.prepare('SELECT * FROM media_properties WHERE user_id=? AND archived=0 ORDER BY created_at,id').bind(userId).all<MediaProperty>()).results;}
+export function profileVerificationSummary(properties:MediaProperty[],profile:Record<string,unknown>,at=Date.now()){
+ const active=properties.filter(p=>!p.archived),fresh=(p:MediaProperty)=>p.status==='verified'&&!!p.verified_at&&Date.parse(p.verified_at)>=at-180*86400000;
+ const urls=profileMediaUrls(profile).map(url=>{const matches=active.filter(p=>propertyCovers(p,url));return {url,listed:matches.length>0,verified:matches.some(fresh)};});
+ const blockers=active.filter(p=>!fresh(p)).map(p=>({id:p.id,name:p.name,url:p.url,reason:p.status==='verified'?'Verification is out of date':p.status.replaceAll('_',' ')}));
+ return {ready:urls.length>0&&urls.every(u=>u.verified)&&!blockers.length,urls,blockers,total:active.length,verified:active.filter(fresh).length};
+}
+export type ProfileVerificationSummary=ReturnType<typeof profileVerificationSummary>;
 export async function assertVerifiedProfile(db:D1Database,userId:string,profile:Record<string,unknown>){
- const properties=await mediaPropertiesFor(db,userId),urls=profileMediaUrls(profile),fresh=(p:MediaProperty)=>p.status==='verified'&&!!p.verified_at&&Date.parse(p.verified_at)>=Date.now()-180*86400000;
- if(!urls.length||urls.some(value=>!properties.some(p=>fresh(p)&&propertyCovers(p,value)))||properties.some(p=>!fresh(p)))throw new AppError(409,'Verify every listed website and channel before this profile can be approved. Open Channels & ownership to complete verification.');
+ const properties=await mediaPropertiesFor(db,userId);
+ if(!profileVerificationSummary(properties,profile).ready)throw new AppError(409,'Verify every listed website and channel before this profile can be approved. Open Channels & ownership to complete verification.');
  return properties;
 }
 async function dnsProof(host:string,challenge:string,fetcher:typeof fetch){

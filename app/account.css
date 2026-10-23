@@ -192,3 +192,11 @@ html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;
  .a-relationship-list .a-inline-actions .a-btn,.a-invitation-list .a-inline-actions .a-btn{width:100%}
  .a-invitation-list .a-inline-actions>.a-text-link{min-height:44px;align-items:center}
 }
+
+/* Ownership requirements are shared by applicants and the owner review. */
+.a-ownership-checklist{min-width:0;margin:18px 0;font-size:12px;line-height:1.8}
+.a-ownership-checklist>.a-badge{margin-bottom:14px}
+.a-ownership-checklist ul{list-style:none;padding:0;margin:12px 0 18px;display:grid;gap:10px}
+.a-ownership-checklist li{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px 20px;padding:12px 0;border-bottom:1px solid var(--line);min-width:0}
+.a-ownership-checklist li>span{flex:1;min-width:min(100%,220px)}
+.a-ownership-checklist li>strong{font-size:11px;font-weight:600;overflow-wrap:anywhere}

@@ -1,13 +1,14 @@
 import {redirect} from 'next/navigation';
 import {requireChatGPTUser} from '../chatgpt-auth';
 import {getRawDb} from '../../db';
-import {mediaPropertiesFor} from '../../lib/media-properties';
+import {mediaPropertiesFor,profileVerificationSummary} from '../../lib/media-properties';
 import {admissions,isPlatformAdmin} from '../../lib/admissions';
 import {portalHome,portalName} from '../../lib/portal-policy';
 import {applicationJourney} from '../../lib/application-journey';
 import {Shell,PageHeading,Card,Badge,Icon} from '../ui';
 import {ApplicationForm,ApplicationEdit,ApplicationTypeChoice} from './application-form';
 import {ProfileDetails} from './profile-details';
+import {OwnershipChecklist} from './ownership-checklist';
 export const dynamic='force-dynamic';
 export const metadata={title:'Application status | Affimaro',robots:{index:false,follow:false}};
 export default async function ApplicationPage({searchParams}:{searchParams:Promise<{return_to?:string;step?:string}>}){
@@ -21,7 +22,7 @@ export default async function ApplicationPage({searchParams}:{searchParams:Promi
     {application&&<div className="a-application-state"><Badge status={application.status.replaceAll('_',' ')}/><strong>{user.email}</strong>{application.submitted_at&&<span>Submitted {new Date(application.submitted_at).toUTCString()}</span>}</div>}
     {!application?<Card title="Choose your account type"><div className="a-card-body"><ApplicationTypeChoice/></div></Card>:<>
       {application.review_note&&<Card title="Message from the reviewer"><div className="a-card-body"><p className="a-application-review-note">{application.review_note}</p></div></Card>}
-      <Card title="Channels & ownership"><div className="a-card-body a-channel-overview"><div><strong>{properties.filter(p=>p.status==='verified').length} / {properties.length} properties verified</strong><p>Verify every website and channel listed on your profile. Each one has its own code and status.</p></div><a href={journey.channels} className="a-btn a-btn-outline">Manage websites & channels</a></div></Card>{editable?<Card title={'Your '+portalName(portal).toLowerCase()+' application'}><div className="a-card-body"><ApplicationForm portal={portal} revision={application.revision} profile={application.profile} properties={properties} channelsPath={journey.channels} resumeChannels={query.step==='channels'}/></div></Card>:<Card title={approved?'Approved profile':'Submitted profile'}><div className="a-card-body">{approved?<div className="a-application-actions"><a className="a-btn a-btn-dark" href={continueTo}>Open {portal} portal<Icon name="arrow"/></a></div>:<div className="a-application-pending"><p>Your request is in the owner’s review queue. You can return here to see an approval, a request for more information or a decision. No approval time is guaranteed.</p><a className="a-btn a-btn-outline" href={journey.application}>Check latest status</a></div>}<ProfileDetails profile={application.profile}/>{status==='pending'&&<ApplicationEdit revision={application.revision}/>}</div></Card>}
+      <Card title="Channels & ownership"><div className="a-card-body a-channel-overview"><div><strong>{properties.filter(p=>p.status==='verified').length} / {properties.length} properties verified</strong><p>Verify every website and channel listed on your profile. Each one has its own code and status.</p>{!approved&&<OwnershipChecklist summary={profileVerificationSummary(properties,application.profile)}/>}</div><a href={journey.channels} className="a-btn a-btn-outline">Manage websites & channels</a></div></Card>{editable?<Card title={'Your '+portalName(portal).toLowerCase()+' application'}><div className="a-card-body"><ApplicationForm portal={portal} revision={application.revision} profile={application.profile} properties={properties} channelsPath={journey.channels} resumeChannels={query.step==='channels'}/></div></Card>:<Card title={approved?'Approved profile':'Submitted profile'}><div className="a-card-body">{approved?<div className="a-application-actions"><a className="a-btn a-btn-dark" href={continueTo}>Open {portal} portal<Icon name="arrow"/></a></div>:<div className="a-application-pending"><p>Your request is in the owner’s review queue. You can return here to see an approval, a request for more information or a decision. No approval time is guaranteed.</p><a className="a-btn a-btn-outline" href={journey.application}>Check latest status</a></div>}<ProfileDetails profile={application.profile}/>{status==='pending'&&<ApplicationEdit revision={application.revision}/>}</div></Card>}
     </>}
   </Shell>;
 }

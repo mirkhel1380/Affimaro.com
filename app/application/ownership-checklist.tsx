@@ -1,0 +1,6 @@
+import type {ProfileVerificationSummary} from '../../lib/media-properties';
+import {Badge} from '../portal-elements';
+
+export function OwnershipChecklist({summary}:{summary:ProfileVerificationSummary}){
+ return <div className="a-ownership-checklist"><Badge status={summary.ready?'Ownership ready':'Ownership incomplete'}/><p><strong>{summary.verified} / {summary.total} listed properties have current verification.</strong></p>{summary.urls.length?<ul>{summary.urls.map(item=><li key={item.url}><span className="a-wrap-anywhere">{item.url}</span><strong>{item.verified?'Verified':item.listed?'Verification needed':'Not added to Channels & ownership'}</strong></li>)}</ul>:<p>Add the website or channel addresses to the application, then verify them in Channels & ownership.</p>}{summary.blockers.length>0&&<><p>Properties still requiring attention:</p><ul>{summary.blockers.map(p=><li key={p.id}><span className="a-wrap-anywhere">{p.name} · {p.url}</span><strong>{p.reason}</strong></li>)}</ul></>}<p>{summary.ready?'All listed properties and profile addresses meet the ownership requirement. The account still needs a separate profile review.':'Account approval stays blocked until every profile address is covered and every listed property has current verification.'}</p></div>;
+}

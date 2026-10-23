@@ -33,3 +33,12 @@ Platform setup guidance is kept in owner administration and private source docum
 Validation uses migrated SQLite fixtures, real server-rendered page components and independent authentication/provider-boundary tests. Browser layout verification remains dependent on a supported browser environment.
 
 Profile applications remain in the owner review queue. Package review has been removed: an approved business account can purchase directly, and verified paid subscription evidence activates its capacity automatically. The retired package-review mutation returns 410 and cannot grant paid access.
+
+
+## Application and ownership review
+
+The application detail shows an ownership checklist for every URL on the saved profile, including a creator portfolio and an agency website. It identifies addresses that have not been added, properties still awaiting verification and evidence older than 180 days. The same criteria are enforced by the server when saving approval.
+
+Use **Review this applicant’s property evidence** to open only that applicant’s properties. The default scoped view includes all statuses; switching status or saving a decision retains the selected applicant. **Return to this application** goes back to the same profile. Verifying ownership does not approve the account. Profile approval remains a separate explicit owner decision, and requesting changes or declining stays available while ownership is incomplete.
+
+The owner overview includes pending ownership evidence under Needs your attention. Customer applications show the same ownership requirements so applicants can see what is missing. The owner's launch settings open customer registration on the public website domain, not the separate administration hostname.
