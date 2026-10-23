@@ -1,6 +1,6 @@
 # Packages, review and subscription payment
 
-Starter is $19, Growth $49 and Business $99 USD per month. Creator and affiliate accounts are free. All four account types need email verification, a complete role-specific application and an explicit owner approval.
+Brand plans are Starter $19, Growth $49 and Business $99 USD per month. Agency plans are Starter $39, Growth $79 and Business $149 USD per month. Creator and affiliate accounts are free. All four account types need email verification, a complete role-specific application and an explicit owner approval.
 
 | Package | Approved program partners | Agency client-directory records |
 | --- | ---: | ---: |

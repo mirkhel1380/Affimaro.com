@@ -1,8 +1,8 @@
 # Platform subscription checkout
 
-The owner connects Affimaro subscriptions from `/owner/settings#stripe-connection`. This owner-only form accepts a live restricted Stripe key for the selected existing account. It verifies the account, live charges and all three fixed USD monthly prices, then creates a dedicated customer portal configuration and a signed subscription webhook. It does not create a customer, Checkout Session or charge.
+The owner connects Affimaro subscriptions from `/owner/settings#stripe-connection`. This owner-only form accepts a live restricted Stripe key for the selected existing account. It verifies the account, live charges and all six role-specific fixed USD monthly prices, then creates a dedicated customer portal configuration and a signed subscription webhook. It does not create a customer, Checkout Session or charge.
 
-Starter is $19, Growth $49 and Business $99 USD per month. The provider identifiers selected and verified for this release are in `lib/platform-billing-catalog.ts`. Creator and affiliate access remains free.
+Brand plans are Starter $19, Growth $49 and Business $99 USD per month. Agency plans are Starter $39, Growth $79 and Business $149 USD per month. Brand provider identifiers and fixed agency lookup keys are in `lib/platform-billing-catalog.ts`. New agency purchases require the separate agency catalog entries. Existing agency subscriptions and saved unresolved payments retain their recorded verified prices. Creator and affiliate access remains free.
 
 Required restricted-key resources are shown in the private form: Accounts and Balance read; Products and Prices read; Checkout Sessions and Customers write; Customer Portal write; Subscriptions and Invoices read; Webhook Endpoints write. Transfer, payout and bank permissions are separate from this software subscription connection. The ChatGPT Stripe app's OAuth connection does not supply a server runtime key.
 

@@ -1,4 +1,5 @@
-import {planCatalog} from './pricing-catalog.mjs';
+import {planCatalog,plansForRole} from './pricing-catalog.mjs';
+import {platformBillingCatalog} from './platform-billing-catalog.ts';
 import {checkPlanCapacity,type Plan} from './plan-requests.ts';
 import {z} from 'zod';
 import {AppError,service,type Identity} from './service.ts';
@@ -9,7 +10,7 @@ import {accountPortal,businessPortal} from './portal-policy.ts';
 import type {BillingConfirmation} from './billing-confirmation.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
-export type BillingConfig={plan?:Plan;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
+export type BillingConfig={plan?:Plan;portal?:'brand'|'agency';savedPrice?:true;legacyPrice?:boolean;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
 export const BILLING_ORIGIN='https://affimaro-preview.kindsky66.chatgpt.site';
 export type BillingAccount={id:string;workspace_id:string;platform_id:string;mode:'test'|'live';customer_id:string|null;subscription_id:string|null;price_id:string|null;amount:number|null;status:string;invoice_paid:number;period_start:number|null;period_end:number|null;cancel_at_period_end:number;last_verified_at:string|null;last_error:string|null};
 type LockedAccount=BillingAccount&{lease_id:string|null;lease_until:string|null};
@@ -18,7 +19,9 @@ export type BillingQuote={amount:number;currency:'USD';interval:'month';mode:'li
 const uuid=z.string().uuid(),id=(prefix:string)=>z.string().regex(new RegExp('^'+prefix+'[A-Za-z0-9]{6,160}$'));
 const accountId=id('acct_'),priceId=id('price_'),customerId=id('cus_'),subscriptionId=id('sub_'),sessionId=z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9]{6,200}$/);
 const epoch=z.number().int().positive().max(253402300799),amount=z.number().int().positive().max(99_999_999);
-const priceSchema=z.object({id:priceId,object:z.literal('price'),active:z.boolean(),livemode:z.boolean(),currency:z.literal('usd'),type:z.literal('recurring'),billing_scheme:z.literal('per_unit'),unit_amount:amount,custom_unit_amount:z.null(),transform_quantity:z.null(),recurring:z.object({interval:z.literal('month'),interval_count:z.literal(1),usage_type:z.literal('licensed')})});
+const priceSchema=z.object({id:priceId,object:z.literal('price'),active:z.boolean(),livemode:z.boolean(),currency:z.literal('usd'),type:z.literal('recurring'),billing_scheme:z.literal('per_unit'),unit_amount:amount,custom_unit_amount:z.null(),transform_quantity:z.null(),lookup_key:z.string().nullable().optional(),metadata:z.record(z.string()).optional(),recurring:z.object({interval:z.literal('month'),interval_count:z.literal(1),usage_type:z.literal('licensed')})});
+export const billingAmount=(config:BillingConfig)=>plansForRole(config.legacyPrice?'brand':config.portal)[config.plan||'starter'].amount*100;
+function priceMatches(config:BillingConfig,price:z.output<typeof priceSchema>){return price.id===config.priceId&&price.unit_amount===billingAmount(config)&&(config.portal!=='agency'||config.legacyPrice||price.lookup_key===platformBillingCatalog.agencyLookupKeys[config.plan||'starter']&&price.metadata?.affimaro_role==='agency'&&price.metadata?.affimaro_plan===(config.plan||'starter'));}
 const sessionSchema=z.object({id:sessionId,object:z.literal('checkout.session'),livemode:z.boolean(),mode:z.literal('subscription'),client_reference_id:uuid,metadata:z.record(z.string()),status:z.enum(['open','complete','expired']),payment_status:z.enum(['paid','unpaid','no_payment_required']),customer:customerId.nullable(),subscription:subscriptionId.nullable(),currency:z.literal('usd'),amount_subtotal:amount,amount_total:z.number().int().min(0).max(99_999_999),expires_at:epoch,url:z.string().nullable(),ui_mode:z.string().optional(),client_secret:z.string().nullable().optional()});
 const subSchema=z.object({id:subscriptionId,object:z.literal('subscription'),livemode:z.boolean(),customer:customerId,status:z.enum(['incomplete','incomplete_expired','trialing','active','past_due','canceled','unpaid','paused']),metadata:z.record(z.string()),cancel_at_period_end:z.boolean(),items:z.object({data:z.array(z.object({quantity:z.literal(1),current_period_start:epoch,current_period_end:epoch,price:priceSchema})).length(1),has_more:z.literal(false)}),latest_invoice:z.object({object:z.literal('invoice'),status:z.string().nullable(),customer:customerId,currency:z.literal('usd')}).nullable()});
 const reviewSchema=z.object({workspace:uuid,owner:z.string(),platform:accountId,price:priceId,amount,mode:z.enum(['test','live']),at:z.string().datetime()}).strict();
@@ -39,7 +42,7 @@ export function billingRedirect(value:string,kind:'checkout'|'portal'){
 }
 async function api(fetcher:Fetcher,config:BillingConfig,path:string,body?:URLSearchParams,idem?:string){
   const url=new URL('https://api.stripe.com'+path);
-  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}\/expire$/.test(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
+  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}\/expire$/.test(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/prices\?active=true&limit=2&lookup_keys%5B%5D=affimaro_agency_(?:starter|growth|business)_monthly_v1$/.test(path)||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
   if(url.origin!=='https://api.stripe.com'||!allowed)throw new AppError(500,'Unsupported subscription endpoint.');
   let response:Response;try{response=await fetcher(url.href,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${config.secret}`,'Stripe-Version':STRIPE_VERSION,Accept:'application/json',...(body?{'Content-Type':'application/x-www-form-urlencoded',...(idem?{'Idempotency-Key':idem}:{})}:{})},...(body?{body:body.toString()}:{})});}catch{throw new AppError(502,'Stripe did not confirm this billing request. Check its saved status before trying again.');}
   if(!response.ok){await response.body?.cancel();throw new AppError(response.status===429?429:502,'Stripe could not confirm billing. Check the configured account, permissions and saved status.');}
@@ -56,25 +59,38 @@ async function verifySource(config:BillingConfig,fetcher:Fetcher){
 }
 async function verifyPrice(config:BillingConfig,fetcher:Fetcher){
   const parsed=priceSchema.safeParse(await api(fetcher,config,`/v1/prices/${config.priceId}`));
-  if(!parsed.success||parsed.data.id!==config.priceId||!parsed.data.active||parsed.data.livemode!==(config.mode==='live')||parsed.data.unit_amount!==planCatalog[config.plan||'starter'].amount*100)throw new AppError(409,'The configured '+planCatalog[config.plan||'starter'].name+' price must match its approved fixed USD monthly package price.');
+  if(!parsed.success||!priceMatches(config,parsed.data)||!parsed.data.active||parsed.data.livemode!==(config.mode==='live'))throw new AppError(409,'The configured '+(config.portal==='agency'?'Agency ':'Brand ')+planCatalog[config.plan||'starter'].name+' price must match its approved fixed USD monthly package price.');
   return parsed.data;
+}
+// Resolve new agency prices by a fixed catalog key, never an amount or role
+// supplied by the browser. Missing/ambiguous catalog entries cannot start payment.
+export async function resolveAgencyPrice(config:BillingConfig,fetcher:Fetcher=fetch):Promise<BillingConfig>{
+ if(config.portal!=='agency'||config.priceId||!config.secret||!config.liveEnabled)return config;
+ const lookup=platformBillingCatalog.agencyLookupKeys[config.plan||'starter'];
+ try{
+  const query=new URLSearchParams({active:'true',limit:'2','lookup_keys[]':lookup});
+  const result=z.object({object:z.literal('list'),data:z.array(priceSchema),has_more:z.literal(false)}).safeParse(await api(fetcher,config,'/v1/prices?'+query));
+  if(!result.success||result.data.data.length!==1)return config;
+  const price=result.data.data[0],selected={...config,priceId:price.id};
+  return price.active&&price.livemode===(config.mode==='live')&&priceMatches(selected,price)?selected:config;
+ }catch{return config;}
 }
 // Read-only provider inspection. It never creates a customer, checkout or payment.
 export async function inspectBillingConfiguration(config:BillingConfig,fetcher:Fetcher=fetch){
-  const result={plan:config.plan||'starter',mode:config.mode,required:config.required,configured:billingConfigured(config)};
+  const result={plan:config.plan||'starter',portal:config.portal||'brand',mode:config.mode,required:config.required,configured:billingConfigured(config)};
   if(!result.configured)return {...result,status:'not_configured' as const,message:'Connect the billing account and configure this monthly package.'};
   try{await verifySource(config,fetcher);await verifyPrice(config,fetcher);return {...result,status:config.mode==='live'?'live_ready' as const:'test_ready' as const,message:config.mode==='live'?'Account and monthly price verified with Stripe.':'Test account and monthly price verified. Live payments remain separate.'};}
   catch(error){return {...result,status:error instanceof AppError&&error.status===409?'attention' as const:'unavailable' as const,message:error instanceof AppError?error.message:'Stripe verification is temporarily unavailable.'};}
 }
 export function billing(db:D1Database,identity:Identity,config:BillingConfig,key?:string,fetcher:Fetcher=fetch){
-  const s=service(db,identity),workspace=async()=>{const portal=await accountPortal(db,identity.userId);if(portal&&!businessPortal(portal))throw new AppError(403,'Affiliate and creator accounts are free. Subscriptions are only for brand and agency accounts.');const w=await s.workspace();if(!w)throw new AppError(404,'Create a business workspace before choosing a business subscription.');return w;};
+  const s=service(db,identity),workspace=async()=>{const portal=await accountPortal(db,identity.userId);if(portal&&!businessPortal(portal))throw new AppError(403,'Affiliate and creator accounts are free. Subscriptions are only for brand and agency accounts.');if((portal==='agency'?'agency':'brand')!==(config.portal||'brand'))throw new AppError(409,'Open billing for your own account type.');const w=await s.workspace();if(!w)throw new AppError(404,'Create a business workspace before choosing a business subscription.');return w;};
   const current=(wid:string)=>one<BillingAccount>(db,`SELECT ${accountFields} FROM billing_accounts WHERE workspace_id=? AND platform_id=? AND mode=?`,wid,config.platformId||'',config.mode);
   const pending=(aid:string)=>one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE account_id=? AND state IN ('creating','open','review') ORDER BY rowid DESC LIMIT 1`,aid);
   const audit=(wid:string,action:string)=>db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),wid,identity.userId,action,now());
   const source=()=>verifySource(config,fetcher);
   const returnPath=async()=>await accountPortal(db,identity.userId)==='agency'?'/agency/billing':'/billing';
-  const paidForPlan=(a:BillingAccount|null)=>starterEntitled(a)&&a?.price_id===config.priceId&&a?.amount===planCatalog[config.plan||'starter'].amount*100;
-  async function quote(){await checkPlanCapacity(db,identity.userId,config.plan||'starter');await source();return verifyPrice(config,fetcher);}
+  const paidForPlan=(a:BillingAccount|null)=>starterEntitled(a)&&a?.price_id===config.priceId&&a?.amount===billingAmount(config);
+  async function quote(){if(config.legacyPrice){const w=await workspace(),a=await current(w.id),attempt=a&&await pending(a.id);if(!attempt||attempt.price_id!==config.priceId||attempt.amount!==billingAmount(config))throw new AppError(409,'The previous agency price only applies to its saved payment. Choose a current agency package.');}await checkPlanCapacity(db,identity.userId,config.plan||'starter');await source();return verifyPrice(config,fetcher);}
   async function ensureAccount(wid:string){await db.prepare('INSERT OR IGNORE INTO billing_accounts (id,workspace_id,platform_id,mode,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),wid,config.platformId,config.mode,now(),now()).run();return (await current(wid))!;}
   async function lock(row:BillingAccount){const token=crypto.randomUUID();await db.prepare('UPDATE billing_accounts SET lease_id=?,lease_until=? WHERE id=? AND (lease_until IS NULL OR lease_until<=?)').bind(token,new Date(Date.now()+120000).toISOString(),row.id,now()).run();if((await one<LockedAccount>(db,'SELECT * FROM billing_accounts WHERE id=?',row.id))?.lease_id!==token)throw new AppError(409,'A billing operation is already running. Wait before checking again.');return token;}
   const unlock=(id:string,lease:string)=>db.prepare('UPDATE billing_accounts SET lease_id=NULL,lease_until=NULL WHERE id=? AND lease_id=?').bind(id,lease).run();
@@ -85,7 +101,8 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
     const correlation=attempt||await one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE id=? AND account_id=? AND workspace_id=?`,sub.metadata.affimaro_checkout||'',a.id,a.workspace_id);
     if(!correlation||sub.metadata.affimaro_workspace!==a.workspace_id||sub.metadata.affimaro_checkout!==correlation.id||sub.livemode!==(a.mode==='live')||sub.customer!==(attempt?attempt.customer_snapshot||sub.customer:a.customer_id)||a.subscription_id&&!['canceled','incomplete_expired'].includes(a.status)&&a.subscription_id!==sub.id||item.price.id!==correlation.price_id||item.price.unit_amount!==correlation.amount||item.price.livemode!==sub.livemode||item.current_period_end<=item.current_period_start||sub.latest_invoice&&sub.latest_invoice.customer!==sub.customer)throw new AppError(409,'Stripe subscription identity, customer, price or period does not match the saved checkout.');
     const paid=sub.latest_invoice?.status==='paid';
-    const verifiedPlan=config.plan||'starter',activate=sub.livemode&&sub.status==='active'&&paid&&item.price.id===config.priceId&&item.price.unit_amount===planCatalog[verifiedPlan].amount*100&&item.current_period_start*1000<=Date.now()+5000&&item.current_period_end*1000>Date.now();
+    if(config.portal==='agency'&&!priceMatches(config,item.price))throw new AppError(409,'The agency subscription does not match its saved monthly package.');
+    const verifiedPlan=config.plan||'starter',activate=sub.livemode&&sub.status==='active'&&paid&&priceMatches(config,item.price)&&item.current_period_start*1000<=Date.now()+5000&&item.current_period_end*1000>Date.now();
     await db.batch([...(activate?[db.prepare("INSERT INTO plan_requests(user_id,requested_plan,active_plan,status,revision,updated_at) VALUES (?,?,?,'approved',1,?) ON CONFLICT(user_id) DO UPDATE SET requested_plan=excluded.requested_plan,active_plan=excluded.active_plan,status='approved',revision=plan_requests.revision+1,review_note='',updated_at=excluded.updated_at").bind(identity.userId,verifiedPlan,verifiedPlan,now())]:[]),db.prepare('UPDATE billing_accounts SET customer_id=?,subscription_id=?,price_id=?,amount=?,status=?,invoice_paid=?,period_start=?,period_end=?,cancel_at_period_end=?,last_verified_at=?,last_error=NULL,updated_at=? WHERE id=?').bind(sub.customer,sub.id,item.price.id,item.price.unit_amount,sub.status,paid?1:0,item.current_period_start,item.current_period_end,sub.cancel_at_period_end?1:0,now(),now(),a.id),db.prepare("UPDATE billing_checkouts SET state='completed',last_error=NULL,updated_at=? WHERE id=? AND account_id=?").bind(now(),correlation.id,a.id),audit(a.workspace_id,'subscription_checked')]);
     return current(a.workspace_id);
   }

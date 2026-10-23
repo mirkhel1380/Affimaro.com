@@ -1,0 +1,95 @@
+{
+  "account_id": "acct_1URuU7EOXOLDxQKu",
+  "livemode": true,
+  "operation": "POST /v1/prices",
+  "status": "Pending Stripe app reauthentication; not created by this release",
+  "prices": [
+    {
+      "currency": "usd",
+      "unit_amount": 3900,
+      "recurring": {
+        "interval": "month",
+        "interval_count": 1,
+        "usage_type": "licensed"
+      },
+      "lookup_key": "affimaro_agency_starter_monthly_v1",
+      "nickname": "Affimaro Agency Starter \u2014 USD 39 monthly",
+      "metadata": {
+        "affimaro_catalog": "agency-monthly-usd-v1",
+        "affimaro_plan": "starter",
+        "affimaro_role": "agency",
+        "affimaro_service": "software_subscription"
+      },
+      "product_data": {
+        "id": "prod_affimaro_agency_starter_v1",
+        "name": "Affimaro Agency Starter",
+        "metadata": {
+          "affimaro_catalog": "agency-monthly-usd-v1",
+          "affimaro_plan": "starter",
+          "affimaro_role": "agency",
+          "affimaro_service": "software_subscription",
+          "approved_partner_limit": "100",
+          "agency_directory_limit": "5"
+        }
+      }
+    },
+    {
+      "currency": "usd",
+      "unit_amount": 7900,
+      "recurring": {
+        "interval": "month",
+        "interval_count": 1,
+        "usage_type": "licensed"
+      },
+      "lookup_key": "affimaro_agency_growth_monthly_v1",
+      "nickname": "Affimaro Agency Growth \u2014 USD 79 monthly",
+      "metadata": {
+        "affimaro_catalog": "agency-monthly-usd-v1",
+        "affimaro_plan": "growth",
+        "affimaro_role": "agency",
+        "affimaro_service": "software_subscription"
+      },
+      "product_data": {
+        "id": "prod_affimaro_agency_growth_v1",
+        "name": "Affimaro Agency Growth",
+        "metadata": {
+          "affimaro_catalog": "agency-monthly-usd-v1",
+          "affimaro_plan": "growth",
+          "affimaro_role": "agency",
+          "affimaro_service": "software_subscription",
+          "approved_partner_limit": "500",
+          "agency_directory_limit": "25"
+        }
+      }
+    },
+    {
+      "currency": "usd",
+      "unit_amount": 14900,
+      "recurring": {
+        "interval": "month",
+        "interval_count": 1,
+        "usage_type": "licensed"
+      },
+      "lookup_key": "affimaro_agency_business_monthly_v1",
+      "nickname": "Affimaro Agency Business \u2014 USD 149 monthly",
+      "metadata": {
+        "affimaro_catalog": "agency-monthly-usd-v1",
+        "affimaro_plan": "business",
+        "affimaro_role": "agency",
+        "affimaro_service": "software_subscription"
+      },
+      "product_data": {
+        "id": "prod_affimaro_agency_business_v1",
+        "name": "Affimaro Agency Business",
+        "metadata": {
+          "affimaro_catalog": "agency-monthly-usd-v1",
+          "affimaro_plan": "business",
+          "affimaro_role": "agency",
+          "affimaro_service": "software_subscription",
+          "approved_partner_limit": "2000",
+          "agency_directory_limit": "100"
+        }
+      }
+    }
+  ]
+}

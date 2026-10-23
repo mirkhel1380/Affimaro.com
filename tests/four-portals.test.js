@@ -87,3 +87,13 @@ test('free registration ignores old paid return links and explicitly shows no su
   const cookie=response.headers.get('set-cookie').split(';')[0],flow=await api.flow(new Request(config.origin,{headers:{Cookie:cookie}}));assert.equal(flow.returnTo,portalHome(role));assert.equal(flow.plan,undefined);assert.equal(calls,0);
  }
 });
+
+test('brand and agency public plans have distinct amounts and keep their own purchase continuations',()=>{
+ for(const [role,amounts] of [['brand',[19,49,99]],['agency',[39,79,149]]]){
+  const html=pricingSection(role),other=role==='agency'?[19,49,99]:[39,79,149];for(const amount of amounts)assert.ok(html.includes('<strong>$'+amount+'</strong>'));for(const amount of other)assert.ok(!html.includes('<strong>$'+amount+'</strong>'));
+  for(const plan of ['starter','growth','business'])assert.ok(html.includes('/auth/'+role+'/signup?plan='+plan));assert.ok(!html.includes('The same monthly program rates'));
+ }
+ const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8'),html=renderMarketingDocument('/get-started',sprite,{plan:'growth'}),cards=[...html.matchAll(/<article>([\s\S]*?)<\/article>/g)].map(m=>m[1]);
+ assert.ok(cards.find(c=>c.includes('/auth/brand/signup')).includes('Growth · $49 USD / month'));assert.ok(cards.find(c=>c.includes('/auth/agency/signup')).includes('Growth · $79 USD / month'));
+ for(const role of ['affiliate','creator']){const card=cards.find(c=>c.includes('/auth/'+role+'/signup'));assert.match(card,/Free · no subscription/);assert.ok(!card.includes('USD / month'));}
+});

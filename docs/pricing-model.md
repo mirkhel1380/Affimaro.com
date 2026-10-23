@@ -4,9 +4,21 @@ Reviewed on 2026-10-23. Affimaro's current paid scope is one connected website, 
 
 ## Decision
 
-Retain the existing monthly USD rates: Starter $19, Growth $49 and Business $99. Both roles buy the same program capacity. Agency accounts additionally have the existing directory limits of 5, 25 or 100 records. The public pricing page now has separate **Brand plans** and **Agency plans** views with the relevant features, signup and sign-in continuation for each role. The agency marketing page links to its own pricing view. Affiliate and creator accounts remain free.
+The owner selected different monthly USD rates for new brand and agency purchases:
 
-This release does not create or alter Stripe prices, migrate subscriptions, change provider keys or callbacks, or increase any existing customer's bill. Billing screens show client-directory allowances only to agency accounts.
+| Package | Brand | Agency |
+| --- | ---: | ---: |
+| Starter | $19 | $39 |
+| Growth | $49 | $79 |
+| Business | $99 | $149 |
+
+Agency directory limits remain 5, 25 or 100 records. Each account still has one program, one website and one owner. Separate pricing does not imply extra connected client stores. Affiliate and creator accounts remain free.
+
+The shared catalog supplies public pricing, signup, application forms, billing selectors and previews. The server selects a schedule from the account's durable role. New agency prices resolve by exact Stripe lookup keys and must match the approved amount, USD monthly licensed billing, mode and agency/plan metadata. Missing or ambiguous entries keep new payment unavailable, without falling back to a brand price.
+
+Existing paid subscriptions and unresolved saved checkouts retain their original verified price, payload, callback and idempotency key. Legacy agency prices can be used only for an existing subscription or its unresolved saved checkout, never a later new purchase. No existing subscription is migrated or repriced.
+
+Provider catalog creation is separate from deployment. At implementation time the Stripe app rejected the catalog write with `UNAUTHORIZED` / `Reauthentication required`; no new provider price was created. Reconnect the Stripe app, create the three documented agency prices, and recheck all six prices in owner Launch readiness. The website resolves those fixed lookup keys automatically once present. Do not mark agency payments active before provider verification succeeds.
 
 ## Current market context
 
@@ -14,4 +26,4 @@ This release does not create or alter Stripe prices, migrate subscriptions, chan
 - impact.com's agency offering includes multiple client programs, consolidated reporting, role-based access and commercial terms that depend on the agency's client volume and program scale: https://impact.com/solutions/agencies/ . Those capabilities and commercial arrangements do not match Affimaro's current one-program agency account.
 - Tapfiliate's public pricing page presents product tiers; it does not establish a separate universal agency price: https://tapfiliate.com/pricing/ .
 
-A separate multi-program agency price can be considered when that capability is actually supported and its limits, permissions and billing are implemented. Do not advertise directory contacts as independently connected or managed programs.
+The owner chose a separate agency schedule. Multi-program agency access would require its own implemented limits, permissions and billing. Do not advertise directory contacts as independently connected or managed programs.

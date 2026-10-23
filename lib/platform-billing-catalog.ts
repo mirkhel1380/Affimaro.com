@@ -3,6 +3,7 @@ import type {Plan} from './plan-requests';
 export const platformBillingCatalog={
  accountId:'acct_1URuU7EOXOLDxQKu',mode:'live' as const,
  prices:{starter:'price_1URvUfEOXOLDxQKughiotpTR',growth:'price_1URvUlEOXOLDxQKuFFbRqBtg',business:'price_1URvUrEOXOLDxQKuXuGlQodx'} as Record<Plan,string>,
+ agencyLookupKeys:{starter:'affimaro_agency_starter_monthly_v1',growth:'affimaro_agency_growth_monthly_v1',business:'affimaro_agency_business_monthly_v1'} as Record<Plan,string>,
 };
 export const subscriptionEvents=[
  'checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed','checkout.session.expired',

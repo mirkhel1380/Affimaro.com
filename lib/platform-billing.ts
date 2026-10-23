@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {requirePlatformAdmin} from './admissions.ts';
 import {openPayment,sealPayment} from './payment-crypto.ts';
-import {inspectBillingConfiguration,type BillingConfig} from './billing.ts';
+import {inspectBillingConfiguration,resolveAgencyPrice,type BillingConfig} from './billing.ts';
 import {STRIPE_VERSION} from './payment-connections.ts';
 import {platformBillingCatalog,subscriptionEvents} from './platform-billing-catalog.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
@@ -25,11 +25,11 @@ export async function platformBillingSummary(db:D1Database,user:Identity,origin:
  await requirePlatformAdmin(db,user);const row=await settings(db),url=trustedPublicOrigin(origin)+'/api/billing/webhook';
  return {status:row?.status==='ready'&&!!row.portal_configuration_id&&row.origin===origin?'ready':row?'pending':'missing',accountId:row?.account_id||platformBillingCatalog.accountId,mode:row?.mode||'live',webhookUrl:url,portalConfigured:!!row?.portal_configuration_id,checkedAt:row?.updated_at||null,embeddedReady:!!row?.publishable_key};
 }
-export async function readPlatformBilling(db:D1Database,key:string|undefined,plan:Plan,origin:string,fallback:BillingConfig):Promise<BillingConfig>{
- const row=await settings(db);if(!row)return fallback;
- const base={plan,origin,publishableKey:row.publishable_key||undefined,platformId:row.account_id,priceId:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
+export async function readPlatformBilling(db:D1Database,key:string|undefined,plan:Plan,origin:string,fallback:BillingConfig,fetcher:Fetcher=fetch):Promise<BillingConfig>{
+ const row=await settings(db);if(!row)return resolveAgencyPrice(fallback,fetcher);
+ const base:BillingConfig={plan,portal:fallback.portal||'brand',savedPrice:fallback.savedPrice,legacyPrice:fallback.legacyPrice,origin,publishableKey:row.publishable_key||undefined,platformId:row.account_id,priceId:fallback.savedPrice?fallback.priceId:fallback.portal==='agency'?undefined:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
  if(row.status!=='ready'||row.origin!==origin||!row.encrypted_webhook_secret||!row.portal_configuration_id)return base;
- return {...base,portalConfigurationId:row.portal_configuration_id,secret:await openPayment<string>(row.encrypted_credential,key,'platform-billing/key/'+row.setup_id),liveEnabled:row.mode==='live'};
+ return resolveAgencyPrice({...base,portalConfigurationId:row.portal_configuration_id,secret:await openPayment<string>(row.encrypted_credential,key,'platform-billing/key/'+row.setup_id),liveEnabled:row.mode==='live'},fetcher);
 }
 export async function platformWebhookCredentials(db:D1Database,key:string|undefined,origin:string){
  const row=await settings(db);if(!row||row.status!=='ready'||!row.encrypted_webhook_secret||row.origin!==origin)throw new AppError(503,'Subscription updates are not configured.');
@@ -42,7 +42,7 @@ export async function connectPlatformBilling(db:D1Database,user:Identity,key:str
  const secret=parsed.data.key,selectedOrigin=trustedPublicOrigin(origin);if(selectedOrigin.endsWith('.chatgpt.site'))throw new AppError(400,'Configure billing on the independent Affimaro website.');
  // Confirm encryption is available before any provider setup or database write.
  await sealPayment('check',key,'platform-billing/check');
- const checks=await Promise.all((['starter','growth','business'] as const).map(plan=>inspectBillingConfiguration({plan,origin:selectedOrigin,secret,platformId:platformBillingCatalog.accountId,priceId:platformBillingCatalog.prices[plan],mode:'live',required:true,liveEnabled:true},fetcher)));for(const result of checks)if(result.status!=='live_ready')throw new AppError(409,result.message);
+ const checks=await Promise.all((['brand','agency'] as const).flatMap(portal=>(['starter','growth','business'] as const).map(async plan=>inspectBillingConfiguration(await resolveAgencyPrice({plan,portal,origin:selectedOrigin,secret,platformId:platformBillingCatalog.accountId,priceId:portal==='brand'?platformBillingCatalog.prices[plan]:undefined,mode:'live',required:true,liveEnabled:true},fetcher),fetcher))));for(const result of checks)if(result.status!=='live_ready')throw new AppError(409,result.message);
  const account=z.object({id:z.literal(platformBillingCatalog.accountId),object:z.literal('account'),charges_enabled:z.literal(true)}).safeParse(await webhookApi(fetcher,secret,'/v1/account'));if(!account.success)throw new AppError(409,'Stripe must enable live charges on the selected account before customer payments can open.');
  const setupId=crypto.randomUUID(),at=now(),encrypted=await sealPayment(secret,key,'platform-billing/key/'+setupId);
  const payload=new URLSearchParams({url:selectedOrigin+'/api/billing/webhook',api_version:STRIPE_VERSION,connect:'false',description:'Affimaro subscription updates','metadata[affimaro_setup]':setupId});subscriptionEvents.forEach((event,i)=>payload.set('enabled_events['+i+']',event));

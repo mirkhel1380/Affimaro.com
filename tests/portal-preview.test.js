@@ -25,3 +25,11 @@ test('sample applicant reviews use the shared review panel without exposing prod
  }
  for(const portal of ['affiliate','creator'])await assert.rejects(views.PortalPreview({params:Promise.resolve({portal,path:['relationships','profile','alex']}),searchParams:Promise.resolve({})}),e=>e.notFound===true);
 });
+
+test('brand and agency sample billing and application forms show their separate monthly schedules',async()=>{
+ for(const [portal,amounts] of [['brand',[19,49,99]],['agency',[39,79,149]]])for(const section of ['billing','application']){
+  const html=renderToStaticMarkup(await views.PortalPreview({params:Promise.resolve({portal,path:[section]}),searchParams:Promise.resolve({})}));
+  for(const amount of amounts)assert.ok(new RegExp('\\$'+amount+'(?:<small>| USD / month)').test(html),portal+' '+section+' '+amount);
+  const other=portal==='agency'?[19,49,99]:[39,79,149];for(const amount of other)assert.ok(!new RegExp('\\$'+amount+'(?:<small>| USD / month)').test(html));
+ }
+});

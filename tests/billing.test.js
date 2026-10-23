@@ -4,6 +4,8 @@ import {database} from './support/db.js';
 import {service,AppError} from '../lib/service.ts';
 import {billing,billingConfigured,billingRedirect,starterEntitled,BILLING_ORIGIN} from '../lib/billing.ts';
 import {getPlanRequest,planRequests} from '../lib/plan-requests.ts';
+import {platformBillingCatalog} from '../lib/platform-billing-catalog.ts';
+import {billingSelection} from '../lib/billing-selection.ts';
 import {sealPayment} from '../lib/payment-crypto.ts';
 const key='bc'.repeat(32),identity=userId=>({userId,email:userId+'@example.com'}),fails=status=>error=>error instanceof AppError&&error.status===status;
 async function fixture(t,{mode='live',required=false}={}){
@@ -44,6 +46,54 @@ function complete(f){
   const session=f.state.sessions.get(checkout(f).session_id),at=Math.floor(Date.now()/1000);session.status='complete';session.payment_status='paid';session.customer='cus_FIXTURECUSTOMER123';session.subscription='sub_FIXTURESUBSCRIPTION123';session.url=null;
   const sub={id:session.subscription,object:'subscription',livemode:f.config.mode==='live',customer:session.customer,status:'active',metadata:{...session.metadata},cancel_at_period_end:false,items:{has_more:false,data:[{quantity:1,current_period_start:at-60,current_period_end:at+30*86400,price:structuredClone(f.state.price)}]},latest_invoice:{object:'invoice',customer:session.customer,status:'paid',currency:'usd'}};f.state.subs.set(sub.id,sub);return {session,sub};
 }
+function setAgencyPrice(f,plan='starter'){
+ f.config.portal='agency';f.config.plan=plan;f.config.priceId='price_AGENCY'+plan.toUpperCase()+'123';
+ f.state.price={...f.state.price,id:f.config.priceId,unit_amount:{starter:3900,growth:7900,business:14900}[plan],lookup_key:platformBillingCatalog.agencyLookupKeys[plan],metadata:{affimaro_role:'agency',affimaro_plan:plan}};
+}
+
+test('agency checkout uses its own exact amounts through paid confirmation and cannot borrow a brand config',async t=>{
+ for(const [plan,expected] of [['starter',3900],['growth',7900],['business',14900]]){
+  const f=await fixture(t,{required:true});f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());
+  await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.calls.length,0);setAgencyPrice(f,plan);
+  const quote=await f.api.preview({});assert.equal(quote.amount,expected);await f.api.checkout({reviewToken:quote.reviewToken,confirmed:true});
+  assert.equal(checkout(f).amount,expected);assert.equal(posts(f)[0].body.get('line_items[0][price]'),f.config.priceId);assert.equal(posts(f)[0].body.get('amount'),null);
+  complete(f);assert.equal((await f.api.confirm({})).status,'active');await f.api.ensureEntitlement();assert.equal(account(f).amount,expected);assert.equal((await getPlanRequest(f.db,'owner')).active_plan,plan);assert.equal(f.state.created,1);
+ }
+});
+
+test('agency reviews reject old brand amounts, wrong lookup keys and forged catalog metadata before payment',async t=>{
+ const f=await fixture(t);f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());setAgencyPrice(f);
+ const price=structuredClone(f.state.price);
+ for(const mutation of [{unit_amount:1900},{unit_amount:4900},{lookup_key:platformBillingCatalog.agencyLookupKeys.growth},{metadata:{affimaro_role:'brand',affimaro_plan:'starter'}},{metadata:{affimaro_role:'agency',affimaro_plan:'business'}}]){f.state.price={...price,...mutation};await assert.rejects(f.api.preview({}),fails(409));}
+ assert.equal(f.state.created,0);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,0);
+});
+
+test('an agency paid response with the wrong catalog metadata cannot persist active access',async t=>{
+ const f=await fixture(t,{required:true});f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());setAgencyPrice(f);await start(f);const {sub}=complete(f);sub.items.data[0].price.metadata.affimaro_role='brand';
+ await assert.rejects(f.api.refresh({}),fails(409));assert.equal((await f.api.dashboard()).entitled,false);assert.equal(account(f).invoice_paid,0);assert.equal(checkout(f).state,'review');
+});
+
+test('legacy agency checkouts retry the same frozen payload and price, then keep their paid subscription',async t=>{
+ const f=await fixture(t,{required:true});f.config.platformId=platformBillingCatalog.accountId;f.config.priceId=platformBillingCatalog.prices.starter;f.state.price.id=f.config.priceId;
+ f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString(),attempt=checkout(f).id;
+ f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());Object.assign(f.config,await billingSelection(f.db,'owner','starter'));
+ assert.equal(f.config.legacyPrice,true);await start(f);assert.equal(checkout(f).id,attempt);assert.equal(posts(f)[1].body.toString(),first);
+ complete(f);await f.api.refresh({});await f.api.ensureEntitlement();assert.equal((await f.api.dashboard()).entitled,true);assert.equal(account(f).amount,1900);
+ assert.equal((await billingSelection(f.db,'owner','starter',true)).legacyPrice,true);
+ await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.created,1);
+});
+
+test('canceling a saved old agency checkout cannot make its previous price available to a new purchase',async t=>{
+ const f=await fixture(t);await start(f);f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());f.config.portal='agency';f.config.legacyPrice=true;
+ await f.api.cancelCheckout({confirmed:true});assert.equal(checkout(f).state,'expired');await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.created,1);
+});
+
+test('signed agency notifications resolve the owner’s saved agency plan and keep live paid access',async t=>{
+ const f=await fixture(t,{required:true});f.config.platformId=platformBillingCatalog.accountId;f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());setAgencyPrice(f,'growth');await start(f);
+ const h=await webhookFixture(f),{session,sub}=complete(f);assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',session)))).status,200);
+ assert.deepEqual(f.state.webhookContext,{plan:'growth',userId:'owner',existing:true,priceId:f.config.priceId});assert.equal((await f.api.dashboard()).entitled,true);assert.equal(account(f).amount,7900);
+ assert.equal((await h.handle(await h.signed(h.event('invoice.paid',{object:'invoice',customer:sub.customer})))).status,200);assert.equal(f.state.created,1);
+});
 
 test('missing billing configuration preserves pilot access and does not contact a provider',async t=>{
   const f=await fixture(t),api=billing(f.db,identity('owner'),{mode:'test',liveEnabled:false,required:false},key,f.fetcher);
@@ -176,7 +226,7 @@ test('a saved uncertain checkout resumes through Stripe g/pay using the original
 });
 
 test('agency billing management returns to the agency portal while checkout retries retain their original payload',async t=>{
- const f=await fixture(t);f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner','agency',new Date().toISOString());f.config.origin='https://affimaro.example';
+ const f=await fixture(t);f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner','agency',new Date().toISOString());f.config.origin='https://affimaro.example';setAgencyPrice(f);
  f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();await start(f);assert.equal(posts(f)[1].body.toString(),first);
  complete(f);await f.api.refresh({});await f.api.portal({});assert.equal(f.state.calls.findLast(call=>call.path==='/v1/billing_portal/sessions').body.get('return_url'),'https://affimaro.example/agency/billing');
 });
@@ -220,7 +270,7 @@ async function webhookFixture(f){
  let sequence=0;
  async function signed(event,{timestamp=Math.floor(Date.now()/1000),signingKey=secret,suffix=''}={}){const body=JSON.stringify(event),hmac=await crypto.subtle.importKey('raw',new TextEncoder().encode(signingKey),{name:'HMAC',hash:'SHA-256'},false,['sign']),digest=await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode(timestamp+'.'+body)),signature=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');return new Request('https://affimaro.example/api/billing/webhook',{method:'POST',headers:{'Stripe-Signature':'t='+timestamp+',v1='+signature,'Content-Type':'application/json'},body:body+suffix});}
  const event=(type,object)=>({id:'evt_FIXTURE'+(++sequence),object:'event',type,livemode:f.config.mode==='live',data:{object:structuredClone(object)}});
- const handle=request=>billingWebhook(request,{db:f.db,key,origin:'https://affimaro.example',config:async()=>f.config,fetcher:f.fetcher});
+ const handle=request=>billingWebhook(request,{db:f.db,key,origin:'https://affimaro.example',config:async(plan,context)=>{f.state.webhookContext={plan,...context};return f.config;},fetcher:f.fetcher});
  return {event,signed,handle};
 }
 test('new Checkout payloads use dynamic methods and a stable integration identifier, while legacy unknown requests are held',async t=>{

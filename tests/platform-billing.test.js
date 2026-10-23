@@ -13,7 +13,8 @@ async function fixture(t){
  const state={calls:[],wrongPrice:false,wrongAccount:false,lose:false,endpoints:new Map(),portals:new Map()},fetcher=async(url,init)=>{
   assert.equal(new URL(url).origin,'https://api.stripe.com');assert.equal(init.redirect,'manual');assert.equal(init.headers.Authorization,'Bearer '+secret);assert.equal(init.headers['Stripe-Version'],STRIPE_VERSION);assert.ok(init.signal);state.calls.push({url,init});
   const path=new URL(url).pathname;if(path==='/v1/account')return Response.json({object:'account',charges_enabled:true,id:state.wrongAccount?'acct_DIFFERENT123':platformBillingCatalog.accountId});if(path==='/v1/balance')return Response.json({object:'balance',livemode:true});
-  const plan=Object.entries(platformBillingCatalog.prices).find(([,price])=>path==='/v1/prices/'+price)?.[0];if(plan)return Response.json({object:'price',id:platformBillingCatalog.prices[plan],active:true,livemode:true,currency:'usd',type:'recurring',billing_scheme:'per_unit',unit_amount:state.wrongPrice?1:{starter:1900,growth:4900,business:9900}[plan],custom_unit_amount:null,transform_quantity:null,recurring:{interval:'month',interval_count:1,usage_type:'licensed'}});
+  const agencyPlan=Object.entries(platformBillingCatalog.agencyLookupKeys).find(([plan,lookup])=>path==='/v1/prices'&&new URL(url).searchParams.get('lookup_keys[]')===lookup||path==='/v1/prices/price_AGENCY'+plan.toUpperCase()+'123')?.[0];
+  const plan=agencyPlan||Object.entries(platformBillingCatalog.prices).find(([,price])=>path==='/v1/prices/'+price)?.[0];if(plan){const price={object:'price',id:agencyPlan?'price_AGENCY'+plan.toUpperCase()+'123':platformBillingCatalog.prices[plan],active:true,livemode:true,currency:'usd',type:'recurring',billing_scheme:'per_unit',unit_amount:state.wrongPrice?1:(agencyPlan?{starter:3900,growth:7900,business:14900}:{starter:1900,growth:4900,business:9900})[plan],custom_unit_amount:null,transform_quantity:null,lookup_key:agencyPlan?platformBillingCatalog.agencyLookupKeys[plan]:null,metadata:agencyPlan?{affimaro_role:'agency',affimaro_plan:plan}:{},recurring:{interval:'month',interval_count:1,usage_type:'licensed'}};return Response.json(path==='/v1/prices'?{object:'list',data:state.missingAgency?[]:[price],has_more:false}:price);}
   if(path==='/v1/billing_portal/configurations'){const body=new URLSearchParams(init.body),idem=init.headers['Idempotency-Key'];assert.equal(body.get('features[subscription_cancel][mode]'),'at_period_end');let result=state.portals.get(idem);if(!result){result={id:'bpc_FIXTUREPORTAL123',object:'billing_portal.configuration',active:true,livemode:true,features:{invoice_history:{enabled:true},payment_method_update:{enabled:true},subscription_cancel:{enabled:true,mode:'at_period_end'},subscription_update:{enabled:false}},metadata:{affimaro_setup:body.get('metadata[affimaro_setup]')}};state.portals.set(idem,result);}return Response.json(result);}
   assert.equal(path,'/v1/webhook_endpoints');assert.equal(init.method,'POST');const body=new URLSearchParams(init.body),idem=init.headers['Idempotency-Key'];assert.ok(idem);assert.equal(body.get('connect'),'false');assert.equal(body.get('url'),origin+'/api/billing/webhook');
   let result=state.endpoints.get(idem);if(!result){result={id:'we_FIXTUREENDPOINT123',object:'webhook_endpoint',livemode:true,status:'enabled',api_version:STRIPE_VERSION,url:body.get('url'),enabled_events:[...body].filter(([k])=>k.startsWith('enabled_events[')).map(([,v])=>v),metadata:{affimaro_setup:body.get('metadata[affimaro_setup]')},secret:'whsec_FIXTUREONLYWEBHOOK123456789'};state.endpoints.set(idem,result);}
@@ -54,4 +55,30 @@ test('only the owner can enable on-site payments and saving a publishable key pr
  assert.deepEqual(await saveBillingPublishableKey(f.db,owner,input),{embeddedReady:true});const after=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get();
  for(const field of ['setup_id','encrypted_credential','encrypted_webhook_secret','webhook_payload','portal_payload','webhook_id','portal_configuration_id','origin'])assert.equal(after[field],before[field]);
  assert.equal(f.state.calls.length,calls);assert.equal((await readPlatformBilling(f.db,key,'growth',origin,{mode:'live',liveEnabled:false,required:true})).publishableKey,input.publishableKey);assert.equal((await platformBillingSummary(f.db,owner,origin)).embeddedReady,true);
+});
+
+test('stored billing resolves a separate verified agency catalog without replacing keys, webhooks or brand prices',async t=>{
+ const f=await fixture(t);await f.connect();const before=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get();
+ for(const plan of ['starter','growth','business']){
+  const config=await readPlatformBilling(f.db,key,plan,origin,{plan,portal:'agency',mode:'live',required:true,liveEnabled:false},f.fetcher);
+  assert.equal(config.portal,'agency');assert.equal(config.priceId,'price_AGENCY'+plan.toUpperCase()+'123');assert.equal(config.secret,secret);
+  const brand=await readPlatformBilling(f.db,key,plan,origin,{plan,mode:'live',required:true,liveEnabled:false,priceId:'price_IGNOREUNSAVED123'},f.fetcher);assert.equal(brand.priceId,platformBillingCatalog.prices[plan]);
+ }
+ const after=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get();assert.deepEqual(after,before);assert.equal(f.state.portals.size,1);assert.equal(f.state.endpoints.size,1);
+});
+
+test('missing agency prices leave only new agency payments unconfigured and preserve a saved legacy subscription context',async t=>{
+ const f=await fixture(t);await f.connect();const before=f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get();f.state.missingAgency=true;
+ const config=await readPlatformBilling(f.db,key,'starter',origin,{portal:'agency',mode:'live',required:true,liveEnabled:false},f.fetcher);assert.equal(config.priceId,undefined);assert.equal(config.portal,'agency');
+ const legacy=await readPlatformBilling(f.db,key,'growth',origin,{portal:'agency',savedPrice:true,legacyPrice:true,priceId:platformBillingCatalog.prices.growth,mode:'live',required:true,liveEnabled:false},f.fetcher);assert.equal(legacy.priceId,platformBillingCatalog.prices.growth);assert.equal(legacy.legacyPrice,true);
+ const brand=await readPlatformBilling(f.db,key,'starter',origin,{mode:'live',required:true,liveEnabled:false},f.fetcher);assert.equal(brand.priceId,platformBillingCatalog.prices.starter);assert.deepEqual(f.db.sqlite.prepare('SELECT * FROM platform_billing_settings').get(),before);
+});
+
+test('agency lookup resolution rejects ambiguous, incomplete and mismatched provider catalog responses',async t=>{
+ const f=await fixture(t);await f.connect();
+ for(const mutate of [r=>({...r,data:[r.data[0],r.data[0]]}),r=>({...r,has_more:true}),r=>({...r,data:[{...r.data[0],unit_amount:1900}]}),r=>({...r,data:[{...r.data[0],lookup_key:'another_key'}]}),r=>({...r,data:[{...r.data[0],metadata:{affimaro_role:'brand',affimaro_plan:'starter'}}]})]){
+  const fetcher=async(url,init)=>{const response=await f.fetcher(url,init);return new URL(url).pathname==='/v1/prices'?Response.json(mutate(await response.json())):response;};
+  const config=await readPlatformBilling(f.db,key,'starter',origin,{portal:'agency',mode:'live',required:true,liveEnabled:false},fetcher);assert.equal(config.priceId,undefined);
+ }
+ assert.equal(f.state.portals.size,1);assert.equal(f.state.endpoints.size,1);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,0);
 });
