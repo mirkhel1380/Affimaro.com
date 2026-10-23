@@ -212,3 +212,8 @@ html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;
 .a-partner-review .a-detail-list dd,.a-partner-readiness{overflow-wrap:anywhere}
 .a-partner-readiness{padding-left:18px;font-size:12px;line-height:1.8;margin:20px 0}
 .a-partner-review .a-public-properties article:last-child{border-bottom:0}
+
+/* Payment approval and completed transfer are separate recorded states. */
+.a-payout-state{display:grid;justify-items:start;gap:7px;margin:14px 0;min-width:0}
+.a-payout-state .a-fine-print{margin:0;overflow-wrap:anywhere;max-width:720px}
+.a-payout-state .a-badge{max-width:100%;white-space:normal;overflow-wrap:anywhere}

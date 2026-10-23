@@ -31,3 +31,12 @@
  .marketing-page .m-header-actions .m-login{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
  .marketing-page .corner-install{min-height:44px}
 }
+
+/* Separate paid-role choices use server navigation and keep package amounts consistent. */
+.m-pricing-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 30px}
+.m-pricing-roles a{display:grid;align-content:start;gap:5px;min-width:0;min-height:74px;padding:16px 20px;border:1px solid #bcccaf;border-radius:9px;color:#254c3e;overflow-wrap:anywhere}
+.m-pricing-roles a[aria-current=page]{background:#254c3e;color:#fff;border-color:#254c3e}
+.m-pricing-roles strong{font-size:15px}.m-pricing-roles span{font-size:12px;line-height:1.6}
+.marketing-page .m-plan-signin{display:inline-flex;margin-top:15px;color:inherit}
+#paid-plans{scroll-margin-top:110px}
+@media(max-width:540px){.m-pricing-roles{grid-template-columns:1fr}.m-pricing-roles a{min-height:70px;padding:15px 18px}}

@@ -24,3 +24,11 @@ Brands open `/workspace/partners/{application_id}` and agencies open `/agency/pa
 The shared review panel shows affiliate/creator-specific audience and content information, self-reported promotion plans, current channel verification and the program's decision. Approval through the existing API rechecks that the applicant's account is open and approved and that all claimed properties still have current verification. Subscription and package-capacity checks remain in place. Declining or suspending a partnership stays available without granting new access. Neither action initiates payment. Existing approved partnerships are not automatically changed by viewing the review.
 
 Sending an invitation returns to the sender's own My partners invitation list. Accepting an invitation returns affiliates/creators to their own pending program applications. Acceptance remains separate from final program approval. Public sample reviews are available at `/preview/brand/relationships/profile/alex` and `/preview/agency/relationships/profile/sofia`; all sample decisions remain browser-local.
+
+## Payment record clarity
+
+Destination and receipt requests recognize brand and agency ownership through the represented program, while affiliates and creators can view only their own requests. The permission check runs before decrypting destination data. Private details stay out of initial page HTML and reports.
+
+Wallet request controls use the full reserved balance, rather than inferring an open request from the latest 100 displayed rows. An older open request continues to disable a duplicate request. The server's existing reservation, idempotency and coverage checks remain authoritative.
+
+Payment status explicitly separates waiting for review, approved but unpaid, an unconfirmed transfer, a bank/Wise transfer recorded by the business, and verified credit to a Stripe receiving account. Partial/full reversals and cancelled/declined reservations have their own descriptions. These labels do not prove bank receipt or initiate a provider operation. Commission controls respect the source state and sync readiness and do not label unresolved source rows approved.

@@ -1,3 +1,4 @@
+import {pricingSection} from '../lib/pricing-catalog.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -24,17 +25,21 @@ test('an accidental pause on the independent host stays blocked and invalid or s
     const response=migrationMaintenance(request,paused,destination);assert.equal(response.status,503);assert.equal(response.headers.get('location'),null);
   }
 });
-test('every package action on the separate pricing page opens the active host from the native preview',async()=>{
-  const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8'),section=await readFile(new URL('../content/pricing-section.html',import.meta.url),'utf8');
-  const page=pricingPage(landing,section),html=marketingPage(page,false,target);
-  const packages=[...html.matchAll(/<a\b[^>]*href="(\/get-started\?plan=[a-z]+)"[^>]*>/g)];assert.equal(packages.length,3);assert.equal((html.match(/<button[^>]*disabled>/g)||[]).length,0);
-  for(const [,href] of packages)assert.ok(['/get-started?plan=starter','/get-started?plan=growth','/get-started?plan=business'].includes(href));
-  assert.ok(html.includes('href="/pricing" aria-current="page"'));
-  for(const [,href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g))assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));
-  const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/get-started?plan=growth"'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
-  for(const rendered of [html,independent]){assert.ok(!rendered.includes('/auth/owner/login'));assert.ok(!rendered.includes('Owner sign in'));}
+test('each role-specific package action leaves the native preview and preserves its package and billing destination',async()=>{
+  const landing=await readFile(new URL('../public/demo/index.html',import.meta.url),'utf8');
+  for(const role of ['brand','agency']){
+    const section=role==='brand'?await readFile(new URL('../content/pricing-section.html',import.meta.url),'utf8'):pricingSection(role),page=pricingPage(landing,section),html=marketingPage(page,false,target);
+    const links=[...html.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)],packages=links.filter(([,href])=>new URL(href.replaceAll('&amp;','&'),target).pathname==='/auth/'+role+'/signup'&&href.includes('plan='));
+    assert.equal(packages.length,3);assert.equal((html.match(/<button[^>]*disabled>/g)||[]).length,0);
+    for(const [tag,href] of packages){const url=new URL(href.replaceAll('&amp;','&'));assert.equal(url.origin,target);assert.ok(['starter','growth','business'].includes(url.searchParams.get('plan')));assert.equal(url.searchParams.get('return_to'),(role==='agency'?'/agency/billing':'/billing')+'?plan='+url.searchParams.get('plan'));assert.ok(tag.includes('target="_top"'));}
+    assert.ok(html.includes('href="/pricing" aria-current="page"'));
+    for(const [,href] of links)assert.ok(!/^\/(auth|account|billing|start|install)([/?#]|$)/.test(href));
+    const independent=marketingPage(page,true,target);assert.ok(independent.includes('href="/auth/'+role+'/signup?plan=growth'));assert.ok(independent.includes('rel="manifest"'));assert.ok(!independent.includes(target));
+    for(const rendered of [html,independent]){assert.ok(!rendered.includes('/auth/owner/login'));assert.ok(!rendered.includes('Owner sign in'));}
+  }
   assert.ok(!landing.includes('id="plans"'));assert.ok(!landing.includes('href="#plans"'));
 });
+
 test('native landing handoff preserves public/demo links, replaces an existing target once and supports a future selected domain',()=>{
   const html='<a href="/billing" target="_self">Plans</a><a href="/start?view=affiliate">Guide</a><a href="/downloads/guide.md">Download</a><a href="/#/demo/merchant/overview">Demo</a><a href="https://external.example/billing">External</a>';
   const result=handoffLandingLinks(html,target);assert.equal((result.match(/target="_top"/g)||[]).length,2);assert.ok(!result.includes('_self'));assert.ok(result.includes(`href="${target}/start?view=affiliate"`));assert.ok(result.includes('href="/downloads/guide.md"'));assert.ok(result.includes('href="/#/demo/merchant/overview"'));assert.ok(result.includes('href="https://external.example/billing"'));

@@ -62,7 +62,8 @@ test('pricing has dedicated free affiliate and creator cards whose signup links 
   assert.ok(card.includes('href="/auth/'+role+'/signup"'));
  }
  assert.match(html,/Monthly plans for brands &amp; agencies/);
- for(const plan of ['starter','growth','business'])assert.ok(html.includes('/get-started?plan='+plan));
+ for(const role of ['brand','agency']){const plans=pricingSection(role);assert.ok(plans.includes('data-pricing-role="'+role+'"'));for(const plan of ['starter','growth','business']){const href=plans.match(new RegExp('href="(/auth/'+role+'/signup\\?plan='+plan+'[^"]*)"'))?.[1];assert.ok(href);const url=new URL(href.replaceAll('&amp;','&'),'https://affimaro.example');assert.equal(url.searchParams.get('plan'),plan);assert.equal(url.searchParams.get('return_to'),(role==='agency'?'/agency/billing':'/billing')+'?plan='+plan);}}
+ assert.ok(!pricingSection('brand').includes('Private client directory:'));assert.ok(pricingSection('agency').includes('Private client directory: up to 25 records'));assert.ok(pricingSection('agency').includes('Client records do not connect additional stores.'));assert.ok(pricingSection('invalid').includes('data-pricing-role="brand"'));
 });
 
 test('choosing a free account drops a subscription continuation but preserves an actual program invitation',()=>{
