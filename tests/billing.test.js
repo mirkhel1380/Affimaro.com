@@ -56,7 +56,7 @@ test('affiliate and creator accounts cannot enter subscription billing even when
   const f=await fixture(t,{required:true}),quote=await f.api.preview({});
   f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner',role,new Date().toISOString());
   const calls=f.state.calls.length;
-  for(const operation of [()=>f.api.dashboard(),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
+  for(const operation of [()=>f.api.dashboard(),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.confirm({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
   assert.equal(f.state.calls.length,calls);assert.equal(f.state.created,0);
   for(const table of ['billing_accounts','billing_checkouts'])assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM '+table).get().n,0);
  }
@@ -120,7 +120,6 @@ test('checkout and subscription proof mismatches cannot activate a saved account
     (raw,call)=>call.path.includes('/checkout/sessions/')?{...raw,client_reference_id:crypto.randomUUID()}:raw,
     (raw,call)=>call.path.includes('/checkout/sessions/')?{...raw,amount_total:1}:raw,
     (raw,call)=>call.path.includes('/checkout/sessions/')?{...raw,livemode:false}:raw,
-    (raw,call)=>call.path.includes('/checkout/sessions/')?{...raw,payment_status:'unpaid'}:raw,
     (raw,call)=>call.path.includes('/subscriptions/')?{...raw,id:'sub_ANOTHERSUBSCRIPTION123'}:raw,
     (raw,call)=>call.path.includes('/subscriptions/')?{...raw,customer:'cus_OTHER_CUSTOMER123'}:raw,
     (raw,call)=>call.path.includes('/subscriptions/')?{...raw,metadata:{...raw.metadata,affimaro_workspace:crypto.randomUUID()}}:raw,
@@ -287,3 +286,32 @@ test('an unpaid owned checkout can be expired, while another workspace or a comp
 test('canceling a completed checkout verifies its subscription and never sends an expire request',async t=>{const f=await fixture(t);await start(f);complete(f);await assert.rejects(f.api.cancelCheckout({confirmed:true}),fails(409));assert.equal(checkout(f).state,'completed');assert.equal(account(f).status,'active');assert.equal(f.state.calls.filter(c=>c.path.endsWith('/expire')).length,0);});
 
 test('a stale authenticated checkout request cannot create a provider payment after account closure',async t=>{const f=await fixture(t),quote=await f.api.preview({});const {closeAccount}=await import('../lib/account-closure.ts');await closeAccount(f.db,identity('owner'),'Leaving the fixture platform.');await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),/Account is closed/);assert.equal(posts(f).length,0);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,0);});
+
+
+test('saved-payment confirmation reports open, processing and verified access without creating another checkout',async t=>{
+ const f=await fixture(t,{required:true});f.config.publishableKey='pk_live_FIXTUREPUBLICKEY123456';await start(f);const created=posts(f).length;
+ assert.deepEqual(await f.api.confirm({}),{status:'open',mode:'live'});
+ const {session,sub}=complete(f);session.payment_status='unpaid';
+ for(let i=0;i<3;i++){assert.deepEqual(await f.api.confirm({}),{status:'processing',mode:'live'});assert.equal(checkout(f).state,'open');assert.equal(checkout(f).last_error,null);assert.equal(account(f).subscription_id,null);assert.equal(starterEntitled(account(f)),false);}
+ assert.equal((await f.api.cancelCheckout({confirmed:true})).outcome,'awaiting_payment');assert.equal(f.state.calls.filter(c=>c.path.endsWith('/expire')).length,0);assert.equal((await start(f)).outcome,'awaiting_payment');assert.equal(posts(f).length,created);
+ session.payment_status='paid';sub.latest_invoice.status='open';assert.deepEqual(await f.api.confirm({}),{status:'processing',mode:'live'});assert.equal(starterEntitled(account(f)),false);
+ sub.latest_invoice.status='paid';assert.deepEqual(await f.api.confirm({}),{status:'active',mode:'live'});assert.equal((await f.api.dashboard()).entitled,true);assert.equal(posts(f).length,created);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,1);
+ assert.ok(!/clientSecret|publishableKey|customer_id|subscription_id|FIXTURECLIENT/.test(JSON.stringify(await f.api.confirm({}))));
+});
+
+test('confirmation does not equate a return, test payment, expiration, failed invoice or wrong customer with live access',async t=>{
+ const empty=await fixture(t);await assert.rejects(empty.api.confirm({}),fails(404));assert.equal(posts(empty).length,0);
+ const testing=await fixture(t,{mode:'test',required:true});await start(testing);complete(testing);assert.deepEqual(await testing.api.confirm({}),{status:'test_complete',mode:'test'});assert.equal(starterEntitled(account(testing)),false);
+ const expired=await fixture(t);await start(expired);expired.state.sessions.get(checkout(expired).session_id).status='expired';assert.deepEqual(await expired.api.confirm({}),{status:'expired',mode:'live'});assert.equal(posts(expired).length,1);
+ const failed=await fixture(t);await start(failed);const {sub}=complete(failed);sub.status='past_due';sub.latest_invoice.status='open';assert.deepEqual(await failed.api.confirm({}),{status:'attention',mode:'live'});assert.equal(starterEntitled(account(failed)),false);
+ const forged=await fixture(t);await start(forged);const saved=complete(forged);saved.session.client_reference_id=crypto.randomUUID();await assert.rejects(forged.api.confirm({}),fails(409));assert.equal(starterEntitled(account(forged)),false);assert.equal(posts(forged).length,1);
+ await assert.rejects(failed.api.confirm({workspaceId:expired.workspace.id}),fails(400));
+});
+
+
+test('a delayed payment failure is linked without granting access and can recover through a later paid invoice',async t=>{
+ const f=await fixture(t,{required:true});await start(f);const {session,sub}=complete(f);session.payment_status='unpaid';sub.status='past_due';sub.latest_invoice.status='open';
+ const webhook=await webhookFixture(f);assert.equal((await webhook.handle(await webhook.signed(webhook.event('checkout.session.async_payment_failed',session)))).status,200);
+ assert.equal(account(f).subscription_id,sub.id);assert.equal(account(f).invoice_paid,0);assert.equal((await f.api.confirm({})).status,'attention');assert.equal(starterEntitled(account(f)),false);await assert.rejects(start(f),fails(409));assert.equal(posts(f).length,1);
+ sub.status='active';sub.latest_invoice.status='paid';const event=webhook.event('invoice.paid',{object:'invoice',id:'in_FIXTUREINVOICE123',customer:sub.customer});assert.equal((await webhook.handle(await webhook.signed(event))).status,200);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(posts(f).length,1);
+});

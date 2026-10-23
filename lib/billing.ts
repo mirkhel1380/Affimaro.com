@@ -6,6 +6,7 @@ import {openPayment,sealPayment} from './payment-crypto.ts';
 import {STRIPE_VERSION} from './payment-connections.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
 import {accountPortal,businessPortal} from './portal-policy.ts';
+import type {BillingConfirmation} from './billing-confirmation.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 export type BillingConfig={plan?:Plan;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
@@ -88,11 +89,21 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
     await db.batch([...(activate?[db.prepare("INSERT INTO plan_requests(user_id,requested_plan,active_plan,status,revision,updated_at) VALUES (?,?,?,'approved',1,?) ON CONFLICT(user_id) DO UPDATE SET requested_plan=excluded.requested_plan,active_plan=excluded.active_plan,status='approved',revision=plan_requests.revision+1,review_note='',updated_at=excluded.updated_at").bind(identity.userId,verifiedPlan,verifiedPlan,now())]:[]),db.prepare('UPDATE billing_accounts SET customer_id=?,subscription_id=?,price_id=?,amount=?,status=?,invoice_paid=?,period_start=?,period_end=?,cancel_at_period_end=?,last_verified_at=?,last_error=NULL,updated_at=? WHERE id=?').bind(sub.customer,sub.id,item.price.id,item.price.unit_amount,sub.status,paid?1:0,item.current_period_start,item.current_period_end,sub.cancel_at_period_end?1:0,now(),now(),a.id),db.prepare("UPDATE billing_checkouts SET state='completed',last_error=NULL,updated_at=? WHERE id=? AND account_id=?").bind(now(),correlation.id,a.id),audit(a.workspace_id,'subscription_checked')]);
     return current(a.workspace_id);
   }
-  async function readSubscription(a:BillingAccount,subscription:string,attempt?:BillingCheckout){const raw=await api(fetcher,config,`/v1/subscriptions/${subscription}?expand%5B%5D=latest_invoice`);if(!raw||typeof raw!=='object'||!('id' in raw)||raw.id!==subscription)throw new AppError(409,'Stripe returned another subscription.');return saveSubscription(a,raw,attempt);}
+  async function subscriptionRecord(subscription:string){const raw=await api(fetcher,config,`/v1/subscriptions/${subscription}?expand%5B%5D=latest_invoice`);if(!raw||typeof raw!=='object'||!('id' in raw)||raw.id!==subscription)throw new AppError(409,'Stripe returned another subscription.');return raw;}
+  async function readSubscription(a:BillingAccount,subscription:string,attempt?:BillingCheckout){return saveSubscription(a,await subscriptionRecord(subscription),attempt);}
   async function acceptSession(a:BillingAccount,attempt:BillingCheckout,raw:unknown){
     const parsed=sessionSchema.safeParse(raw);if(!parsed.success)throw new AppError(502,'Stripe returned an unsupported subscription checkout.');const session=parsed.data;
     if(session.client_reference_id!==a.workspace_id||session.metadata.affimaro_workspace!==a.workspace_id||session.metadata.affimaro_checkout!==attempt.id||session.livemode!==(a.mode==='live')||!session.id.startsWith(`cs_${a.mode}_`)||attempt.session_id&&session.id!==attempt.session_id||attempt.customer_snapshot&&session.customer!==attempt.customer_snapshot||session.amount_subtotal!==attempt.amount||session.amount_total!==attempt.amount)throw new AppError(409,'Stripe checkout identity, environment or amount does not match the saved review.');
     if(session.status==='complete'){
+      if(session.payment_status==='unpaid'){
+        if(session.subscription&&session.customer){
+        const raw=await subscriptionRecord(session.subscription),checked=subSchema.safeParse(raw);
+        if(!checked.success)throw new AppError(502,'Stripe returned an unsupported subscription record.');
+        if(['canceled','unpaid','past_due','incomplete_expired','paused'].includes(checked.data.status))return {outcome:'subscription',account:await saveSubscription({...a,customer_id:session.customer},raw,{...attempt,customer_snapshot:session.customer})};
+        }
+        await db.prepare("UPDATE billing_checkouts SET state='open',session_id=?,encrypted_url=NULL,expires_at=?,last_error=NULL,updated_at=? WHERE id=? AND state IN ('creating','open','review')").bind(session.id,session.expires_at,now(),attempt.id).run();
+        return {outcome:'awaiting_payment'};
+      }
       if(session.payment_status!=='paid'||!session.subscription||!session.customer)throw new AppError(409,'Stripe has not confirmed a paid subscription. Check billing status again later.');
       const updated=await readSubscription({...a,customer_id:session.customer},session.subscription,{...attempt,customer_snapshot:session.customer});
       if(updated?.customer_id!==session.customer||updated.subscription_id!==session.subscription)throw new AppError(409,'The paid subscription could not be linked safely.');return {outcome:'subscription',account:updated};
@@ -142,12 +153,22 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
       try{a=(await current(w.id))!;await source();attempt=await pending(a.id)||undefined;if(attempt){if(!attempt.session_id)throw new AppError(409,'The checkout result is unknown. Open a fresh review to retry the same saved attempt safely.');return await acceptSession(a,attempt,await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}`));}if(!a.subscription_id)throw new AppError(404,'No subscription is saved.');return {outcome:'subscription',account:await readSubscription(a,a.subscription_id)};}
       catch(error){if(error instanceof AppError)await hold(a,attempt,error);throw error;}finally{await unlock(a.id,lease);}
     },
+    async confirm(input:unknown):Promise<BillingConfirmation>{
+      const checked=await apiObject.refresh(input),state=await apiObject.dashboard();
+      if(state.entitled)return {status:'active',mode:state.mode};
+      if(checked.outcome==='expired')return {status:'expired',mode:state.mode};
+      if(checked.outcome==='checkout'||checked.outcome==='embedded')return {status:'open',mode:state.mode};
+      const a=state.account;
+      if(state.mode==='test'&&a?.status==='active'&&a.invoice_paid===1)return {status:'test_complete',mode:state.mode};
+      if(a&&['canceled','unpaid','past_due','incomplete_expired','paused'].includes(a.status))return {status:'attention',mode:state.mode};
+      return {status:'processing',mode:state.mode};
+    },
     async cancelCheckout(input:unknown){
       parse(z.object({confirmed:z.literal(true)}).strict(),input);const w=await workspace();let a=await current(w.id);if(!a)throw new AppError(404,'No saved subscription checkout exists.');const lease=await lock(a);let attempt:BillingCheckout|undefined;
       try{a=(await current(w.id))!;await source();attempt=await pending(a.id)||undefined;if(!attempt)throw new AppError(404,'No open checkout is saved.');if(!attempt.session_id)throw new AppError(409,'Resume the saved checkout first so its result can be verified safely.');
         const raw=await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}`),checked=await acceptSession(a,attempt,raw);
         if(checked.outcome==='subscription')throw new AppError(409,'Payment is already complete. Manage the subscription instead.');
-        if(checked.outcome==='expired')return checked;
+        if(checked.outcome==='expired'||checked.outcome==='awaiting_payment')return checked;
         const expired=await api(fetcher,config,`/v1/checkout/sessions/${attempt.session_id}/expire`,new URLSearchParams(),`affimaro-expire-${attempt.id}`);
         const parsed=sessionSchema.safeParse(expired);if(!parsed.success||parsed.data.status!=='expired')throw new AppError(409,'The checkout cancellation is not yet confirmed. Check subscription status.');
         return await acceptSession(a,attempt,expired);
@@ -165,8 +186,7 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
         if(attempt.session_id&&session!==attempt.session_id)throw new AppError(409,'The notification does not match the saved checkout.');
         const raw=await api(fetcher,config,`/v1/checkout/sessions/${session}`),checked=sessionSchema.safeParse(raw);
         if(!checked.success||checked.data.id!==session)throw new AppError(409,'The notified checkout could not be verified.');
-        // Asynchronous completion is not fulfillment until Stripe confirms paid.
-        if(checked.data.status==='complete'&&checked.data.payment_status!=='paid')return {outcome:'awaiting_payment'};
+        // Processing and failed payments remain separate from verified paid access.
         return await acceptSession(a,attempt,raw);
       }finally{await unlock(a.id,lease);}
     },

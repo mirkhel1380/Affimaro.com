@@ -1,3 +1,3 @@
-import {BillingView} from '../../billing/page';
+import {BillingView,type BillingQuery} from '../../billing/page';
 export const dynamic='force-dynamic';
-export default async function AgencyBilling({searchParams}:{searchParams:Promise<{plan?:string}>}){return BillingView('agency',await searchParams);}
+export default async function AgencyBilling({searchParams}:{searchParams:Promise<BillingQuery>}){return BillingView('agency',await searchParams);}
