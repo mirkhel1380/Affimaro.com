@@ -11,6 +11,8 @@ import {service,AppError} from '../lib/service.ts';
 import {commerce} from '../lib/woocommerce.ts';
 import {programInvitation} from '../lib/program-invitation.ts';
 import {closeAccount} from '../lib/account-closure.ts';
+import {admissions} from '../lib/admissions.ts';
+import {applicationProfile,seedVerifiedProperties} from './support/application-profiles.js';
 
 // Compile the real TSX view for isolated server rendering without a preview.
 // Its unused Next dispatch imports have no role in this pure presentation test.
@@ -41,7 +43,11 @@ async function view(f,extra={}){
   const model=await f.model(),element=createElement(InvitationView,{invitation:model,user:{email:'partner@example.com',fullName:'New Partner'},independent:true,...extra});
   return {model,element,html:renderToStaticMarkup(element)};
 }
-async function apply(f){await f.partner.saveAccount({name:'Partner'});await f.partner.saveAffiliate(profile);return f.partner.apply({programId:f.program.id});}
+async function approveProfile(f){
+  await f.partner.saveAccount({name:'Partner'});const reviewer=identity('profile-reviewer');await service(f.db,reviewer).saveAccount({name:'Affimaro reviewer'});f.db.sqlite.prepare('INSERT OR IGNORE INTO platform_admins VALUES (?,?)').run(reviewer.userId,new Date().toISOString());
+  const api=admissions(f.db,identity('partner'));let app=await api.own();if(app?.status==='approved')return app;if(!app)app=await api.start('affiliate');const full=applicationProfile('affiliate');if(app.status!=='pending')app=await api.submit({revision:app.revision,profile:full});seedVerifiedProperties(f.db,'partner',full);return admissions(f.db,reviewer).review({userId:'partner',revision:app.revision,decision:'approved',note:'Verified sample publishing profile.'});
+}
+async function apply(f){await approveProfile(f);return f.partner.apply({programId:f.program.id});}
 async function verify(f,platform='woocommerce'){
   const configured=await commerce(f.db,identity('owner')).configure({action:'connect',platform:platform==='shopify'?'woocommerce':platform,storeUrl:'https://store.example/shop'});
   f.db.sqlite.prepare('UPDATE store_connections SET last_seen=?,platform=? WHERE id=?').run(new Date().toISOString(),platform,configured.connection.id);
@@ -67,28 +73,16 @@ test('real dashboard shells expose only their matching portal navigation',()=>{
   }
 });
 
-test('invitation keeps account and affiliate profile setup on its own canonical application path',async t=>{
+test('invitation keeps professional setup on the canonical program journey without legacy inline forms',async t=>{
   const f=await fixture(t),path='/join/'+f.program.id;
-  let result=await view(f);assert.equal(result.model.stage,'account');
-  let forms=instances(result.element,ApiForm);assert.equal(forms.length,1);assert.equal(forms[0].endpoint,'/api/account');assert.equal(forms[0].redirectTo,path);
-  assert.equal(instances(result.element,ActionButton).length,0);assert.match(result.html,/Saving your account does not send an application/);
-  await f.partner.saveAccount({name:'Partner'});result=await view(f);assert.equal(result.model.stage,'profile');
-  forms=instances(result.element,ApiForm);assert.equal(forms.length,1);assert.equal(forms[0].endpoint,'/api/affiliate');assert.equal(forms[0].redirectTo,path);
-  assert.deepEqual(forms[0].fields.map(field=>field.name),['name','channel','website','bio']);assert.match(result.html,/Save profile and continue/);
-  assert.equal(instances(result.element,ActionButton).length,0);assert.ok(!result.html.includes('return to this application link'));
-  assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,0);
+  let result=await view(f);assert.equal(result.model.stage,'account');assert.equal(instances(result.element,ApiForm).length,0);assert.equal(instances(result.element,ActionButton).length,0);assert.match(result.html,/Complete Affimaro application/);assert.equal(new URL(result.model.journey.application,'https://affimaro.example').searchParams.get('return_to'),path);
+  await f.partner.saveAccount({name:'Partner'});result=await view(f);assert.equal(result.model.stage,'profile');assert.equal(instances(result.element,ApiForm).length,0);assert.match(result.html,/Open professional application/);assert.equal(instances(result.element,ActionButton).length,0);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,0);
 });
 
-test('saving or editing a profile never applies; the separate application action is explicit and duplicate-safe',async t=>{
-  const f=await fixture(t);await f.partner.saveAccount({name:'Partner'});await f.partner.saveAffiliate(profile);
-  let result=await view(f);assert.equal(result.model.stage,'apply');assert.equal(result.model.completed,2);
-  const [action]=instances(result.element,ActionButton);assert.deepEqual(action.body,{programId:f.program.id});assert.equal(action.method,'POST');assert.equal(action.returnTo,result.model.path);
-  const [edit]=instances(result.element,ApiForm);assert.equal(edit.redirectTo,result.model.path);assert.match(result.html,/does not require a business subscription/);
-  await f.partner.saveAffiliate({...profile,bio:'Updated audience'});assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,0);
-  const application=await f.partner.apply(action.body);result=await view(f);assert.equal(result.model.stage,'pending');assert.equal(result.model.completed,3);
-  assert.equal(instances(result.element,ActionButton).length,0);assert.equal(instances(result.element,ApiForm).length,0);assert.match(result.html,/business is reviewing your application/);
-  assert.equal((await f.partner.apply(action.body)).id,application.id);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,1);
-  assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_accounts').get().n,0);
+test('a reviewed professional profile never applies automatically; the separate program action remains explicit and duplicate-safe',async t=>{
+  const f=await fixture(t);await f.partner.saveAccount({name:'Partner'});await f.partner.saveAffiliate(profile);let result=await view(f);assert.equal(result.model.stage,'profile');assert.equal(instances(result.element,ActionButton).length,0);
+  await approveProfile(f);result=await view(f);assert.equal(result.model.stage,'apply');assert.equal(result.model.completed,2);const [action]=instances(result.element,ActionButton);assert.deepEqual(action.body,{programId:f.program.id});assert.equal(action.method,'POST');assert.equal(action.returnTo,result.model.path);assert.equal(instances(result.element,ApiForm).length,0);assert.match(result.html,/No business subscription is required/);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,0);
+  const application=await f.partner.apply(action.body);result=await view(f);assert.equal(result.model.stage,'pending');assert.equal(result.model.completed,3);assert.equal(instances(result.element,ActionButton).length,0);assert.equal(instances(result.element,ApiForm).length,0);assert.match(result.html,/business is reviewing your application/);assert.equal((await f.partner.apply(action.body)).id,application.id);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM applications').get().n,1);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_accounts').get().n,0);
 });
 
 test('business owners cannot apply to themselves and see the correct invitation sharing guidance',async t=>{
