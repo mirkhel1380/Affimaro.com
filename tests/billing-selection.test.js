@@ -35,3 +35,9 @@ test('new agency saved prices resolve the plan from their own exact amount and i
  const f=await fixture(t);f.save('agency','price_AGENCYGROWTH123',7900);assert.deepEqual(await billingSelection(f.db,'agency',undefined,true),{plan:'growth',portal:'agency',priceId:'price_AGENCYGROWTH123',savedPrice:true});
  f.save('brand','price_AGENCYSTARTER123',3900);await assert.rejects(billingSelection(f.db,'brand',undefined,true),e=>e.status===409);
 });
+
+test('closed subscription reconciliation retains its owned record without making the old price a new purchase option',async t=>{
+ const f=await fixture(t);f.save('agency',platformBillingCatalog.prices.growth,4900,'canceled');
+ assert.deepEqual(await billingSelection(f.db,'agency','starter',true,platformBillingCatalog.prices.growth,true),{plan:'growth',portal:'agency',priceId:platformBillingCatalog.prices.growth,savedPrice:true,legacyPrice:true,reconcileOnly:true});
+ assert.deepEqual(await billingSelection(f.db,'agency','starter',true),{plan:'starter',portal:'agency'});
+});

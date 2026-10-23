@@ -42,8 +42,8 @@ const start=async f=>{const q=await f.api.preview({});return f.api.checkout({rev
 const account=f=>f.db.sqlite.prepare('SELECT * FROM billing_accounts WHERE workspace_id=?').get(f.workspace.id);
 const checkout=f=>f.db.sqlite.prepare('SELECT * FROM billing_checkouts WHERE workspace_id=? ORDER BY rowid DESC LIMIT 1').get(f.workspace.id);
 const posts=f=>f.state.calls.filter(call=>call.path==='/v1/checkout/sessions'&&call.method==='POST');
-function complete(f){
-  const session=f.state.sessions.get(checkout(f).session_id),at=Math.floor(Date.now()/1000);session.status='complete';session.payment_status='paid';session.customer='cus_FIXTURECUSTOMER123';session.subscription='sub_FIXTURESUBSCRIPTION123';session.url=null;
+function complete(f,{subscriptionId='sub_FIXTURESUBSCRIPTION123'}={}){
+  const attempt=checkout(f),session=attempt.session_id?f.state.sessions.get(attempt.session_id):[...f.state.sessions.values()].find(s=>s.metadata.affimaro_checkout===attempt.id),at=Math.floor(Date.now()/1000);session.status='complete';session.payment_status='paid';session.customer='cus_FIXTURECUSTOMER123';session.subscription=subscriptionId;session.url=null;
   const sub={id:session.subscription,object:'subscription',livemode:f.config.mode==='live',customer:session.customer,status:'active',metadata:{...session.metadata},cancel_at_period_end:false,items:{has_more:false,data:[{quantity:1,current_period_start:at-60,current_period_end:at+30*86400,price:structuredClone(f.state.price)}]},latest_invoice:{object:'invoice',customer:session.customer,status:'paid',currency:'usd'}};f.state.subs.set(sub.id,sub);return {session,sub};
 }
 function setAgencyPrice(f,plan='starter'){
@@ -91,7 +91,7 @@ test('canceling a saved old agency checkout cannot make its previous price avail
 test('signed agency notifications resolve the owner’s saved agency plan and keep live paid access',async t=>{
  const f=await fixture(t,{required:true});f.config.platformId=platformBillingCatalog.accountId;f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());setAgencyPrice(f,'growth');await start(f);
  const h=await webhookFixture(f),{session,sub}=complete(f);assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',session)))).status,200);
- assert.deepEqual(f.state.webhookContext,{plan:'growth',userId:'owner',existing:true,priceId:f.config.priceId});assert.equal((await f.api.dashboard()).entitled,true);assert.equal(account(f).amount,7900);
+ assert.deepEqual(f.state.webhookContext,{plan:'growth',userId:'owner',existing:true,priceId:f.config.priceId,reconcile:true});assert.equal((await f.api.dashboard()).entitled,true);assert.equal(account(f).amount,7900);
  assert.equal((await h.handle(await h.signed(h.event('invoice.paid',{object:'invoice',customer:sub.customer})))).status,200);assert.equal(f.state.created,1);
 });
 
@@ -270,7 +270,7 @@ async function webhookFixture(f){
  let sequence=0;
  async function signed(event,{timestamp=Math.floor(Date.now()/1000),signingKey=secret,suffix=''}={}){const body=JSON.stringify(event),hmac=await crypto.subtle.importKey('raw',new TextEncoder().encode(signingKey),{name:'HMAC',hash:'SHA-256'},false,['sign']),digest=await crypto.subtle.sign('HMAC',hmac,new TextEncoder().encode(timestamp+'.'+body)),signature=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');return new Request('https://affimaro.example/api/billing/webhook',{method:'POST',headers:{'Stripe-Signature':'t='+timestamp+',v1='+signature,'Content-Type':'application/json'},body:body+suffix});}
  const event=(type,object)=>({id:'evt_FIXTURE'+(++sequence),object:'event',type,livemode:f.config.mode==='live',data:{object:structuredClone(object)}});
- const handle=request=>billingWebhook(request,{db:f.db,key,origin:'https://affimaro.example',config:async(plan,context)=>{f.state.webhookContext={plan,...context};return f.config;},fetcher:f.fetcher});
+ const handle=request=>billingWebhook(request,{db:f.db,key,origin:'https://affimaro.example',config:async(plan,context)=>{f.state.webhookContext={plan,...context};if(f.state.resolveWebhookConfig){const selected=await billingSelection(f.db,context.userId,plan,context.existing,context.priceId,context.reconcile);return {...f.config,...selected,priceId:selected.priceId||f.config.priceId};}return f.config;},fetcher:f.fetcher});
  return {event,signed,handle};
 }
 test('new Checkout payloads use dynamic methods and a stable integration identifier, while legacy unknown requests are held',async t=>{
@@ -364,4 +364,66 @@ test('a delayed payment failure is linked without granting access and can recove
  const webhook=await webhookFixture(f);assert.equal((await webhook.handle(await webhook.signed(webhook.event('checkout.session.async_payment_failed',session)))).status,200);
  assert.equal(account(f).subscription_id,sub.id);assert.equal(account(f).invoice_paid,0);assert.equal((await f.api.confirm({})).status,'attention');assert.equal(starterEntitled(account(f)),false);await assert.rejects(start(f),fails(409));assert.equal(posts(f).length,1);
  sub.status='active';sub.latest_invoice.status='paid';const event=webhook.event('invoice.paid',{object:'invoice',id:'in_FIXTUREINVOICE123',customer:sub.customer});assert.equal((await webhook.handle(await webhook.signed(event))).status,200);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(posts(f).length,1);
+});
+
+async function closedSubscriptionFixture(t,{role='agency',legacy=false}={}){
+ const f=await fixture(t,{required:true});f.config.platformId=platformBillingCatalog.accountId;
+ if(legacy||role==='brand'){f.config.priceId=platformBillingCatalog.prices.starter;f.state.price.id=f.config.priceId;}else setAgencyPrice(f);
+ if(!legacy)f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner',role,new Date().toISOString());
+ await start(f);const old=complete(f);await f.api.refresh({});old.sub.status='canceled';await f.api.refresh({});
+ if(legacy)f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());
+ const h=await webhookFixture(f);f.state.resolveWebhookConfig=true;
+ return {f,h,old};
+}
+
+test('a later signed event can recheck a canceled legacy agency record without reopening its old price',async t=>{
+ const {f,h,old}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f);const before=f.state.created;
+ assert.equal((await h.handle(await h.signed(h.event('customer.subscription.deleted',old.sub)))).status,200);
+ assert.equal(account(f).status,'canceled');assert.equal(account(f).amount,1900);assert.equal(f.state.created,before);
+ const selected=await billingSelection(f.db,'owner','starter',true);assert.equal(selected.legacyPrice,undefined);assert.equal(selected.priceId,undefined);
+ const record=await billingSelection(f.db,'owner',undefined,true,old.sub.items.data[0].price.id,true),api=billing(f.db,identity('owner'),{...f.config,...record},key,f.fetcher);
+ assert.deepEqual(await api.confirm({}),{status:'attention',mode:'live'});await assert.rejects(api.preview({}),fails(409));
+});
+
+test('signed completion activates a new agency purchase after an old canceled subscription without a browser return',async t=>{
+ const {f,h,old}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f,'growth');await start(f);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'}),before=posts(f).length;
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',current.session)))).status,200);
+ assert.equal(account(f).subscription_id,current.sub.id);assert.equal(account(f).amount,7900);assert.equal(checkout(f).state,'completed');assert.equal((await f.api.dashboard()).entitled,true);assert.equal((await getPlanRequest(f.db,'owner')).active_plan,'growth');assert.equal(posts(f).length,before);assert.equal(old.sub.status,'canceled');
+});
+
+test('late old checkout events cannot disturb a newer unresolved purchase or overwrite its saved result',async t=>{
+ const {f,h,old}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f,'growth');await start(f);const current=checkout(f),before=f.state.calls.length;
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',old.session)))).status,200);
+ assert.equal(checkout(f).id,current.id);assert.equal(checkout(f).state,'open');assert.equal(account(f).status,'canceled');assert.equal(f.state.calls.length,before);
+ const fresh=complete(f,{subscriptionId:'sub_FIXTURESECOND123'});assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',fresh.session)))).status,200);
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',old.session)))).status,200);assert.equal(account(f).subscription_id,fresh.sub.id);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,2);
+});
+
+test('an old invoice notification reconciles only the currently saved paid purchase with fresh provider proof',async t=>{
+ const {f,h}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f,'business');await start(f);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'});
+ assert.equal((await h.handle(await h.signed(h.event('invoice.paid',{object:'invoice',customer:current.sub.customer})))).status,200);
+ assert.equal(account(f).subscription_id,current.sub.id);assert.equal(account(f).amount,14900);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,2);
+});
+
+test('a replacement brand purchase also fulfills through its own signed checkout notification',async t=>{
+ const {f,h}=await closedSubscriptionFixture(t,{role:'brand'});f.config.plan='growth';f.config.priceId=platformBillingCatalog.prices.growth;f.state.price={...f.state.price,id:f.config.priceId,unit_amount:4900};await start(f);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'});
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',current.session)))).status,200);assert.equal(account(f).subscription_id,current.sub.id);assert.equal(account(f).amount,4900);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,2);
+});
+
+test('reconciliation-only billing cannot create a review or payment using a purchase review token',async t=>{
+ const f=await fixture(t),q=await f.api.preview({}),api=billing(f.db,identity('owner'),{...f.config,reconcileOnly:true},key,f.fetcher),before=f.state.calls.length;
+ await assert.rejects(api.preview({}),fails(409));await assert.rejects(api.checkout({reviewToken:q.reviewToken,confirmed:true}),fails(409));assert.equal(f.state.calls.length,before);assert.equal(f.state.created,0);
+});
+
+test('a replacement after an incomplete-expired agency subscription recovers a lost creation response through its signed event',async t=>{
+ const f=await fixture(t,{required:true});f.config.platformId=platformBillingCatalog.accountId;f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());setAgencyPrice(f);await start(f);
+ const first=complete(f);first.session.payment_status='unpaid';first.sub.status='incomplete_expired';first.sub.latest_invoice.status='open';await f.api.refresh({});assert.equal(account(f).status,'incomplete_expired');assert.equal((await f.api.dashboard()).entitled,false);
+ const h=await webhookFixture(f);f.state.resolveWebhookConfig=true;setAgencyPrice(f,'growth');f.state.lose=true;await assert.rejects(start(f),fails(502));assert.equal(checkout(f).session_id,null);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'}),before=posts(f).length;
+ assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',current.session)))).status,200);assert.equal(account(f).subscription_id,current.sub.id);assert.equal(account(f).amount,7900);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(posts(f).length,before);assert.equal(f.state.created,2);
+});
+
+test('an old paid invoice event cannot activate an unpaid replacement checkout',async t=>{
+ const {f,h,old}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f,'growth');await start(f);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'});current.session.payment_status='unpaid';current.sub.latest_invoice.status='open';
+ assert.equal((await h.handle(await h.signed(h.event('invoice.paid',{object:'invoice',customer:old.sub.customer})))).status,200);assert.equal(account(f).status,'canceled');assert.equal(checkout(f).state,'open');assert.equal((await f.api.dashboard()).entitled,false);assert.equal(f.state.created,2);
+ current.session.payment_status='paid';current.sub.latest_invoice.status='paid';assert.equal((await h.handle(await h.signed(h.event('checkout.session.async_payment_succeeded',current.session)))).status,200);assert.equal(account(f).subscription_id,current.sub.id);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,2);
 });

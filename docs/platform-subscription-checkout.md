@@ -35,3 +35,11 @@ Automatic confirmation makes at most six sequential checks with short increasing
 Validation uses isolated databases and provider fixtures. It does not charge a real card, create a live Checkout Session, change Stripe setup or prove customer email delivery or production embedded-form activation.
 
 Login return paths preserve the validated package and Checkout-return or cancellation flags for both business portals. If authentication is needed after payment, signing in resumes saved-payment confirmation instead of losing the return context.
+
+## Replacement purchases and late notifications
+
+A canceled or incomplete-expired subscription keeps its original recorded context for status checks and signed notifications. That reconciliation context cannot start a new review or payment. New purchases use the account role's current catalog, while a still-open saved payment retains its original price and payload.
+
+After a terminal subscription, a replacement checkout is reconciled from its own saved session and verified paid subscription before access activates. A late event from an earlier checkout is acknowledged without changing a newer pending payment. An invoice notification can trigger a read of the current saved purchase, but cannot substitute its event payload for fresh provider payment and invoice proof.
+
+Validation covers legacy agency prices, current agency and brand replacement purchases, canceled and incomplete-expired records, lost creation responses, late old checkout and invoice events, and unpaid replacements that later succeed. These isolated tests do not create a live customer or charge a card.

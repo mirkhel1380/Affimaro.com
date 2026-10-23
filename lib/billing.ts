@@ -10,7 +10,7 @@ import {accountPortal,businessPortal} from './portal-policy.ts';
 import type {BillingConfirmation} from './billing-confirmation.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
-export type BillingConfig={plan?:Plan;portal?:'brand'|'agency';savedPrice?:true;legacyPrice?:boolean;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
+export type BillingConfig={plan?:Plan;portal?:'brand'|'agency';savedPrice?:true;legacyPrice?:boolean;reconcileOnly?:true;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
 export const BILLING_ORIGIN='https://affimaro-preview.kindsky66.chatgpt.site';
 export type BillingAccount={id:string;workspace_id:string;platform_id:string;mode:'test'|'live';customer_id:string|null;subscription_id:string|null;price_id:string|null;amount:number|null;status:string;invoice_paid:number;period_start:number|null;period_end:number|null;cancel_at_period_end:number;last_verified_at:string|null;last_error:string|null};
 type LockedAccount=BillingAccount&{lease_id:string|null;lease_until:string|null};
@@ -90,7 +90,7 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
   const source=()=>verifySource(config,fetcher);
   const returnPath=async()=>await accountPortal(db,identity.userId)==='agency'?'/agency/billing':'/billing';
   const paidForPlan=(a:BillingAccount|null)=>starterEntitled(a)&&a?.price_id===config.priceId&&a?.amount===billingAmount(config);
-  async function quote(){if(config.legacyPrice){const w=await workspace(),a=await current(w.id),attempt=a&&await pending(a.id);if(!attempt||attempt.price_id!==config.priceId||attempt.amount!==billingAmount(config))throw new AppError(409,'The previous agency price only applies to its saved payment. Choose a current agency package.');}await checkPlanCapacity(db,identity.userId,config.plan||'starter');await source();return verifyPrice(config,fetcher);}
+  async function quote(){if(config.reconcileOnly)throw new AppError(409,'Open the current package selection before starting a new payment.');if(config.legacyPrice){const w=await workspace(),a=await current(w.id),attempt=a&&await pending(a.id);if(!attempt||attempt.price_id!==config.priceId||attempt.amount!==billingAmount(config))throw new AppError(409,'The previous agency price only applies to its saved payment. Choose a current agency package.');}await checkPlanCapacity(db,identity.userId,config.plan||'starter');await source();return verifyPrice(config,fetcher);}
   async function ensureAccount(wid:string){await db.prepare('INSERT OR IGNORE INTO billing_accounts (id,workspace_id,platform_id,mode,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),wid,config.platformId,config.mode,now(),now()).run();return (await current(wid))!;}
   async function lock(row:BillingAccount){const token=crypto.randomUUID();await db.prepare('UPDATE billing_accounts SET lease_id=?,lease_until=? WHERE id=? AND (lease_until IS NULL OR lease_until<=?)').bind(token,new Date(Date.now()+120000).toISOString(),row.id,now()).run();if((await one<LockedAccount>(db,'SELECT * FROM billing_accounts WHERE id=?',row.id))?.lease_id!==token)throw new AppError(409,'A billing operation is already running. Wait before checking again.');return token;}
   const unlock=(id:string,lease:string)=>db.prepare('UPDATE billing_accounts SET lease_id=NULL,lease_until=NULL WHERE id=? AND lease_id=?').bind(id,lease).run();
@@ -195,9 +195,17 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
     async notification(reference:{checkoutId?:string;sessionId?:string}){
       const w=await workspace();let a=await current(w.id);if(!a)return {outcome:'ignored'};
       const lease=await lock(a);try{
-        a=(await current(w.id))!;await source();
-        if(a.subscription_id)return {outcome:'subscription',account:await readSubscription(a,a.subscription_id)};
-        let attempt=reference.checkoutId?await one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE id=? AND account_id=? AND workspace_id=?`,reference.checkoutId,a.id,w.id):await pending(a.id);
+        a=(await current(w.id))!;let attempt=await pending(a.id);
+        const referenced=reference.checkoutId?await one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE id=? AND account_id=? AND workspace_id=?`,reference.checkoutId,a.id,w.id):reference.sessionId?await one<BillingCheckout>(db,`SELECT ${checkoutFields} FROM billing_checkouts WHERE session_id=? AND account_id=? AND workspace_id=?`,reference.sessionId,a.id,w.id):null;
+        if((reference.checkoutId||reference.sessionId)&&!referenced)return {outcome:'ignored'};
+        if(referenced&&reference.sessionId&&referenced.session_id&&referenced.session_id!==reference.sessionId)throw new AppError(409,'The notification does not match the saved checkout.');
+        // A closed earlier checkout must not disturb a newer pending payment.
+        if(attempt&&referenced&&attempt.id!==referenced.id)return {outcome:'ignored'};
+        if(!attempt&&!a.subscription_id)attempt=referenced;
+        await source();
+        // A terminal old subscription may coexist with its replacement checkout.
+        // The replacement needs its own provider proof before it can activate.
+        if(a.subscription_id&&(!attempt||!['canceled','incomplete_expired'].includes(a.status)))return {outcome:'subscription',account:await readSubscription(a,a.subscription_id)};
         if(!attempt)return {outcome:'ignored'};
         const session=reference.sessionId||attempt.session_id;if(!session)return {outcome:'awaiting_payment'};
         if(attempt.session_id&&session!==attempt.session_id)throw new AppError(409,'The notification does not match the saved checkout.');

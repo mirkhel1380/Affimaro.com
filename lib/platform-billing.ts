@@ -27,7 +27,7 @@ export async function platformBillingSummary(db:D1Database,user:Identity,origin:
 }
 export async function readPlatformBilling(db:D1Database,key:string|undefined,plan:Plan,origin:string,fallback:BillingConfig,fetcher:Fetcher=fetch):Promise<BillingConfig>{
  const row=await settings(db);if(!row)return resolveAgencyPrice(fallback,fetcher);
- const base:BillingConfig={plan,portal:fallback.portal||'brand',savedPrice:fallback.savedPrice,legacyPrice:fallback.legacyPrice,origin,publishableKey:row.publishable_key||undefined,platformId:row.account_id,priceId:fallback.savedPrice?fallback.priceId:fallback.portal==='agency'?undefined:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
+ const base:BillingConfig={plan,portal:fallback.portal||'brand',savedPrice:fallback.savedPrice,legacyPrice:fallback.legacyPrice,reconcileOnly:fallback.reconcileOnly,origin,publishableKey:row.publishable_key||undefined,platformId:row.account_id,priceId:fallback.savedPrice?fallback.priceId:fallback.portal==='agency'?undefined:platformBillingCatalog.prices[plan],mode:row.mode,required:true,liveEnabled:false};
  if(row.status!=='ready'||row.origin!==origin||!row.encrypted_webhook_secret||!row.portal_configuration_id)return base;
  return resolveAgencyPrice({...base,portalConfigurationId:row.portal_configuration_id,secret:await openPayment<string>(row.encrypted_credential,key,'platform-billing/key/'+row.setup_id),liveEnabled:row.mode==='live'},fetcher);
 }

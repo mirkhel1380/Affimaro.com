@@ -16,7 +16,7 @@ export async function verifyBillingSignature(bytes:Uint8Array,header:string,secr
  const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']),expected=Array.from(new Uint8Array(await crypto.subtle.sign('HMAC',key,message)),n=>n.toString(16).padStart(2,'0')).join('');
  if(!signatures.some(s=>{let diff=0;for(let i=0;i<64;i++)diff|=s.charCodeAt(i)^expected.charCodeAt(i);return diff===0;}))throw new AppError(400,'Invalid subscription signature.');
 }
-export async function billingWebhook(request:Request,options:{db:D1Database;key?:string;origin:string;config:(plan:Plan,context:{userId:string;existing:true;priceId:string|null})=>Promise<BillingConfig>;fetcher?:typeof fetch}){
+export async function billingWebhook(request:Request,options:{db:D1Database;key?:string;origin:string;config:(plan:Plan,context:{userId:string;existing:true;priceId:string|null;reconcile:true})=>Promise<BillingConfig>;fetcher?:typeof fetch}){
  const headers={'Cache-Control':'no-store','Content-Type':'application/json'};
  try{
   if(request.method!=='POST')return new Response(null,{status:405,headers:{...headers,Allow:'POST'}});
@@ -44,7 +44,9 @@ export async function billingWebhook(request:Request,options:{db:D1Database;key?
    let target:{owner_id:string;email:string;price_id:string|null}|null=null;
    if(sessionId||checkoutId)target=await db.prepare(`SELECT w.owner_id,a.email,c.price_id FROM billing_checkouts c JOIN billing_accounts b ON b.id=c.account_id JOIN workspaces w ON w.id=b.workspace_id JOIN accounts a ON a.id=w.owner_id WHERE b.platform_id=? AND b.mode=? AND ((? IS NOT NULL AND c.session_id=?) OR (? IS NOT NULL AND c.id=? AND (? IS NULL OR c.session_id IS NULL))) AND (? IS NULL OR c.id=?) LIMIT 1`).bind(credentials.accountId,credentials.mode,sessionId,sessionId,checkoutId,checkoutId,sessionId,checkoutId,checkoutId).first();
    else if(subscriptionId||customerId)target=await db.prepare(`SELECT w.owner_id,a.email,b.price_id FROM billing_accounts b JOIN workspaces w ON w.id=b.workspace_id JOIN accounts a ON a.id=w.owner_id WHERE b.platform_id=? AND b.mode=? AND ((? IS NOT NULL AND b.subscription_id=?) OR (? IS NOT NULL AND b.customer_id=?)) LIMIT 1`).bind(credentials.accountId,credentials.mode,subscriptionId,subscriptionId,customerId,customerId).first();
-   if(target){const selected=await billingSelection(db,target.owner_id,undefined,true,target.price_id);await billing(db,{userId:target.owner_id,email:target.email},await options.config(selected.plan,{userId:target.owner_id,existing:true,priceId:target.price_id}),options.key,options.fetcher).notification({...(checkoutId?{checkoutId}:{}),...(sessionId?{sessionId}:{})});}
+   // The signed event identifies an owned record. Reconcile the current saved
+   // purchase, not the price of an older event that arrived after replacement.
+   if(target){const selected=await billingSelection(db,target.owner_id,undefined,true,undefined,true);await billing(db,{userId:target.owner_id,email:target.email},await options.config(selected.plan,{userId:target.owner_id,existing:true,priceId:selected.priceId||null,reconcile:true}),options.key,options.fetcher).notification({...(checkoutId?{checkoutId}:{}),...(sessionId?{sessionId}:{})});}
    await db.prepare("UPDATE billing_webhook_events SET status='processed',processed_at=? WHERE event_id=? AND lease_id=?").bind(now(),event.id,lease).run();
   }catch(error){await db.prepare("UPDATE billing_webhook_events SET lease_until=? WHERE event_id=? AND lease_id=? AND status='processing'").bind(now(),event.id,lease).run();throw error;}
   return Response.json({received:true},{headers});
