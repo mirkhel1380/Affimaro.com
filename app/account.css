@@ -141,3 +141,28 @@ html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;
  .a-onboarding-steps button{font-size:11px;gap:5px;padding:10px 6px}
  .a-onboarding-steps b{width:18px;height:18px}
 }
+
+/* Settings keep clear section names and usable controls on narrow screens. */
+.a-settings-tabs button{min-height:44px}
+.a-settings-workspace .a-btn,.a-close-form .a-btn{min-height:44px}
+.a-settings-workspace .a-check,.a-close-form .a-check{min-height:44px}
+.a-settings-workspace .a-check input,.a-close-form .a-check input{width:18px;height:18px;flex-shrink:0}
+@media(max-width:700px){
+ .a-settings-tabs button{font-size:12px;line-height:1.5}
+ .a-settings-workspace .a-check,.a-close-form .a-check{font-size:13px;line-height:1.7}
+ .a-settings-workspace .a-muted{font-size:13px}
+}
+@media(max-width:540px){
+ .a-settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ .a-settings-tabs button{padding:10px 8px;text-align:left;white-space:normal}
+ .a-theme-choices{grid-template-columns:minmax(0,1fr);gap:10px}
+ .a-theme-choices legend{font-size:13px}
+ .a-theme-choice{display:flex;align-items:center;gap:14px;padding:12px}
+ .a-theme-sample{width:80px;height:58px;flex-shrink:0;padding:7px;gap:5px}
+ .a-theme-sample>i{height:8px}
+ .a-theme-sample>b{height:24px}
+ .a-theme-choice>span:last-child{margin-top:0;align-items:center;font-size:13px;line-height:1.6}
+ .a-theme-choice input{width:18px;height:18px;flex-shrink:0}
+ .a-settings-save{display:grid;grid-template-columns:minmax(0,1fr)}
+ .a-settings-save .a-btn,.a-settings-workspace .a-card-body>.a-btn,.a-settings-workspace .a-form>.a-btn,.a-close-form>.a-btn{width:100%;justify-self:stretch;min-height:46px;font-size:13px}
+}
