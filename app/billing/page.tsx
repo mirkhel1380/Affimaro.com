@@ -10,6 +10,8 @@ import {paymentDataKey} from '../../lib/payment-runtime';
 import {Shell,PageHeading,Card,Badge,Note,Icon} from '../ui';
 import {SubscriptionCheckout,BillingActions} from '../billing-controls';
 import {PaymentConfirmation} from '../payment-confirmation';
+import {billingPagePath,type BillingQuery} from '../../lib/billing-confirmation';
+export type {BillingQuery} from '../../lib/billing-confirmation';
 import {PackageChoice} from '../audience-forms';
 import {money} from '../../lib/money';
 import {requireChatGPTUser} from '../chatgpt-auth';
@@ -18,16 +20,14 @@ import {redirect} from 'next/navigation';
 export const dynamic='force-dynamic';
 export const metadata={title:'Packages & billing | Affimaro',robots:{index:false,follow:false}};
 export default async function BillingPage({searchParams=Promise.resolve({})}:{searchParams?:Promise<{plan?:string;checkout_return?:string;checkout_cancelled?:string}>}={}){
- const query=await searchParams,user=await requireChatGPTUser('/billing');
+ const query=await searchParams,user=await requireChatGPTUser(billingPagePath('brand',query));
  if(await accountPortal(getRawDb(),user.userId)==='agency'){
-  const params=new URLSearchParams();if(Object.hasOwn(planCatalog,query.plan||''))params.set('plan',query.plan!);if(query.checkout_return==='1')params.set('checkout_return','1');if(query.checkout_cancelled==='1')params.set('checkout_cancelled','1');
-  redirect('/agency/billing'+(params.size?'?'+params:''));
+  redirect(billingPagePath('agency',query));
  }
  return BillingView('brand',query);
 }
-export type BillingQuery={plan?:string;checkout_return?:string;checkout_cancelled?:string};
 export async function BillingView(portal:Portal,query:BillingQuery){
- const path=portal==='agency'?'/agency/billing':'/billing',selected=Object.hasOwn(planCatalog,query.plan||'')?query.plan as Plan:undefined,user=await requirePortalUser(portal,path+(selected?'?plan='+selected:'')),db=getRawDb(),account=await service(db,user).account(),request=await getPlanRequest(db,user.userId),capacityId=await activePlan(db,user.userId),planId=selected||await selectedPlan(db,user.userId),plan=planCatalog[planId],config=await billingConfig(planId),api=billing(db,user,config,paymentDataKey()),dashboard=await api.dashboard(),a=dashboard.account,pending=dashboard.currentContext?dashboard.pending:null,existing=dashboard.currentContext&&!!a?.subscription_id&&!['canceled','incomplete_expired'].includes(a.status);
+ const path=portal==='agency'?'/agency/billing':'/billing',selected=typeof query.plan==='string'&&Object.hasOwn(planCatalog,query.plan)?query.plan as Plan:undefined,user=await requirePortalUser(portal,billingPagePath(portal==='agency'?'agency':'brand',query)),db=getRawDb(),account=await service(db,user).account(),request=await getPlanRequest(db,user.userId),capacityId=await activePlan(db,user.userId),planId=selected||await selectedPlan(db,user.userId),plan=planCatalog[planId],config=await billingConfig(planId),api=billing(db,user,config,paymentDataKey()),dashboard=await api.dashboard(),a=dashboard.account,pending=dashboard.currentContext?dashboard.pending:null,existing=dashboard.currentContext&&!!a?.subscription_id&&!['canceled','incomplete_expired'].includes(a.status);
  const checkingReturn=query.checkout_return==='1'&&dashboard.configured&&dashboard.currentContext&&!!(pending||a?.subscription_id);
  let initialQuote:BillingQuote|undefined,quoteError='';if(dashboard.configured&&!existing&&!checkingReturn)try{initialQuote=await api.preview({});}catch(error){quoteError=error instanceof AppError?error.message:'The subscription price could not be verified. Try again later.';}
  return <Shell name={account?.display_name||portalName(portal)} email={user.email} portal={portal} active="billing"><PageHeading eyebrow={portalName(portal).toUpperCase()+' PACKAGES & BILLING'} title="Your package. A clear next step." description="Your profile is approved. Choose a package and pay securely to activate your subscription."/>

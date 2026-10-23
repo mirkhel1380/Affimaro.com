@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {confirmSavedPayment,confirmationDelays} from '../lib/billing-confirmation.ts';
+import {confirmSavedPayment,confirmationDelays,billingPagePath} from '../lib/billing-confirmation.ts';
 function options(){return {updates:[],waits:[],stop:false,update(value){this.updates.push(value)},async wait(milliseconds){this.waits.push(milliseconds)},cancelled(){return this.stop}};}
 const bind=o=>({update:o.update.bind(o),wait:o.wait.bind(o),cancelled:o.cancelled.bind(o)}),result=status=>({status,mode:status==='test_complete'?'test':'live'});
 test('confirmation waits for verified access, keeps checks sequential and retries temporary network failures',async()=>{
@@ -17,3 +17,13 @@ test('leaving the page cancels subsequent checks and suppresses a late result',a
  const waiting=options();waiting.wait=async()=>{waiting.stop=true};let checks=0;assert.equal(await confirmSavedPayment(async()=>{checks++;return result('processing')},bind(waiting)),null);assert.equal(checks,1);
 });
 test('repeated network failures terminate with a recoverable error rather than a success result',async()=>{const o=options();let calls=0;await assert.rejects(confirmSavedPayment(async()=>{calls++;throw Error('Connection unavailable')},bind(o)),/Connection unavailable/);assert.equal(calls,confirmationDelays.length);assert.equal(o.updates.length,0);});
+
+
+test('sign-in and agency routing retain safe package and payment-return context',()=>{
+ for(const portal of ['brand','agency']){
+  const path=billingPagePath(portal,{plan:'growth',checkout_return:'1'}),url=new URL(path,'https://affimaro.example');assert.equal(url.pathname,portal==='agency'?'/agency/billing':'/billing');assert.equal(url.searchParams.get('plan'),'growth');assert.equal(url.searchParams.get('checkout_return'),'1');
+  const login=new URL('/auth/'+portal+'/login','https://affimaro.example');login.searchParams.set('return_to',path);assert.equal(new URL(login.searchParams.get('return_to'),'https://affimaro.example').searchParams.get('checkout_return'),'1');
+  assert.ok(billingPagePath(portal,{checkout_cancelled:'1'}).endsWith('?checkout_cancelled=1'));
+ }
+ assert.equal(billingPagePath('brand',{plan:'https://evil.example',checkout_return:'yes',checkout_cancelled:'false'}),'/billing');assert.equal(billingPagePath('agency',{plan:['growth'],checkout_return:['1']}),'/agency/billing');
+});

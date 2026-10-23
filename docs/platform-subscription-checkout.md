@@ -33,3 +33,5 @@ A completed Checkout with an unpaid delayed payment remains attached to its orig
 Automatic confirmation makes at most six sequential checks with short increasing waits, then offers manual rechecking. Leaving the component stops further checks and ignores late results. Network failures show a retry and a route back to billing. Confirmed live payments reload the role's canonical billing page before continuing to the brand or agency portal. Test purchases do not activate live access; affiliate and creator accounts remain free.
 
 Validation uses isolated databases and provider fixtures. It does not charge a real card, create a live Checkout Session, change Stripe setup or prove customer email delivery or production embedded-form activation.
+
+Login return paths preserve the validated package and Checkout-return or cancellation flags for both business portals. If authentication is needed after payment, signing in resumes saved-payment confirmation instead of losing the return context.
