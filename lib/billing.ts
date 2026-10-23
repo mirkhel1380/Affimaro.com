@@ -8,6 +8,7 @@ import {STRIPE_VERSION} from './payment-connections.ts';
 import {trustedPublicOrigin} from './public-origin.ts';
 import {accountPortal,businessPortal} from './portal-policy.ts';
 import type {BillingConfirmation} from './billing-confirmation.ts';
+import {subscriptionInvoices,type BillingInvoiceHistory} from './billing-invoices.ts';
 
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
 export type BillingConfig={plan?:Plan;portal?:'brand'|'agency';savedPrice?:true;legacyPrice?:boolean;reconcileOnly?:true;secret?:string;platformId?:string;priceId?:string;mode:'test'|'live';liveEnabled:boolean;required:boolean;origin?:string;publishableKey?:string;portalConfigurationId?:string};
@@ -42,7 +43,7 @@ export function billingRedirect(value:string,kind:'checkout'|'portal'){
 }
 async function api(fetcher:Fetcher,config:BillingConfig,path:string,body?:URLSearchParams,idem?:string){
   const url=new URL('https://api.stripe.com'+path);
-  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}\/expire$/.test(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/prices\?active=true&limit=2&lookup_keys%5B%5D=affimaro_agency_(?:starter|growth|business)_monthly_v1$/.test(path)||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
+  const allowed=body?['/v1/checkout/sessions','/v1/billing_portal/sessions'].includes(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}\/expire$/.test(path):path==='/v1/account'||path==='/v1/balance'||/^\/v1\/invoices\?customer=cus_[A-Za-z0-9]{6,160}&subscription=sub_[A-Za-z0-9]{6,160}&limit=10$/.test(path)||/^\/v1\/prices\?active=true&limit=2&lookup_keys%5B%5D=affimaro_agency_(?:starter|growth|business)_monthly_v1$/.test(path)||/^\/v1\/prices\/price_[A-Za-z0-9]{6,160}$/.test(path)||/^\/v1\/checkout\/sessions\/cs_(?:live|test)_[A-Za-z0-9]{6,200}$/.test(path)||/^\/v1\/subscriptions\/sub_[A-Za-z0-9]{6,160}\?expand%5B%5D=latest_invoice$/.test(path);
   if(url.origin!=='https://api.stripe.com'||!allowed)throw new AppError(500,'Unsupported subscription endpoint.');
   let response:Response;try{response=await fetcher(url.href,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${config.secret}`,'Stripe-Version':STRIPE_VERSION,Accept:'application/json',...(body?{'Content-Type':'application/x-www-form-urlencoded',...(idem?{'Idempotency-Key':idem}:{})}:{})},...(body?{body:body.toString()}:{})});}catch{throw new AppError(502,'Stripe did not confirm this billing request. Check its saved status before trying again.');}
   if(!response.ok){await response.body?.cancel();throw new AppError(response.status===429?429:502,'Stripe could not confirm billing. Check the configured account, permissions and saved status.');}
@@ -138,6 +139,14 @@ export function billing(db:D1Database,identity:Identity,config:BillingConfig,key
     await db.batch([db.prepare("UPDATE billing_checkouts SET state='open',session_id=?,encrypted_url=?,expires_at=?,last_error=NULL,updated_at=? WHERE id=? AND state IN ('creating','open','review')").bind(session.id,encrypted,session.expires_at,now(),attempt.id),audit(a.workspace_id,'subscription_checkout_opened')]);return {outcome:'checkout',url};
   }
   const apiObject={
+    async invoices(input:unknown):Promise<BillingInvoiceHistory>{
+      parse(z.object({}).strict(),input);const w=await workspace(),a=await current(w.id);
+      if(!a?.customer_id||!a.subscription_id)return {mode:config.mode,invoices:[],hasMore:false};
+      if(!customerId.safeParse(a.customer_id).success||!subscriptionId.safeParse(a.subscription_id).success)throw new AppError(409,'Your saved subscription needs verification before invoices can be opened.');
+      await source();
+      const query=new URLSearchParams({customer:a.customer_id,subscription:a.subscription_id,limit:'10'});
+      return subscriptionInvoices(await api(fetcher,config,'/v1/invoices?'+query),{customerId:a.customer_id,subscriptionId:a.subscription_id,mode:a.mode});
+    },
     async dashboard(){
       const w=await workspace(),a=await current(w.id)||await one<BillingAccount>(db,`SELECT ${accountFields} FROM billing_accounts WHERE workspace_id=? ORDER BY CASE mode WHEN 'live' THEN 0 ELSE 1 END,updated_at DESC LIMIT 1`,w.id);
       const usage=await one<{stores:number;programs:number;approved_partners:number;orders:number}>(db,"SELECT (SELECT COUNT(*) FROM store_connections WHERE workspace_id=w.id) AS stores,(SELECT COUNT(*) FROM programs WHERE workspace_id=w.id) AS programs,(SELECT COUNT(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=w.id AND a.status='approved') AS approved_partners,(SELECT COUNT(*) FROM orders o JOIN store_connections c ON c.id=o.store_id WHERE c.workspace_id=w.id) AS orders FROM workspaces w WHERE w.id=? AND w.owner_id=?",w.id,identity.userId);

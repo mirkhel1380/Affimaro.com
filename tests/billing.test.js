@@ -101,12 +101,31 @@ test('missing billing configuration preserves pilot access and does not contact 
   assert.equal(billingConfigured({...f.config,liveEnabled:false}),false);assert.equal(billingConfigured({...f.config,secret:'pk_live_NOTASECRET'}),false);
 });
 
+test('subscription invoice reads use saved owner identifiers, never write or activate access, and include canceled subscriptions',async t=>{
+ const f=await fixture(t);await start(f);const {sub}=complete(f);await f.api.refresh({});
+ const before=JSON.stringify({account:account(f),checkout:checkout(f),plan:await getPlanRequest(f.db,'owner'),audit:f.db.sqlite.prepare('SELECT * FROM audit_events ORDER BY rowid').all()});
+ const invoice={id:'in_INVOICEFIXTURE123',object:'invoice',livemode:true,customer:sub.customer,currency:'usd',parent:{type:'subscription_details',subscription_details:{subscription:sub.id}},number:'AFF-0001',created:Math.floor(Date.now()/1000),status:'paid',total:1900,amount_paid:1900,amount_remaining:0,status_transitions:{paid_at:Math.floor(Date.now()/1000)},invoice_pdf:'https://pay.stripe.com/invoice/acct_FIXTURE123/PRIVATE_LINK/pdf?s=ap'};
+ f.state.fault=call=>{if(call.path!=='/v1/invoices')return;assert.equal(call.method,'GET');assert.equal(call.url.searchParams.get('customer'),sub.customer);assert.equal(call.url.searchParams.get('subscription'),sub.id);assert.equal(call.url.searchParams.get('limit'),'10');assert.equal([...call.url.searchParams].length,3);return Response.json({object:'list',data:[invoice],has_more:false});};
+ assert.equal((await f.api.invoices({})).invoices[0].number,'AFF-0001');
+ assert.equal(JSON.stringify({account:account(f),checkout:checkout(f),plan:await getPlanRequest(f.db,'owner'),audit:f.db.sqlite.prepare('SELECT * FROM audit_events ORDER BY rowid').all()}),before);
+ f.db.sqlite.prepare("UPDATE billing_accounts SET status='canceled',invoice_paid=0,last_verified_at=NULL").run();assert.equal((await f.api.invoices({})).invoices[0].status,'paid');assert.equal((await f.api.dashboard()).entitled,false);assert.equal(account(f).status,'canceled');
+ const calls=f.state.calls.length;assert.deepEqual(await billing(f.db,identity('other'),f.config,key,f.fetcher).invoices({}),{mode:'live',invoices:[],hasMore:false});assert.equal(f.state.calls.length,calls);
+ for(const data of [{customer:sub.customer},{subscription:sub.id},{invoiceId:invoice.id},{starting_after:invoice.id},{amount:1}])await assert.rejects(f.api.invoices(data),fails(400));assert.equal(f.state.calls.length,calls);
+});
+
+test('subscription invoice verification rejects provider scope mismatches and permission failures without modifying billing',async t=>{
+ const f=await fixture(t);await start(f);const {sub}=complete(f);await f.api.refresh({});const before=account(f),invoice={id:'in_INVOICEFIXTURE123',object:'invoice',livemode:true,customer:sub.customer,currency:'usd',parent:{type:'subscription_details',subscription_details:{subscription:sub.id}},number:'AFF-0001',created:Math.floor(Date.now()/1000),status:'paid',total:1900,amount_paid:1900,amount_remaining:0,status_transitions:{paid_at:null},invoice_pdf:null};
+ for(const change of [{customer:'cus_OTHERINVOICE123'},{parent:{type:'subscription_details',subscription_details:{subscription:'sub_OTHERINVOICE123'}}},{livemode:false}]){f.state.fault=call=>call.path==='/v1/invoices'?Response.json({object:'list',data:[{...invoice,...change}],has_more:false}):undefined;await assert.rejects(f.api.invoices({}),fails(409));}
+ f.state.fault=call=>call.path==='/v1/invoices'?Response.json({error:{message:'PRIVATE_PROVIDER_DETAILS'}},{status:403}):undefined;await assert.rejects(f.api.invoices({}),e=>e instanceof AppError&&e.status===502&&!e.message.includes('PRIVATE_PROVIDER_DETAILS'));assert.deepEqual(account(f),before);assert.equal(f.state.created,1);
+ f.state.fault=call=>call.path==='/v1/account'?Response.json({object:'account',id:'acct_OTHERPLATFORM123'}):undefined;const reads=f.state.calls.filter(c=>c.path==='/v1/invoices').length;await assert.rejects(f.api.invoices({}),fails(409));assert.equal(f.state.calls.filter(c=>c.path==='/v1/invoices').length,reads);
+});
+
 test('affiliate and creator accounts cannot enter subscription billing even when an old business workspace exists',async t=>{
  for(const role of ['affiliate','creator']){
   const f=await fixture(t,{required:true}),quote=await f.api.preview({});
   f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner',role,new Date().toISOString());
   const calls=f.state.calls.length;
-  for(const operation of [()=>f.api.dashboard(),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.confirm({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
+  for(const operation of [()=>f.api.dashboard(),()=>f.api.invoices({}),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.confirm({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
   assert.equal(f.state.calls.length,calls);assert.equal(f.state.created,0);
   for(const table of ['billing_accounts','billing_checkouts'])assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM '+table).get().n,0);
  }

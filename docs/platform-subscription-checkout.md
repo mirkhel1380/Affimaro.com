@@ -43,3 +43,13 @@ A canceled or incomplete-expired subscription keeps its original recorded contex
 After a terminal subscription, a replacement checkout is reconciled from its own saved session and verified paid subscription before access activates. A late event from an earlier checkout is acknowledged without changing a newer pending payment. An invoice notification can trigger a read of the current saved purchase, but cannot substitute its event payload for fresh provider payment and invoice proof.
 
 Validation covers legacy agency prices, current agency and brand replacement purchases, canceled and incomplete-expired records, lost creation responses, late old checkout and invoice events, and unpaid replacements that later succeed. These isolated tests do not create a live customer or charge a card.
+
+## Customer invoice history
+
+Brand and agency billing pages include an on-demand invoice card. The authenticated, approved account can read the latest 10 invoices for its current saved subscription. Older invoices and previous subscriptions remain available through the existing customer billing portal. Canceled subscriptions can still show their invoices. Affiliate and creator accounts remain free and cannot use this billing action.
+
+The server derives both customer and subscription identifiers from the account's own billing row in the configured Stripe account and mode. It verifies the provider account and mode before requesting `GET /v1/invoices` with both filters and a fixed limit. Each returned invoice must match the saved customer, subscription parent and mode. Only invoice number, dates, status, USD amounts and a validated provider PDF link reach the customer; raw invoice objects, contact details and hosted payment links are excluded. The response is private and uncached. Draft invoices do not expose a PDF.
+
+This action performs no provider writes, sends no email and changes no database records, subscription status or entitlement. Invoice status and paid amounts are display data, not a substitute for the existing fresh subscription and paid-invoice activation checks. Refunds and credit notes are not a separate ledger in this view. Missing invoice-read permission or a provider failure leaves the saved subscription untouched and shows a retryable error.
+
+References: [list invoices](https://docs.stripe.com/api/invoices/list), [invoice object](https://docs.stripe.com/api/invoices/object), [subscription invoices](https://docs.stripe.com/billing/invoices/subscription). The application's pinned API version remains unchanged. Validation uses isolated provider fixtures and does not create a live invoice or charge a card.
