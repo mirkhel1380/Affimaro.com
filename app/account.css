@@ -109,3 +109,35 @@ html[data-affimaro-theme=dark] .a-shell-top .a-click-chart-summary strong,html[d
 html[data-affimaro-density=compact] .a-shell-top .a-card-body{padding:16px 18px}html[data-affimaro-density=compact] .a-shell-top .a-card-heading{padding:16px 18px 0}html[data-affimaro-density=compact] .a-shell-top .a-stat{padding:16px}html[data-affimaro-density=compact] .a-shell-top .a-page-heading{margin-bottom:18px}html[data-affimaro-density=compact] .a-shell-top .a-preview-table td,html[data-affimaro-density=compact] .a-shell-top .a-preview-table th{padding:10px 16px}html[data-affimaro-density=compact] .a-shell-top .a-portal-header-inner{min-height:70px}html[data-affimaro-motion=reduced] *,html[data-affimaro-motion=reduced] *:before,html[data-affimaro-motion=reduced] *:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 html[data-affimaro-theme=dark] .a-shell-top p{color:#b7c9ac}html[data-affimaro-theme=dark] .a-shell-top :is(h1,h2,h3,legend){color:#e4eee0}html[data-affimaro-theme=dark] .a-shell-top table th{background:#273325;color:#c1d8ad}html[data-affimaro-theme=dark] .a-shell-top table td{color:#d7e6cd}html[data-affimaro-theme=dark] .a-shell-top .a-onboarding-steps button{background:#253221;border-color:#465b3d;color:#c7dbba}html[data-affimaro-theme=dark] .a-shell-top .a-onboarding-steps button[aria-current=step]{background:#d5ec98;color:#173e32}html[data-affimaro-theme=dark] .a-shell-top .a-primary-navigation{border-color:#364235}html[data-affimaro-theme=dark] .a-shell-top .a-primary-navigation .a-nav-panel{background:#1c261e}html[data-affimaro-theme=dark] .a-shell-top .a-form-error{color:#ffd5c7}
 html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;--line:#364235;color:#e4eee0}html[data-affimaro-theme=dark] .a-preview-hub .a-card{background:#1c251f;border-color:#364235}html[data-affimaro-theme=dark] .a-preview-hub :is(p,.a-muted,.a-eyebrow){color:#b7c9ac}html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page) .a-logo{color:#e4eee0}html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page) .a-logo svg{stroke:#153b32}html[data-affimaro-theme=dark] .a-preview-hub .a-preview-role-icon{background:#31472a;color:#d5ec98}html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page) .a-btn-dark{background:#d5ec98;color:#183b2b}html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page) .a-text-link{color:#c0d99f}
+
+/* Phone forms keep readable text and comfortable touch targets in every portal. */
+@media(max-width:1000px){
+ .a-shell-top :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]),select,textarea){font-size:16px;min-height:44px;max-width:100%}
+ .a-nav-mobile-toggle,.a-nav-profile>summary{min-height:44px;min-width:44px}
+}
+@media(max-width:700px){
+ .a-shell-top .a-btn{min-height:44px;font-size:12px;white-space:normal;text-align:center}
+ .a-shell-top .a-page-heading p{font-size:13px;line-height:1.75}
+ .a-shell-top .a-field>small,.a-shell-top .a-fine-print{font-size:12px;line-height:1.7}
+ .a-application-form fieldset{min-width:0;max-width:100%}
+ .a-application-form .a-form-grid{grid-template-columns:minmax(0,1fr)}
+ .a-application-form .a-field>span,.a-application-form .a-field-title{font-size:13px}
+ .a-onboarding-form fieldset>legend{max-width:100%;font-size:17px;line-height:1.5;overflow-wrap:anywhere}
+ .a-onboarding-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .a-onboarding-actions .a-btn{width:100%;min-height:46px;font-size:13px}
+ .a-onboarding-actions .a-btn:last-child{grid-column:1/-1;margin-left:0}
+ .a-ownership-callout .a-btn{width:100%;min-height:46px}
+ .a-card-body>.a-media-manager{padding:0}
+ .a-media-summary p,.a-media-property p,.a-media-property summary{font-size:13px;line-height:1.75}
+ .a-verification-code{font-size:13px}
+ .a-application-progress>span{min-width:0;font-size:12px;line-height:1.5;gap:7px;overflow-wrap:anywhere}
+}
+@media(max-width:540px){
+ .a-onboarding-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .a-onboarding-steps button{min-height:46px;padding:10px 8px;font-size:12px;overflow-wrap:anywhere}
+ .a-onboarding-steps b{width:20px;height:20px}
+}
+@media(max-width:360px){
+ .a-onboarding-steps button{font-size:11px;gap:5px;padding:10px 6px}
+ .a-onboarding-steps b{width:18px;height:18px}
+}
