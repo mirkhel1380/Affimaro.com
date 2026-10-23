@@ -166,3 +166,29 @@ html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;
  .a-settings-save{display:grid;grid-template-columns:minmax(0,1fr)}
  .a-settings-save .a-btn,.a-settings-workspace .a-card-body>.a-btn,.a-settings-workspace .a-form>.a-btn,.a-close-form>.a-btn{width:100%;justify-self:stretch;min-height:46px;font-size:13px}
 }
+
+/* Discovery and partnership actions stay readable and easy to reach. */
+.a-shell-top .a-partnership-tabs a{display:flex;align-items:center;min-height:44px;font-size:12px}
+.a-discovery-filters .a-btn,.a-directory-card-actions .a-btn,.a-directory-profile-layout .a-btn,.a-relationship-list .a-btn,.a-invitation-list .a-btn,.a-relationship-filters .a-btn{min-height:44px}
+.a-discovery-filters .a-text-link,.a-relationship-filters>.a-text-link{min-height:44px;align-items:center}
+.a-directory-card h3,.a-relationship-identity h3,.a-invitation-list h3,.a-directory-profile-layout h3{overflow-wrap:anywhere}
+.a-relationship-identity>div{min-width:0;flex:1}
+@media(max-width:700px){
+ .a-directory-description,.a-profile-description,.a-invitation-list p{font-size:13px;line-height:1.8}
+ .a-directory-meta,.a-directory-facts,.a-relationship-facts{font-size:12px;line-height:1.75}
+ .a-discovery-filters .a-field span{font-size:13px}
+}
+@media(max-width:540px){
+ .a-shell-top .a-partnership-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;overflow:visible}
+ .a-shell-top .a-partnership-tabs a{padding:10px 8px;white-space:normal;line-height:1.5}
+ .a-discovery-filters form{grid-template-columns:minmax(0,1fr)}
+ .a-discovery-filters .a-btn,.a-relationship-filters .a-btn{width:100%}
+ .a-directory-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+ .a-directory-card-actions>.a-action{min-width:0;align-items:stretch}
+ .a-directory-card-actions .a-btn{width:100%}
+ .a-directory-profile-layout .a-btn{width:100%;justify-self:stretch}
+ .a-relationship-list .a-inline-actions,.a-invitation-list .a-inline-actions{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}
+ .a-relationship-list .a-inline-actions .a-action,.a-invitation-list .a-inline-actions .a-action{width:100%;align-items:stretch}
+ .a-relationship-list .a-inline-actions .a-btn,.a-invitation-list .a-inline-actions .a-btn{width:100%}
+ .a-invitation-list .a-inline-actions>.a-text-link{min-height:44px;align-items:center}
+}
