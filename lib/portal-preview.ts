@@ -1,3 +1,5 @@
+import {partnershipProfile} from './partnership-profile.ts';
+import type {PartnerReview} from './partner-review.ts';
 import {z} from 'zod';
 import {businessPortal,type Portal} from './portal-policy.ts';
 export const previewRoles=['brand','affiliate','creator','agency'] as const;
@@ -42,4 +44,14 @@ export function previewApplication(p:Portal):Record<string,unknown>{
  const common={contactName:'Example Partner',name:'Example Partner',organizationType:'Individual',country:'United States',city:'Denver',phone:'+1 202 555 0123',primaryUrl:'https://publisher.example',additionalUrls:['https://social.example/profile'],industry:'Software & technology',audienceCountries:['United States','United Kingdom'],promotionMethods:['Website & SEO content','Email newsletter'],monthlyAudience:'1,000–9,999',experience:'1–3 years',description:'This sample profile describes practical tutorials and careful comparisons for people choosing business tools and online services.',promotionPlan:'This sample applicant publishes useful comparisons and tutorials, follows program rules, and clearly discloses affiliate relationships to the audience.',referralSource:'Portal preview',authorityConfirmed:true,dataConfirmed:true};
  const brand={...common,name:'Example Brand Owner',businessName:'Northline Goods',legalBusinessName:'Example Brand LLC',registrationNumber:'',teamSize:'2–10',monthlyOrders:'100–999',currency:'USD',partnerGoals:'Build a considered program with relevant publishers and transparent commission for eligible purchases.',plan:'starter',businessModel:'Online store',commissionModel:'Percentage of sale',launchTiming:'Within 30 days'};
  return p==='brand'?brand:p==='agency'?{...brand,organizationType:'Agency',agencyName:'Juniper Partner Studio',agencyWebsite:'https://agency.example',clientCount:'2–5',agencyServices:['Partner recruitment','Program management'],agencySpecialty:'Content-led programs',clientAuthority:true}:p==='creator'?{...common,channel:'Content creator',primaryPlatform:'YouTube',contentFormats:['Videos','Articles'],publishingFrequency:'Weekly',portfolioUrl:'https://creator.example/portfolio',collaborationTypes:['Affiliate links','Product reviews'],audienceLanguages:['English']}: {...common,channel:'Blog',publisherModel:'Editorial / content publisher',trafficSources:['Organic search','Email subscribers'],audienceLanguages:['English'],previousPartnerships:'Sample software comparisons.'};
+}
+
+
+export function previewPartnerReview(state:PreviewState,id:string):PartnerReview|null{
+ const row=state.relations.find(r=>r.id===id);if(!businessPortal(state.portal)||!row||businessPortal(row.role))return null;
+ const profile=previewApplication(row.role),at='2026-10-19T12:00:00.000Z';
+ return {id:row.id,name:row.name,portal:row.role,status:row.status,created_at:at,updated_at:at,
+  program_name:state.program.name,rate_bps:row.rate*100,window_days:row.window,program_active:state.program.active?1:0,
+  profile:partnershipProfile({...profile,name:row.name}),accountApproved:true,closed:false,ownershipReady:true,approvalReady:true,
+  channels:[{name:row.name+' sample website',url:'https://publisher.example',platform:'Website / blog',kind:'Website',language:'English',relationship:'Owner',verified:true,status:'verified',verified_at:at}]};
 }

@@ -15,3 +15,13 @@ test('preview routes reject unknown roles, owner paths and customer-role-inappro
 test('preview navigation keeps account and role routes inside its own isolated prefix',()=>{for(const role of previewRoles)for(const raw of ['/account','/account/close','/application','/application/media','/payments?view=affiliate','/creator/content','/agency/clients','/workspace/resources','/partner/clicks','/partner/brands?tab=invitations'])assert.ok(previewHref(role,raw).startsWith('/preview/'+role+'/'));assert.equal(previewHref('affiliate','/partner/brands?tab=invitations'),'/preview/affiliate/relationships?tab=invitations');});
 test('preview state changes are isolated and accepting an invitation never auto-approves a sample partnership',()=>{const original=initialPreviewState('affiliate'),next=previewTransition(original,{type:'respond',id:original.invitations[0].id,status:'accepted'});assert.equal(next.relations.find(r=>r.id==='studio').status,'pending');assert.equal(original.relations.find(r=>r.id==='studio').status,'suspended');assert.equal(original.invitations[0].status,'pending');assert.deepEqual(initialPreviewState('creator').saved,[]);assert.throws(()=>previewTransition(original,{type:'plan',plan:'business',paid:true}),/free/);assert.throws(()=>previewTransition(original,{type:'review',id:'northline',status:'approved'}),/owner/);assert.equal(previewStateSchema.safeParse({...original,portal:'owner'}).success,false);});
 test('all sample applications satisfy the real four-role submission schemas',()=>{for(const role of previewRoles){const result=applicationProfile(role,previewApplication(role));assert.equal(result.success,true,role+(result.success?'':JSON.stringify(result.error.issues)));}});
+
+
+test('sample applicant reviews use the shared review panel without exposing production data or role switching',async()=>{
+ for(const portal of ['brand','agency'])for(const id of ['alex','sofia']){
+  const html=renderToStaticMarkup(await views.PortalPreview({params:Promise.resolve({portal,path:['relationships','profile',id]}),searchParams:Promise.resolve({})}));
+  for(const text of ['SAMPLE PARTNER APPLICATION','Fictional sample profile','Promotion strategy','Application decision'])assert.ok(html.includes(text),text);
+  assert.ok(html.includes('href="/preview/'+portal+'/relationships?tab='));assert.ok(!html.includes('Contact phone'));assert.ok(!html.includes('Full contact name'));
+ }
+ for(const portal of ['affiliate','creator'])await assert.rejects(views.PortalPreview({params:Promise.resolve({portal,path:['relationships','profile','alex']}),searchParams:Promise.resolve({})}),e=>e.notFound===true);
+});

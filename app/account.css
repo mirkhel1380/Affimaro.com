@@ -206,3 +206,9 @@ html[data-affimaro-theme=dark] :is(.a-preview-hub,.a-closed-page){--ink:#e4eee0;
 .a-payment-confirmation h3{font-size:21px;line-height:1.4;margin:12px 0;overflow-wrap:anywhere}
 .a-payment-confirmation p{font-size:13px;line-height:1.8;max-width:680px}
 .a-payment-confirmation .a-btn{min-height:44px}
+
+/* A scoped applicant review uses the same readable two-column portal layout. */
+.a-partner-review>div,.a-partner-review>aside{min-width:0}
+.a-partner-review .a-detail-list dd,.a-partner-readiness{overflow-wrap:anywhere}
+.a-partner-readiness{padding-left:18px;font-size:12px;line-height:1.8;margin:20px 0}
+.a-partner-review .a-public-properties article:last-child{border-bottom:0}
