@@ -32,3 +32,11 @@ Destination and receipt requests recognize brand and agency ownership through th
 Wallet request controls use the full reserved balance, rather than inferring an open request from the latest 100 displayed rows. An older open request continues to disable a duplicate request. The server's existing reservation, idempotency and coverage checks remain authoritative.
 
 Payment status explicitly separates waiting for review, approved but unpaid, an unconfirmed transfer, a bank/Wise transfer recorded by the business, and verified credit to a Stripe receiving account. Partial/full reversals and cancelled/declined reservations have their own descriptions. These labels do not prove bank receipt or initiate a provider operation. Commission controls respect the source state and sync readiness and do not label unresolved source rows approved.
+
+## Changes during application and review
+
+A new application is inserted only while its program is still active and both accounts are open. A pause or closure that commits after the form was opened cannot create a new application or a misleading application-received audit event. Existing unique application records and manual program review remain in place.
+
+For approval, the server captures the applicant's account-approval revision, application state and current channel-evidence revisions before awaiting subscription eligibility. The database update requires that exact evidence and application state to remain current, with all active channels still verified and fresh. A concurrent account closure, profile change, channel update or competing decision leaves the newer state intact and asks the reviewer to reload. The existing paid-package and partner-capacity checks remain mandatory. Declining or suspending a partnership does not require an approval snapshot or start a payment. Audit events are written only when the corresponding application update succeeds.
+
+An invitation to a closed business shows that the program is unavailable and links to retained My brands records. It does not offer reapplication or promotion links. A temporary pause retains its separate explanation. Verification is covered by isolated concurrency fixtures and the actual request handlers with a controlled subscription-check fixture; no live applications, decisions, invitations, closures or payments are created by these tests.

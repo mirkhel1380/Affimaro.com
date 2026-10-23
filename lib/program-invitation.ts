@@ -10,6 +10,7 @@ export async function programInvitation(db:D1Database,identity:Identity,programI
   let stage:Stage;
   if(program.isOwner)stage='owner';
   else if(portal&&businessPortal(portal))stage='brand';
+  else if(program.ownerClosed)stage='closed';
   else if(application)stage=['pending','approved','suspended','rejected'].includes(application.status)?application.status as Stage:'updated';
   else if(!program.active)stage='closed';
   else stage=!account?'account':!profile?'profile':'apply';
@@ -17,7 +18,8 @@ export async function programInvitation(db:D1Database,identity:Identity,programI
   // produce a referral link. Loading an invitation never reads financial secrets.
   const link=stage==='approved'?await db.prepare(`SELECT c.store_url,c.platform,a.id AS application_id,p.id AS program_id
     FROM applications a JOIN programs p ON p.id=a.program_id JOIN store_connections c ON c.workspace_id=p.workspace_id
-    WHERE p.id=? AND a.affiliate_user_id=? AND a.status='approved' AND p.active=1 AND c.active=1 AND c.last_seen IS NOT NULL`).bind(program.id,identity.userId).first<{platform:string;store_url:string;application_id:string;program_id:string}>():null;
+    WHERE p.id=? AND a.affiliate_user_id=? AND a.status='approved' AND p.active=1 AND c.active=1 AND c.last_seen IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM account_closures closed WHERE closed.user_id IN(a.affiliate_user_id,(SELECT owner_id FROM workspaces WHERE id=p.workspace_id)))`).bind(program.id,identity.userId).first<{platform:string;store_url:string;application_id:string;program_id:string}>():null;
   const steps=[
     {id:'account',title:'Your account',complete:!!account},
     {id:'profile',title:'Affiliate profile',complete:!!profile},

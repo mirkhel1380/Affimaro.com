@@ -10,6 +10,7 @@ import {database} from './support/db.js';
 import {service,AppError} from '../lib/service.ts';
 import {commerce} from '../lib/woocommerce.ts';
 import {programInvitation} from '../lib/program-invitation.ts';
+import {closeAccount} from '../lib/account-closure.ts';
 
 // Compile the real TSX view for isolated server rendering without a preview.
 // Its unused Next dispatch imports have no role in this pure presentation test.
@@ -46,6 +47,11 @@ async function verify(f,platform='woocommerce'){
   f.db.sqlite.prepare('UPDATE store_connections SET last_seen=?,platform=? WHERE id=?').run(new Date().toISOString(),platform,configured.connection.id);
   return configured;
 }
+
+test('a closed business invitation retains history without promotion controls and explains permanent unavailability',async t=>{
+ const f=await fixture(t),application=await apply(f);await f.owner.review({applicationId:application.id,status:'approved'});await verify(f);await closeAccount(f.db,identity('owner'),'Closing this test business.');
+ const result=await view(f);assert.equal(result.model.stage,'closed');assert.match(result.html,/This program is unavailable/);assert.match(result.html,/business account is closed/);assert.match(result.html,/Existing partnership records remain in My brands/);assert.ok(!result.html.includes('applications reopen'));assert.equal(instances(result.element,ActionButton).length,0);assert.equal(instances(result.element,CopyButton).length,0);
+});
 
 test('real dashboard shells expose only their matching portal navigation',()=>{
   for(const portal of ['brand','affiliate']){

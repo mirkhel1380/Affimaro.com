@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {accountPortal,portalFamily} from './portal-policy.ts';
+import {partnerApprovalCondition,type PartnerApprovalSnapshot} from './partner-approval.ts';
 
 export type Identity = { userId: string; email: string };
 export type Account = {id:string;email:string;display_name:string;created_at:string};
@@ -105,11 +106,11 @@ export function service(db:D1Database,identity:Identity) {
     },
     async getProgram(programId:string) {
       if(!z.string().uuid().safeParse(programId).success)throw new AppError(404,"Program not found.");
-      const p=await one<Program & {business_name:string;website:string|null;owner_id:string}>("SELECT p.*,w.name AS business_name,w.website,w.owner_id FROM programs p JOIN workspaces w ON w.id=p.workspace_id WHERE p.id=?",programId);
+      const p=await one<Program & {business_name:string;website:string|null;owner_id:string;owner_closed:number}>("SELECT p.*,w.name AS business_name,w.website,w.owner_id,EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=w.owner_id) AS owner_closed FROM programs p JOIN workspaces w ON w.id=p.workspace_id WHERE p.id=?",programId);
       if(!p)throw new AppError(404,"Program not found.");
       const existing=await one<{id:string;status:string}>("SELECT id,status FROM applications WHERE program_id=? AND affiliate_user_id=?",programId,identity.userId);
-      const {owner_id,...publicProgram}=p;
-      return {...publicProgram,isOwner:owner_id===identity.userId,application:existing};
+      const {owner_id,owner_closed,...publicProgram}=p;
+      return {...publicProgram,ownerClosed:!!owner_closed,isOwner:owner_id===identity.userId,application:existing};
     },
     async apply(input:unknown) {
       await requireAccount();const value=parse(schemas.application,input);
@@ -123,21 +124,29 @@ export function service(db:D1Database,identity:Identity) {
       const applicationId=id(),created=now();
       try {
         await db.batch([
-          db.prepare("INSERT INTO applications (id,program_id,affiliate_user_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(applicationId,value.programId,identity.userId,'pending',created,created),
-          event(program.workspace_id,'application_received'),
+          db.prepare("INSERT INTO applications (id,program_id,affiliate_user_id,status,created_at,updated_at) SELECT ?,p.id,?,'pending',?,? FROM programs p JOIN workspaces w ON w.id=p.workspace_id WHERE p.id=? AND p.active=1 AND w.owner_id<>? AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id IN(w.owner_id,?))").bind(applicationId,identity.userId,created,created,value.programId,identity.userId,identity.userId),
+          db.prepare("INSERT INTO audit_events(id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_received',? WHERE changes()=1").bind(id(),program.workspace_id,identity.userId,created),
         ]);
       }catch(error){const retry=await one<{id:string;status:string}>("SELECT id,status FROM applications WHERE program_id=? AND affiliate_user_id=?",value.programId,identity.userId);if(retry)return retry;throw error;}
+      if(!await one('SELECT id FROM applications WHERE id=?',applicationId))throw new AppError(409,'This program or account changed. Reopen the program before applying again.');
       return {id:applicationId,status:'pending'};
     },
-    async review(input:unknown) {
+    async review(input:unknown,approval?:PartnerApprovalSnapshot) {
       const value=parse(schemas.review,input);const business=await requireWorkspace();
       const application=await one<{id:string}>("SELECT a.id FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id WHERE a.id=? AND w.id=? AND w.owner_id=?",value.applicationId,business.id,identity.userId);
       if(!application)throw new AppError(404,"Application not found in your workspace.");
-      const at=now();await db.batch([
+      if(approval&&(value.status!=='approved'||approval.applicationId!==value.applicationId))throw new AppError(400,'The approval check does not match this application.');
+      const evidence=approval?partnerApprovalCondition(approval):{sql:'',values:[]},open=" AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=applications.affiliate_user_id OR c.user_id=?)";
+      const at=now(),writes=await db.batch([
         db.prepare(`UPDATE applications SET status=?,updated_at=? WHERE id=? AND program_id IN (SELECT id FROM programs WHERE workspace_id=?)
-          AND (?<>'approved' OR status='approved' OR (SELECT count(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=? AND a.status='approved') < COALESCE((SELECT CASE active_plan WHEN 'growth' THEN 500 WHEN 'business' THEN 2000 ELSE 100 END FROM plan_requests WHERE user_id=?),100))`).bind(value.status,at,value.applicationId,business.id,value.status,business.id,identity.userId),
-        db.prepare("INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_reviewed',? WHERE EXISTS(SELECT 1 FROM applications WHERE id=? AND status=? AND updated_at=?)").bind(id(),business.id,identity.userId,at,value.applicationId,value.status,at),
-      ]);const saved=await one<{status:string}>("SELECT status FROM applications WHERE id=?",value.applicationId);if(saved?.status!==value.status)throw new AppError(409,'Your approved-partner package limit has been reached. Choose a larger package in billing and complete payment before approving another partner.');return {id:value.applicationId,status:value.status};
+          AND (?<>'approved' OR status='approved' OR (SELECT count(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=? AND a.status='approved') < COALESCE((SELECT CASE active_plan WHEN 'growth' THEN 500 WHEN 'business' THEN 2000 ELSE 100 END FROM plan_requests WHERE user_id=?),100))${open}${evidence.sql}`).bind(value.status,at,value.applicationId,business.id,value.status,business.id,identity.userId,identity.userId,...evidence.values),
+        db.prepare("INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_reviewed',? WHERE changes()=1").bind(id(),business.id,identity.userId,at),
+      ]);
+      if(!Number(writes[0].meta?.changes??(writes[0] as unknown as {changes?:number}).changes??0)){
+        if(!await one(`SELECT id FROM applications WHERE id=?${open}${evidence.sql}`,value.applicationId,identity.userId,...evidence.values))throw new AppError(409,'This application, account or channel verification changed. Reload Review application before deciding again.');
+        throw new AppError(409,'Your approved-partner package limit has been reached. Choose a larger package in billing and complete payment before approving another partner.');
+      }
+      return {id:value.applicationId,status:value.status};
     },
   };
 }
