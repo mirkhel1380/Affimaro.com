@@ -56,3 +56,15 @@ Opening a profile preserves the current queue's status, account type, search and
 This work adds no automatic decisions, emails, portal provisioning or payments. The existing explicit review form, profile/channel verification, revision checks and atomic approval remain unchanged. Every queue read and selected-profile inspection still requires the stored owner grant. No source credentials, full profile JSON or reviewer transition tokens appear in list projections. The owner panel remains separate from the four customer portals and public navigation.
 
 Isolated database and actual owner/legacy server-page fixtures cover more than 100 applications, all four account types, search and pagination links, closed/owner exclusions, old page recovery, manual review continuation, revoked grants and read-only behavior. A real authenticated owner walkthrough and dedicated mobile visual QA remain unexercised.
+
+### Current order holds and commission totals
+
+Owner sales rows and the overview use the same effective commission and Shopify source-hold rules as customer order reports. A saved order with an unresolved source hold shows review required and zero estimated commission, even when an earlier import stored an accrued amount. Clearing the source hold reveals the saved current order state again. Opening these views does not rewrite orders or existing commission approvals.
+
+**Order reviews** opens the exact `review=required` filter, rather than searching for the word “required” in every field. All/Needs review/Clear combine with literal order, business and partner search and survive pagination. The full review count includes older orders beyond the displayed page. A stale page resolves to the last matching page. Invalid or repeated known filter values have a recoverable reset link.
+
+The overview reads its counts, monetary groups and activity in one database batch. **Recorded merchandise after refunds** includes every saved order state; **Eligible merchandise** includes orders accruing commission without a Shopify source hold. **Estimated commission** is not approved commission or a payment. Review counts include source holds and stored review flags. Every currency/precision group remains separate and its precision is shown explicitly.
+
+The owner monetary formatter reuses the shared integer minor-unit formatter with currency codes, preserving exact remainders up to the supported safe-integer limit, including six decimal places. Unsafe aggregate totals show an explicit limit and a link to individual sales records, instead of a rounded monetary total. Customer currency-symbol defaults remain unchanged.
+
+This is a correction to read-only reporting. Provider accounts, store delivery/sync behavior, approval decisions, payout calculations, financial records, encryption keys and callbacks are unchanged. Automated database and actual server-page fixtures exercise source holds and release, customer-report agreement, status/currency distinctions, old review rows, exact formatting, unsafe totals, privacy and access controls. Authenticated production owner and mobile visual walkthroughs remain unexercised.
