@@ -23,7 +23,8 @@ export async function assertVerifiedProfile(db:D1Database,userId:string,profile:
  return properties;
 }
 async function dnsProof(host:string,challenge:string,fetcher:typeof fetch){
- let response:Response;try{response=await fetcher('https://cloudflare-dns.com/dns-query?'+new URLSearchParams({name:'_affimaro-verify.'+host,type:'TXT'}),{headers:{Accept:'application/dns-json'},redirect:'error',signal:AbortSignal.timeout(8000)});}catch{throw new AppError(503,'DNS verification is temporarily unavailable. Try again shortly.');}
+ // Workers supports manual redirects; reject non-success below without following them.
+ let response:Response;try{response=await fetcher('https://cloudflare-dns.com/dns-query?'+new URLSearchParams({name:'_affimaro-verify.'+host,type:'TXT'}),{headers:{Accept:'application/dns-json'},redirect:'manual',signal:AbortSignal.timeout(8000)});}catch{throw new AppError(503,'DNS verification is temporarily unavailable. Try again shortly.');}
  if(!response.ok){await response.body?.cancel();throw new AppError(503,'DNS verification is temporarily unavailable.');}
  const reader=response.body?.getReader();if(!reader)throw new AppError(503,'The DNS response could not be checked.');let size=0,raw='';const decoder=new TextDecoder();while(true){const p=await reader.read();if(p.done)break;size+=p.value.length;if(size>65536){await reader.cancel();throw new AppError(503,'The DNS response could not be checked.');}raw+=decoder.decode(p.value,{stream:true});}raw+=decoder.decode();
  let result;try{result=JSON.parse(raw);}catch{throw new AppError(503,'The DNS response could not be checked.');}

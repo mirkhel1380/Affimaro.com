@@ -47,3 +47,9 @@ A customer may select a package on pricing and then change it while completing t
 This adjustment applies only to fresh billing destinations with an optional single `plan` query. It does not rewrite saved checkout returns/cancellation URLs or invitation/program destinations. Free affiliate and creator accounts retain their existing continuation and remain excluded from subscription billing. Fictional previews retain their browser-local submission behavior.
 
 The isolated journey tests connect actual signup and email-code handlers, the real application form's final submission callback, the real profile API, explicit owner review, the approved application page and role-correct billing quotes. Provider responses and ownership evidence are controlled fixtures; no real customer account, email, checkout or charge is created. Production inbox/payment and dedicated mobile/browser walkthroughs remain pending.
+
+## Website ownership transport
+
+Website TXT checks use the fixed Cloudflare DNS-over-HTTPS resolver with manual redirects. The pinned Workers runtime rejects `redirect: 'error'` before making a request; manual mode lets the request reach DNS while the existing non-success check rejects redirects without following them. The exact TXT name, record type and current challenge must still match. Ownership verification does not approve a professional profile.
+
+The regression runs the production ownership service in the installed Workers runtime against isolated D1 tables from the actual ownership migration. It checks successful TXT verification, redirect rejection, wrong or missing records, malformed and oversized responses, in-flight code rotation and archiving, account boundaries, expiry, throttling and revision checks. Resolver responses are controlled fixtures; no production property is verified and no DNS record is changed. A real owner's website verification walkthrough remains pending.
