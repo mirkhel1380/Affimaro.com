@@ -4,6 +4,7 @@ import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {accountPortal,portalFamily,businessPortal,type Portal} from './portal-policy.ts';
 import {applicationProfile,applicationDraft,type ApplicationProfile} from './application-profile.ts';
+import {admissionQueueOptions,parseAdmissionQueueFilters,admissionQueuePageSize} from './admission-queue.ts';
 
 export type AdmissionStatus='draft'|'pending'|'changes_requested'|'approved'|'rejected';
 export type PlatformApplication={user_id:string;portal:Portal;status:AdmissionStatus;profile_json:string;revision:number;submitted_at:string|null;reviewed_at:string|null;reviewed_by:string|null;review_note:string;transition_id:string|null;created_at:string;updated_at:string};
@@ -68,12 +69,27 @@ export function admissions(db:D1Database,identity:Identity){
         db.prepare(`INSERT INTO platform_review_events (id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,'withdrawn_for_edit',revision,'',? FROM platform_applications WHERE user_id=? AND transition_id=?`).bind(uuid(),identity.userId,at,identity.userId,token),
       ]);const saved=await own();if(saved?.transition_id!==token)throw new AppError(409,'Your application changed. Reload its latest status.');return view(saved);
     },
-    async queue(status:AdmissionStatus='pending',portal?:Portal){
+    async queue(status:AdmissionStatus='pending',portal?:Portal,input:unknown={}){
       await requirePlatformAdmin(db,identity);
-      if(!['pending','changes_requested','approved','rejected','draft'].includes(status))throw new AppError(400,'Choose a valid application status.');
-      const conditions=portal?` AND ${resolvedPortal}=?`:'',args=portal?[status,portal]:[status];
-      const results=await db.prepare(`SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email FROM platform_applications p JOIN accounts a ON a.id=p.user_id WHERE p.status=? AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id)${conditions} ORDER BY p.submitted_at,p.user_id LIMIT 101`).bind(...args).all<{user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string}>();
-      return {applications:results.results.slice(0,100),truncated:results.results.length>100,counts:(await db.prepare(`SELECT p.status,${resolvedPortal} AS portal,count(*) AS total FROM platform_applications p WHERE NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id) GROUP BY p.status,${resolvedPortal}`).all<{status:AdmissionStatus;portal:Portal;total:number}>()).results};
+      const options=admissionQueueOptions.safeParse(input);if(!options.success)throw new AppError(400,'Choose a valid application search and page.');
+      const filters=parseAdmissionQueueFilters({...options.data,status,portal}),size=admissionQueuePageSize;
+      const profileText=(key:string)=>`CASE WHEN json_valid(p.profile_json) THEN CASE WHEN json_type(p.profile_json,'$.${key}')='text' THEN trim(json_extract(p.profile_json,'$.${key}')) ELSE '' END ELSE '' END`;
+      const prefix=`WITH visible AS (
+        SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email,
+          COALESCE(NULLIF(${profileText('agencyName')},''),${profileText('businessName')}) AS organization_name,${profileText('contactName')} AS contact_name
+        FROM platform_applications p JOIN accounts a ON a.id=p.user_id
+        WHERE NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id) AND NOT EXISTS(SELECT 1 FROM platform_admins owner WHERE owner.user_id=p.user_id)
+      ), matching AS (SELECT * FROM visible WHERE status=? AND (?='' OR portal=?) AND (?='' OR instr(lower(display_name),lower(?))>0 OR instr(lower(email),lower(?))>0 OR instr(lower(organization_name),lower(?))>0 OR instr(lower(contact_name),lower(?))>0)), stats AS (SELECT COUNT(*) AS total FROM matching)`;
+      const args=[filters.status,filters.portal||'',filters.portal||'',filters.q,filters.q,filters.q,filters.q,filters.q];
+      // The count, selected page and global status cards share one read snapshot.
+      const result=await db.batch<Record<string,unknown>>([
+        db.prepare(`${prefix} SELECT * FROM stats`).bind(...args),
+        db.prepare(`${prefix} SELECT * FROM matching ORDER BY submitted_at,user_id LIMIT ? OFFSET MIN(?,MAX(0,(SELECT CAST((total-1)/? AS INTEGER)*? FROM stats)))`).bind(...args,size,(filters.page-1)*size,size,size),
+        db.prepare(`${prefix} SELECT status,portal,count(*) AS total FROM visible GROUP BY status,portal`).bind(...args),
+      ]);
+      const total=Number(result[0].results[0].total),pages=Math.ceil(total/size),page=Math.min(filters.page,Math.max(1,pages));
+      type Row={user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string;organization_name:string;contact_name:string};
+      return {applications:result[1].results as unknown as Row[],counts:result[2].results as unknown as {status:AdmissionStatus;portal:Portal;total:number}[],total,pages,page,pageSize:size,q:filters.q,status:filters.status,portal:filters.portal};
     },
     async inspect(userId:string){
       await requirePlatformAdmin(db,identity);const row=await getAdmission(db,userId);if(!row)throw new AppError(404,'Application not found.');

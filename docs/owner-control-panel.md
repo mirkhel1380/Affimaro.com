@@ -42,3 +42,17 @@ The application detail shows an ownership checklist for every URL on the saved p
 Use **Review this applicant’s property evidence** to open only that applicant’s properties. The default scoped view includes all statuses; switching status or saving a decision retains the selected applicant. **Return to this application** goes back to the same profile. Verifying ownership does not approve the account. Profile approval remains a separate explicit owner decision, and requesting changes or declining stays available while ownership is incomplete.
 
 The owner overview includes pending ownership evidence under Needs your attention. Customer applications show the same ownership requirements so applicants can see what is missing. The owner's launch settings open customer registration on the public website domain, not the separate administration hostname.
+
+### Search the complete application queue
+
+At `https://admin.affimaro.com/owner/applications`, search by applicant display name, contact name, email or declared brand/agency name. Search is a literal case-insensitive substring; it does not search telephone numbers, private descriptions or reviewer notes. A malformed legacy profile does not prevent the remaining queue from loading.
+
+Status, exact account type and search combine. Brand, affiliate, creator and agency types come from the saved account assignment, including applications stored under their earlier brand/affiliate family. Closed accounts and granted platform owners do not appear in the customer application queue or its pending counts. The four pending cards show all open customer applications, independent of search; each card opens that complete pending account-type queue.
+
+The queue displays 50 applications per page, oldest submissions first, with an account-ID tie breaker. Every matching application remains reachable beyond the old 100-record ceiling. The total, page rows and global status/type counts share one read-only database batch. If another review or a narrower search removes the last page, the page resolves to the last available result page rather than becoming a misleading empty list. Page input is bounded to 1,000,000.
+
+Opening a profile preserves the current queue's status, account type, search and page. Pagination retains the filters and clears the selected profile. Changing status or type retains search and starts at page one; submitting a new search also clears the page and selection. Invalid or repeated known filters show a recoverable reset link. After saving a decision, the same URL shows the selected profile's latest state; a stale last page is corrected and a reviewed profile no longer shows the decision form.
+
+This work adds no automatic decisions, emails, portal provisioning or payments. The existing explicit review form, profile/channel verification, revision checks and atomic approval remain unchanged. Every queue read and selected-profile inspection still requires the stored owner grant. No source credentials, full profile JSON or reviewer transition tokens appear in list projections. The owner panel remains separate from the four customer portals and public navigation.
+
+Isolated database and actual owner/legacy server-page fixtures cover more than 100 applications, all four account types, search and pagination links, closed/owner exclusions, old page recovery, manual review continuation, revoked grants and read-only behavior. A real authenticated owner walkthrough and dedicated mobile visual QA remain unexercised.
