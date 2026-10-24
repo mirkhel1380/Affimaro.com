@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {accountPortal,portalFamily} from './portal-policy.ts';
 import {partnerApprovalCondition,type PartnerApprovalSnapshot} from './partner-approval.ts';
+import {timeAfter} from './partnership-time.ts';
 
 export type Identity = { userId: string; email: string };
 export type Account = {id:string;email:string;display_name:string;created_at:string};
@@ -133,11 +134,11 @@ export function service(db:D1Database,identity:Identity) {
     },
     async review(input:unknown,approval?:PartnerApprovalSnapshot) {
       const value=parse(schemas.review,input);const business=await requireWorkspace();
-      const application=await one<{id:string}>("SELECT a.id FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id WHERE a.id=? AND w.id=? AND w.owner_id=?",value.applicationId,business.id,identity.userId);
+      const application=await one<{id:string;updated_at:string;invited_at:string|null}>("SELECT a.id,a.updated_at,(SELECT max(i.created_at) FROM discovery_invitations i WHERE i.program_id=a.program_id AND i.recipient_id=a.affiliate_user_id) AS invited_at FROM applications a JOIN programs p ON p.id=a.program_id JOIN workspaces w ON w.id=p.workspace_id WHERE a.id=? AND w.id=? AND w.owner_id=?",value.applicationId,business.id,identity.userId);
       if(!application)throw new AppError(404,"Application not found in your workspace.");
       if(approval&&(value.status!=='approved'||approval.applicationId!==value.applicationId))throw new AppError(400,'The approval check does not match this application.');
       const evidence=approval?partnerApprovalCondition(approval):{sql:'',values:[]},open=" AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=applications.affiliate_user_id OR c.user_id=?)";
-      const at=now(),writes=await db.batch([
+      const at=timeAfter(application.updated_at,application.invited_at),writes=await db.batch([
         db.prepare(`UPDATE applications SET status=?,updated_at=? WHERE id=? AND program_id IN (SELECT id FROM programs WHERE workspace_id=?)
           AND (?<>'approved' OR status='approved' OR (SELECT count(*) FROM applications a JOIN programs p ON p.id=a.program_id WHERE p.workspace_id=? AND a.status='approved') < COALESCE((SELECT CASE active_plan WHEN 'growth' THEN 500 WHEN 'business' THEN 2000 ELSE 100 END FROM plan_requests WHERE user_id=?),100))${open}${evidence.sql}`).bind(value.status,at,value.applicationId,business.id,value.status,business.id,identity.userId,identity.userId,...evidence.values),
         db.prepare("INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,'application_reviewed',? WHERE changes()=1").bind(id(),business.id,identity.userId,at),
