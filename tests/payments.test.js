@@ -35,7 +35,10 @@ async function pay(f,req,reference){await f.merchant.review({requestId:req.id,st
 
 test('bank and receipt encryption is randomized, authenticated and bound to its owner/context',async()=>{
   const a=await sealPayment(bank,dataKey,'bank/affiliate'),b=await sealPayment(bank,dataKey,'bank/affiliate');assert.notEqual(a,b);assert.ok(!a.includes(bank.account));assert.deepEqual(await openPayment(a,dataKey,'bank/affiliate'),bank);
-  await assert.rejects(openPayment(a,dataKey,'bank/other'),fails(503));await assert.rejects(openPayment(a,'cd'.repeat(32),'bank/affiliate'),fails(503));await assert.rejects(openPayment(a.slice(0,-2)+'00',dataKey,'bank/affiliate'),fails(503));await assert.rejects(sealPayment(bank,undefined,'bank/affiliate'),fails(503));
+  // Replacing a random byte with 00 is a no-op one time in 256. Flip a bit
+  // instead so this assertion always tests an actually modified ciphertext.
+  const tampered=a.slice(0,-2)+(Number.parseInt(a.slice(-2),16)^1).toString(16).padStart(2,'0');assert.notEqual(tampered,a);
+  await assert.rejects(openPayment(a,dataKey,'bank/other'),fails(503));await assert.rejects(openPayment(a,'cd'.repeat(32),'bank/affiliate'),fails(503));await assert.rejects(openPayment(tampered,dataKey,'bank/affiliate'),fails(503));await assert.rejects(sealPayment(bank,undefined,'bank/affiliate'),fails(503));
 });
 test('bank details are masked in dashboards and reject identity injection and invalid account formats',async t=>{
   const f=await fixture(t),dashboard=await f.partner.partnerDashboard();assert.equal(dashboard.bank.account_hint,'9012');assert.ok(!JSON.stringify(dashboard).includes(bank.account));assert.deepEqual(await f.partner.bankDetails(),bank);

@@ -5,6 +5,7 @@ import {getAdmission} from './admissions.ts';
 import {mediaPropertiesFor,profileVerificationSummary} from './media-properties.ts';
 import {partnershipProfile} from './partnership-profile.ts';
 import {applicationJourney} from './application-journey.ts';
+import {pendingProgramInvitation} from './relationships.ts';
 
 type Stage='owner'|'brand'|'closed'|'account'|'profile'|'verification'|'apply'|'pending'|'approved'|'suspended'|'rejected'|'updated';
 export async function programInvitation(db:D1Database,identity:Identity,programId:string){
@@ -32,7 +33,8 @@ export async function programInvitation(db:D1Database,identity:Identity,programI
     {id:'application',title:'Send application',complete:!!application},
   ];
   const current=steps.find(step=>!step.complete)?.id;
-  return {program,account,profile,portal,stage,path,journey,applicationStatus:admission?.status||null,applicantProfile:partnershipProfile(reviewed),verificationReady,referralLink:link?trackedReferralPath(link.application_id):null,referralPlatform:link?.platform||null,
+  const pendingInvitation=profileApproved&&portal&&!businessPortal(portal)&&!program.ownerClosed?await pendingProgramInvitation(db,identity,program.id):null;
+  return {program,account,profile,portal,stage,path,journey,pendingInvitation,applicationStatus:admission?.status||null,applicantProfile:partnershipProfile(reviewed),verificationReady,referralLink:link?trackedReferralPath(link.application_id):null,referralPlatform:link?.platform||null,
     steps:steps.map(step=>({...step,current:step.id===current})),completed:steps.filter(step=>step.complete).length};
 }
 export type ProgramInvitation=Awaited<ReturnType<typeof programInvitation>>;
