@@ -2,7 +2,7 @@ import {AppError} from '../lib/service.ts';
 import {cookieValue,clearAuthCookie,FLOW_COOKIE,SESSION_COOKIE,safeReturnTo,type AuthFlow,emailAuth} from './auth-core.ts';
 
 import {portalHome,portalName,businessPortal,type Portal} from '../lib/portal-policy.ts';
-const planNames={starter:'Starter · $19 USD / month',growth:'Growth · $49 USD / month',business:'Business · $99 USD / month'};
+import {plansForRole} from '../lib/pricing-catalog.mjs';
 const portalCopy={brand:['FOR BRANDS','Your program.<br><em>Your direction.</em>','Your program, partner approvals, website connection and commissions.'],affiliate:['FOR AFFILIATE PARTNERS','Your reach.<br><em>Your partnerships.</em>','Your publishing profile, program applications, referral links and earnings.'],creator:['FOR CREATORS & INFLUENCERS','Your content.<br><em>Relevant partners.</em>','Plan your content, present your channels and follow your own partnerships and commission.'],agency:['FOR AGENCIES','Your clients.<br><em>A clearer workflow.</em>','Your client directory, represented program, partner reviews and reporting.']};
 type Auth=ReturnType<typeof emailAuth>;
 const authPath=(kind:string,portal?:Portal,ownerOnly=false)=>'/auth/'+(ownerOnly?'owner/':portal?portal+'/':'')+kind;
@@ -64,7 +64,7 @@ function form(flow:AuthFlow,error?:string){
   }
   const links=purpose==='login'?(flow.ownerOnly?'':'<a href="'+link('signup')+'">Create an account</a>')+'<a href="'+link('recover')+'">Forgot password?</a>':purpose==='logout'?'<a href="'+escape(flow.returnTo)+'">Keep working</a>':'<a href="'+link('login')+'">Back to sign in</a>';
   const separate=purpose==='login'&&!flow.ownerOnly?'<p class="foot">Your account has its own portal. <a href="/login?return_to='+encodeURIComponent(flow.returnTo)+'">Choose a different account type</a>.</p>':'';
-  const selected=flow.plan&&flow.portal&&businessPortal(flow.portal)?'<p class="selected-plan"><strong>'+planNames[flow.plan]+'</strong><br>Selected package · Account review comes first. Registration does not charge a card.</p>':'';
+  const selected=flow.plan&&flow.portal&&businessPortal(flow.portal)&&['login','signup'].includes(purpose)?'<p class="selected-plan"><strong>'+portalName(flow.portal)+' '+plansForRole(flow.portal)[flow.plan].name+' · $'+plansForRole(flow.portal)[flow.plan].amount+' USD / month</strong><br>Selected package · Account review comes first. Registration does not charge a card.</p>':'';
   const free=flow.portal&&!businessPortal(flow.portal)&&['signup','login'].includes(purpose)?'<p class="selected-plan" data-account-price="free"><strong>Free '+portalName(flow.portal).toLowerCase()+' account</strong><br>No subscription or card required. Email verification and owner review still apply.</p>':'';
 
   return '<h2>'+title[0]+'</h2><p class="muted">'+title[1]+'</p>'+selected+free+alert+'<form method="post" action="'+authPath(purpose,flow.portal,flow.ownerOnly)+'">'+hidden(flow)+fields+'<button type="submit">'+title[2]+'</button></form><div class="links">'+links+'</div>'+separate;
@@ -95,10 +95,20 @@ export async function authPage(request:Request,auth:Auth,origin:string):Promise<
         return page('Verify your email',form(flow),200,[],flow.portal,flow.ownerOnly);
       }
       if(!['login','signup','recover','reset','logout'].includes(kind))throw new AppError(404,'This sign-in page could not be found.');
-      if(kind==='reset'&&!await auth.canReset(request,ownerOnly))throw new AppError(403,'Verify a password-recovery code first.');
-      const requestedReturn=url.searchParams.has('return_to')?safeReturnTo(url.searchParams.get('return_to')):ownerOnly?'/owner':portal?portalHome(portal):'/account';
+      let resetContext:AuthFlow|null=null;
+      if(kind==='reset'){
+        if(!await auth.canReset(request,ownerOnly))throw new AppError(403,'Verify a password-recovery code first.');
+        const saved=await auth.flow(request);
+        if(saved?.purpose==='reset'){
+          if(!ownerOnly&&saved.ownerOnly)return redirect(authPath('reset',undefined,true));
+          if(!portal&&saved.portal)return redirect(authPath('reset',saved.portal,saved.ownerOnly));
+          if(saved.portal!==portal||Boolean(saved.ownerOnly)!==ownerOnly)throw new AppError(403,'Open password reset from your own recovery page.');
+          resetContext=saved;
+        }
+      }
+      const requestedReturn=resetContext?.returnTo??(url.searchParams.has('return_to')?safeReturnTo(url.searchParams.get('return_to')):ownerOnly?'/owner':portal?portalHome(portal):'/account');
       const returnTo=ownerOnly&&!/^\/owner(\/|[?#]|$)/.test(requestedReturn)?'/owner':requestedReturn;
-      const plan=portal&&businessPortal(portal)&&['starter','growth','business'].includes(url.searchParams.get('plan')||'')?url.searchParams.get('plan') as 'starter'|'growth'|'business':undefined;
+      const plan=resetContext?resetContext.plan:portal&&businessPortal(portal)&&['starter','growth','business'].includes(url.searchParams.get('plan')||'')?url.searchParams.get('plan') as 'starter'|'growth'|'business':undefined;
       const next=await auth.newFlow(kind,returnTo,undefined,portal,undefined,plan,ownerOnly);flow=next.flow;
       return page(kind==='login'?'Sign in':'Your account',form(flow,kind==='login'&&url.searchParams.get('password_changed')==='1'?'Password saved. Sign in with your new password.':undefined),200,[next.cookie],portal,ownerOnly);
     }
@@ -111,10 +121,17 @@ export async function authPage(request:Request,auth:Auth,origin:string):Promise<
     const {nonce:_,...input}=values,ip=request.headers.get('CF-Connecting-IP')||'unknown',previous=cookieValue(request,SESSION_COOKIE);
     if(kind==='login'){const result=await auth.login(input,ip,previous,flow.portal,flow.ownerOnly);return redirect(flow.returnTo,[result.cookie,clearAuthCookie(FLOW_COOKIE)]);}
     if(kind==='signup'){const result=await auth.signup(input,ip,flow.portal),next=await auth.newFlow('verify-signup',flow.returnTo,result.email,flow.portal,result.onboarding?{...result.onboarding,...(flow.plan?{plan:flow.plan}:{})}:undefined,flow.plan);return redirect(authPath('verify',flow.portal,flow.ownerOnly),[next.cookie]);}
-    if(kind==='recover'){const result=await auth.recover(input,ip),next=await auth.newFlow('verify-recovery',flow.returnTo,result.email,flow.portal,undefined,undefined,flow.ownerOnly);return redirect(authPath('verify',flow.portal,flow.ownerOnly),[next.cookie]);}
-    if(kind==='verify'){const result=await auth.verify(flow,input,ip,previous);return redirect(flow.purpose==='verify-recovery'?authPath('reset',flow.portal,flow.ownerOnly):flow.returnTo,[result.cookie,clearAuthCookie(FLOW_COOKIE)]);}
+    if(kind==='recover'){const result=await auth.recover(input,ip),next=await auth.newFlow('verify-recovery',flow.returnTo,result.email,flow.portal,undefined,flow.plan,flow.ownerOnly);return redirect(authPath('verify',flow.portal,flow.ownerOnly),[next.cookie]);}
+    if(kind==='verify'){
+      const result=await auth.verify(flow,input,ip,previous);
+      if(flow.purpose==='verify-recovery'){
+        const next=await auth.newFlow('reset',flow.returnTo,undefined,flow.portal,undefined,flow.plan,flow.ownerOnly);
+        return redirect(authPath('reset',flow.portal,flow.ownerOnly),[result.cookie,next.cookie]);
+      }
+      return redirect(flow.returnTo,[result.cookie,clearAuthCookie(FLOW_COOKIE)]);
+    }
     if(kind==='resend'){if(Object.keys(input).length)throw new AppError(400,'Submit the verification form again.');await auth.resend(flow,ip);return redirect(authPath('verify',flow.portal,flow.ownerOnly));}
-    if(kind==='reset'){const cookie=await auth.reset(request,input,flow.ownerOnly);return redirect(authPath('login',flow.portal,flow.ownerOnly)+'?password_changed=1',[cookie,clearAuthCookie(FLOW_COOKIE)]);}
+    if(kind==='reset'){const cookie=await auth.reset(request,input,flow.ownerOnly),query=new URLSearchParams({password_changed:'1',return_to:flow.returnTo,...(flow.plan&&flow.portal&&businessPortal(flow.portal)?{plan:flow.plan}:{})});return redirect(authPath('login',flow.portal,flow.ownerOnly)+'?'+query,[cookie,clearAuthCookie(FLOW_COOKIE)]);}
     if(Object.keys(input).length)throw new AppError(400,'Submit the sign-out form again.');
     return redirect(flow.returnTo,[await auth.logout(request),clearAuthCookie(FLOW_COOKIE)]);
   }catch(error){
