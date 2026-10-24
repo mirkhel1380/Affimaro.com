@@ -21,7 +21,7 @@ export function Shell({name,email,active,children,portal='brand',reviewOnly=fals
     link('resources',prefix+'/resources','Brand assets','Banners, images and approved promotional copy'),link('coupons',prefix+'/resources?tab=coupons','Coupon codes','Publish offers for approved partners')])]:portal==='creator'?[group('content','Content',[link('content','/creator/content','Content planner'),link('profile','/creator/profile','Channels & profile')])]:[]),
   group('reports','Reports',[link('reports',reports,'Performance reports'),link('orders',prefix+'/orders','Referred orders','Search your complete recorded order history'),link('clicks',prefix+'/clicks','Clicks','Daily trends, sources and click activity')]),
   group('payments',business?'Payments':'Earnings',[
-   link('payments',payments,business?'Partner payments':portal==='creator'?'My earnings':'My commissions'),
+   link('payments',payments,business?'Partner payments':portal==='creator'?'My earnings':'My commissions'),link('payment-history',prefix+'/payment-history','Payment history','Search all partner commission requests'),
    ...(business?[link('billing',portal==='agency'?'/agency/billing':'/billing','Package & billing')]:[])
   ])
  ];
