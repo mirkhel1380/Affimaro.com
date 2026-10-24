@@ -22,7 +22,7 @@ export function Shell({name,email,active,children,portal='brand',reviewOnly=fals
   group('reports','Reports',[link('reports',reports,'Performance reports'),link('orders',prefix+'/orders','Referred orders','Search your complete recorded order history'),link('clicks',prefix+'/clicks','Clicks','Daily trends, sources and click activity')]),
   group('payments',business?'Payments':'Earnings',[
    link('payments',payments,business?'Partner payments':portal==='creator'?'My earnings':'My commissions'),link('payment-history',prefix+'/payment-history','Payment history','Search all partner commission requests'),
-   ...(business?[link('billing',portal==='agency'?'/agency/billing':'/billing','Package & billing')]:[])
+   ...(business?[link('commission-approvals',prefix+'/commission-approvals','Commission approvals','Review every referred order before payment'),link('billing',portal==='agency'?'/agency/billing':'/billing','Package & billing')]:[])
   ])
  ];
  const account:PortalNavLink[]=[...(!reviewOnly?[link('account','/account',label+' account'),link('application','/application',portal==='agency'?'Agency profile':'Application profile')]:[]),link('ownership','/application/media','Channels & ownership'),link('settings',reviewOnly?'/account/close':settingsPath(portal),'Settings'),...(!reviewOnly&&(portal==='brand'||portal==='affiliate')?[link('start',portal==='affiliate'?'/start?view=affiliate':'/start','Getting started')]:[]),...(!previewMode&&emailSignIn?[{key:'install',href:'/install',label:'Install Affimaro'}]:[]),{key:'preview',href:previewMode?'/preview':'/demo/'+({brand:'brands',affiliate:'affiliates',creator:'creators',agency:'agencies'})[portal],label:previewMode?'All four portal previews':'Explore the '+label.toLowerCase()+' demo'}];

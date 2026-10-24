@@ -6,6 +6,7 @@ export const portalFamily=(p:Portal)=>businessPortal(p)?'brand':'affiliate';
 export const portalHome=(p:Portal)=>({brand:'/workspace',affiliate:'/partner',creator:'/creator',agency:'/agency'})[p];
 export const ordersPath=(p:Portal)=>portalHome(p)+'/orders';
 export const paymentHistoryPath=(p:Portal)=>portalHome(p)+'/payment-history';
+export const commissionReviewPath=(p:Portal)=>portalHome(p)+'/commission-approvals';
 export const paymentsPath=(p:Portal)=>({brand:'/payments?view=business',affiliate:'/payments?view=affiliate',creator:'/creator/payments',agency:'/agency/payments'})[p];
 export const portalName=(p:Portal)=>({brand:'Brand',affiliate:'Affiliate',creator:'Creator',agency:'Agency'})[p];
 export const portalView=(p:Portal)=>({brand:'business',affiliate:'affiliate',creator:'creator',agency:'agency'})[p];
