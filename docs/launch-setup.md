@@ -8,7 +8,7 @@ The page checks the current deployment, not a different Site or Cloudflare envir
 
 The public Supabase settings check confirms that email authentication is enabled, signup is open and automatic email confirmation is disabled. Sender verification, SMTP credentials, delivery quotas and receipt of customer mail cannot be inferred from this endpoint. Customer delivery remains explicitly unverified.
 
-The current Resend test sender is suitable for the owner's own recipient. General customer delivery needs a verified sender domain configured in Supabase SMTP. Deferring the website's custom domain does not prevent using the existing Workers website address; do not turn off email confirmation to work around a sender restriction.
+On 2026-10-24 the owner explicitly confirmed the Supabase SMTP sender is `noreply@affimaro.com`. Read-only checks found the domain's published SPF, DMARC, Resend DKIM and sending-subdomain SPF records, and the selected Supabase project was healthy with email enabled, signup open and confirmation required. Published DNS and policy checks do not prove delivery: confirmation and password recovery still need an actual recipient walkthrough. Email confirmation remains required.
 
 Provider settings: https://supabase.com/dashboard/project/bhxzkrypfxdheyjtxwqp/auth/smtp
 
@@ -37,3 +37,13 @@ Checkout retries retain their original return URL payload and idempotency key. T
 Automated checks cover owner-only status access, all six brand and agency prices, provider failures and oversized responses, secret redaction, all four role-specific recovery flows, session revocation after a reset, actual owner-page server rendering, and agency billing returns. They use isolated databases and mocked providers. These checks do not create real customers, send real mail or make purchases.
 
 Before customer launch, separately verify confirmation and recovery delivery to an authorized customer recipient, then complete Stripe test checkout and status verification in the connected account before enabling live payments. A native mobile-store release is separate from the installable web app.
+
+## Owner-confirmed on-site payment setup and application continuation
+
+On 2026-10-24 the owner supplied the exact **Payments inside Affimaro — Enabled** message from the independent owner settings. Preserve that configured key and sender; do not repeat setup or request credentials. The read-only provider audit separately verified all six live brand/agency monthly prices, the existing enabled webhook with all nine signed subscription events, invoice history, payment-method updates and period-end cancellation. That confirms configuration, not a completed customer charge. Existing legacy callback URLs and payloads remain frozen.
+
+A customer may select a package on pricing and then change it while completing the professional profile. After a successful final profile submission, a fresh brand/agency billing continuation now carries the submitted package. It stays in the account's own billing route while the profile waits for owner review. Submission failures keep the current location and draft. The existing review stores the selected plan, without granting paid capacity; the billing API quotes the role's current schedule after approval.
+
+This adjustment applies only to fresh billing destinations with an optional single `plan` query. It does not rewrite saved checkout returns/cancellation URLs or invitation/program destinations. Free affiliate and creator accounts retain their existing continuation and remain excluded from subscription billing. Fictional previews retain their browser-local submission behavior.
+
+The isolated journey tests connect actual signup and email-code handlers, the real application form's final submission callback, the real profile API, explicit owner review, the approved application page and role-correct billing quotes. Provider responses and ownership evidence are controlled fixtures; no real customer account, email, checkout or charge is created. Production inbox/payment and dedicated mobile/browser walkthroughs remain pending.
