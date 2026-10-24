@@ -19,7 +19,7 @@ export function Shell({name,email,active,children,portal='brand',reviewOnly=fals
   ...(business?[group('program',portal==='agency'?'Agency tools':'Program & assets',[
     ...(portal==='agency'?[link('clients','/agency/clients','Client directory'),link('business','/agency/program','Represented program')]:[link('program-settings','/workspace','Program & store settings')]),
     link('resources',prefix+'/resources','Brand assets','Banners, images and approved promotional copy'),link('coupons',prefix+'/resources?tab=coupons','Coupon codes','Publish offers for approved partners')])]:portal==='creator'?[group('content','Content',[link('content','/creator/content','Content planner'),link('profile','/creator/profile','Channels & profile')])]:[]),
-  group('reports','Reports',[link('reports',reports,'Performance reports'),link('clicks',prefix+'/clicks','Clicks','Daily trends, sources and click activity')]),
+  group('reports','Reports',[link('reports',reports,'Performance reports'),link('orders',prefix+'/orders','Referred orders','Search your complete recorded order history'),link('clicks',prefix+'/clicks','Clicks','Daily trends, sources and click activity')]),
   group('payments',business?'Payments':'Earnings',[
    link('payments',payments,business?'Partner payments':portal==='creator'?'My earnings':'My commissions'),
    ...(business?[link('billing',portal==='agency'?'/agency/billing':'/billing','Package & billing')]:[])
