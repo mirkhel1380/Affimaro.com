@@ -26,7 +26,7 @@ Currencies and decimal precision remain separate throughout. USD with two decima
 
 The daily chart counts orders across the selected partnerships and currencies; it does not combine monetary values. Dates without orders have zero counts. Expand **View daily counts** for the complete accessible table.
 
-The performance table shows up to 100 partnership/currency rows, ordered by order count with stable tie-breaking. If it is truncated, both the page and CSV label that fact. Overall metrics and chart counts still include all matching orders. Select one partnership to narrow the table.
+The performance table shows up to 100 partnership/currency rows, ordered by order count with stable tie-breaking, and labels that screen limit. Overall metrics and chart counts include every matching order. The CSV download reads all matching partnership/currency rows up to an explicit 5,000-row limit; it is not restricted to the screen summary. Select one partnership to narrow the table or export.
 
 ## Current commission balances
 
@@ -59,15 +59,32 @@ Affimaro does not have a comparable complete visit denominator across the two st
 | --- | --- | --- |
 | `performance_total` | Orders created in the selected period, latest state | Totals per currency and precision |
 | `daily_orders` | Orders created in the selected period, latest state | Every UTC day's order/review counts, including zeros |
-| `partnership` | Orders created in the selected period, latest state | The displayed first 100 partnership/currency rows |
+| `partnership` | Orders created in the selected period, latest state | Every matching partnership/currency row, up to 5,000 |
 | `balance` | All-time current balance | Current approvals, reservations, disbursements, reversals and adjustments |
 
-Financial columns end in `_minor`. Divide by `10^decimals` to obtain the currency amount; for example, `12345` with `decimals=2` means `123.45`. The export includes dates, view, generation time and a partnership-row truncation flag. A UTF-8 BOM supports spreadsheet applications. Text cells are quoted, embedded quotes/newlines are escaped, and leading formula characters are neutralized.
+Financial columns end in `_minor`. Divide by `10^decimals` to obtain the currency amount; for example, `12345` with `decimals=2` means `123.45`. The export includes dates, view, generation time and the existing partnership-row truncation flag. Successful downloads are complete and set that flag to false. An export with more than 5,000 performance rows returns an explicit narrowing error and creates no partial CSV. The limit counts partnership/currency/precision performance rows, not individual orders; daily rows, currency totals and current balances are also included. The existing limit of 200 currency/precision groups still applies. A UTF-8 BOM supports spreadsheet applications. Text cells are quoted, embedded quotes/newlines are escaped, and leading formula characters are neutralized.
 
-Reports and exports omit emails, full bank details, receipt links, provider credentials, encrypted values and provider account IDs. The read-only export endpoint is `/api/reports/export`. Responses are private and not cacheable; sign-in is required.
+Reports and exports omit emails, full bank details, receipt links, provider credentials, encrypted values and provider account IDs. The read-only export endpoint is `/api/reports/export`. Responses are private and not cacheable; sign-in and a currently approved account are required. Date and partnership filters are identical to the report. No extra limit or authority query parameter is accepted. The browser downloads only a successful CSV response; session, size or other errors appear beside the button while the report stays open. A sign-in HTML page is never saved as a CSV. Changing report filters resets that button state.
 
 The pilot limits a report to 200 currency/precision groups. A broader result returns an explicit error instead of silently omitting money. Narrow the partnership or date scope. All-time balances can still require narrowing the partnership even when the order period is short.
 
 ## Verification limits
 
-Automated SQLite tests cover tenant and role isolation, authorized selection, UTC boundaries, calendar errors, full-order aggregation, currency precision, approval/refund/source holds, reservations, net Stripe reversals, per-partnership debt, all-time versus period separation, CSV privacy/formula protection, truncation and exact money formatting. No financial provider call is needed to generate a report. Authenticated browser and mobile-layout walkthroughs remain pending because a supported browser QA surface is unavailable. The Site remains owner-private.
+Automated SQLite tests cover tenant and role isolation, authorized selection, UTC boundaries, calendar errors, full-order aggregation, currency precision, approval/refund/source holds, reservations, net Stripe reversals, per-partnership debt, all-time versus period separation, CSV privacy/formula protection, truncation and exact money formatting. No financial provider call is needed to generate a report. Authenticated browser and mobile-layout walkthroughs remain pending because a supported browser QA surface is unavailable. The native Sites publication remains owner-private. The independent Affimaro website has public pages; customer reports and exports require authentication.
+
+
+## Click activity and click CSV
+
+**Clicks** is separate from the order and commission reports above. All four portals can search recorded source, medium and referrer-host text and filter by country, device, partnership and the existing 7/30/90 UTC calendar-day windows. The same filters and account scope apply to metric cards, the complete daily graph, leading sources, activity pagination and CSV. Those report sections are read in one read-only database batch. Country options come from the member's own selected period and partnership. Business activity rows identify the partner; affiliate and creator rows identify the brand.
+
+The partnership selector is bounded to the first 2,000 entries and retains an authorized current selection even when it falls outside that list. Authorization checks the actual owned application separately from the display list. Totals and downloads still include every matching partnership. A malformed or foreign selection shows a recoverable filter error on the page; it never selects another account's records.
+
+**Download clicks CSV** exports every matching event across activity pages, up to 5,000 rows. A larger request returns an explicit error rather than a partial file; narrow the supported date, partnership, source, country or device filters. The browser reports download errors in place. The CSV uses UTC timestamps, UTF-8, quoted cells and spreadsheet-formula neutralization. It contains brand, business-visible partner name, reported source/medium, referrer hostname, broad device type and country. It omits emails, account identifiers, bank/payment/provider details, IPs, full referring URLs and visitor identities. Existing history remains readable after a partnership is suspended.
+
+The read-only endpoint is `/api/clicks/export`. It derives portal and account scope from the authenticated member, rejects unknown or repeated query keys, and returns private, non-cacheable downloads. It never calls a financial provider, creates click events or changes orders, requests or commission records. Raw events are not verified unique visitors or a conversion-rate denominator. Known crawler/prefetch exclusions and the existing ninety-day retention remain unchanged.
+
+Isolated database, actual endpoint and server-page fixtures cover all four roles, combined filters, graph/table agreement, selected partnership bounds, cross-page exports, permission failures, CSV privacy and formula protection, explicit export limits and read-only behavior. Live authenticated download and dedicated mobile/browser visual QA remain unexercised.
+
+## Complete performance export verification
+
+Isolated actual endpoint and report-page tests cover every saved account role, selected and foreign partnerships, performance rows beyond 100, an exact 5,000-row successful export, an explicit 5,001-row error and narrowing recovery. CSV grouped totals agree with dashboard totals and keep currency precision, refund/approval caps and Shopify source holds. UTC period counts remain separate from all-time balances, net recorded reversals and reservations. Anonymous, unapproved, repeated/unknown-filter and unsafe-integer responses remain private errors. Download tests cover successful CSV saves, server errors and successful non-CSV sign-in responses. No production account, commission, transfer, subscription or provider configuration is changed by verification. Live authenticated download and dedicated mobile/browser visual QA remain unexercised.

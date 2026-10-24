@@ -16,7 +16,7 @@ export async function GET(request:Request){
     await requireApprovedAccount(db,user);
     if(!actual)throw new AppError(403,'Complete your account setup first.');
     const expected=portalForView(filters.view)||actual;await requireAccountPortal(db,user,expected);
-    const report=await reports(db,user).get({...filters,view:filters.view||(businessPortal(actual)?'business':'affiliate')});
+    const report=await reports(db,user).getExport({...filters,view:filters.view||(businessPortal(actual)?'business':'affiliate')});
     return new Response(reportCsv(report),{headers:{...headers,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="affimaro-${report.filters.view}-report-${report.filters.from}-${report.filters.to}.csv"`}});
   }catch(error){
     const known=error instanceof AppError;

@@ -4,6 +4,7 @@ import {effectiveCommission,shopifyHold} from './commission-query.ts';
 import {netDisbursed} from './payment-balance.ts';
 
 const day=86_400_000;
+export const reportExportPartnershipLimit=5000;
 const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value=>{
   const parsed=new Date(value+'T00:00:00Z');
   return !Number.isNaN(parsed.getTime())&&parsed.toISOString().slice(0,10)===value;
@@ -58,7 +59,8 @@ function safeNumbers(rows:Record<string,unknown>[]){
 }
 export function reports(db:D1Database,identity:Identity){
   const s=service(db,identity);
-  return {async get(input:unknown,clock=new Date()):Promise<Report>{
+  async function read(input:unknown,clock=new Date(),exporting=false):Promise<Report>{
+    const partnershipLimit=exporting?reportExportPartnershipLimit:100;
     const filters=parseReportFilters(input,clock),business=filters.view==='business'?await s.workspace():null;
     if(filters.view==='business'&&!business)throw new AppError(404,'Create your business workspace to see its reports.');
     // Only these fixed predicates select a role. IDs and dates are bound values.
@@ -98,7 +100,7 @@ export function reports(db:D1Database,identity:Identity){
       `${prefix} SELECT COUNT(*) AS orders,COALESCE(SUM(eligible),0) AS eligible_orders,COALESCE(SUM(review),0) AS review_orders,COUNT(DISTINCT application_id) AS partnerships,MAX(received_at) AS last_received_at,(SELECT COUNT(*) FROM scope) AS matching_applications FROM period_orders`,
       `${prefix} SELECT currency,decimals,${aggregate} FROM period_orders GROUP BY currency,decimals ORDER BY currency,decimals LIMIT 201`,
       `${prefix} SELECT substr(created_at,1,10) AS date,COUNT(*) AS orders,SUM(eligible) AS eligible_orders,SUM(review) AS review_orders FROM period_orders GROUP BY substr(created_at,1,10) ORDER BY date`,
-      `${prefix} SELECT a.application_id,a.partner_name,a.business_name,a.program_name,o.currency,o.decimals,${aggregate} FROM period_orders o JOIN scope a ON a.application_id=o.application_id GROUP BY a.application_id,o.currency,o.decimals ORDER BY orders DESC,a.partner_name,a.business_name,a.application_id,o.currency,o.decimals LIMIT 101`,
+      `${prefix} SELECT a.application_id,a.partner_name,a.business_name,a.program_name,o.currency,o.decimals,${aggregate} FROM period_orders o JOIN scope a ON a.application_id=o.application_id GROUP BY a.application_id,o.currency,o.decimals ORDER BY orders DESC,a.partner_name,a.business_name,a.application_id,o.currency,o.decimals LIMIT ${partnershipLimit+1}`,
       `${prefix}${balanceCtes} SELECT currency,decimals,SUM(estimated) AS estimated,SUM(approved) AS approved,SUM(reserved) AS reserved,SUM(bank_recorded) AS bank_recorded,SUM(stripe_net) AS stripe_net,SUM(stripe_reversed) AS stripe_reversed,SUM(processing_requests) AS processing_requests,
         SUM(MAX(0,approved-bank_recorded-stripe_net-reserved)) AS available,SUM(MAX(0,bank_recorded+stripe_net-approved)) AS debt,SUM(MIN(reserved,MAX(0,bank_recorded+stripe_net+reserved-approved))) AS uncovered_reserved
         FROM balances GROUP BY currency,decimals ORDER BY currency,decimals LIMIT 201`,
@@ -114,15 +116,17 @@ export function reports(db:D1Database,identity:Identity){
     const summary=rows[0][0] as unknown as Report['summary']&{matching_applications:number};
     if(filters.applicationId&&!summary.matching_applications)throw new AppError(404,'That partnership is not available in this report.');
     if(rows[1].length>200||rows[4].length>200)throw new AppError(413,'This report has too many currency groups. Choose one partnership or a shorter period.');
+    if(exporting&&rows[3].length>partnershipLimit)throw new AppError(409,'This export exceeds 5,000 partnership/currency rows. Select one partnership or a shorter period. No partial CSV was created.');
     const sparse=new Map((rows[2] as unknown as ReportDay[]).map(row=>[row.date,row]));
     const daily:ReportDay[]=[];
     for(let at=Date.parse(filters.from+'T00:00:00Z');at<Date.parse(filters.until);at+=day){const date=new Date(at).toISOString().slice(0,10);daily.push(sparse.get(date)||{date,orders:0,eligible_orders:0,review_orders:0});}
     return {filters,generatedAt:clock.toISOString(),businessName:business?.name||null,
       summary:{orders:summary.orders,eligible_orders:summary.eligible_orders,review_orders:summary.review_orders,partnerships:summary.partnerships,last_received_at:summary.last_received_at},
-      metrics:rows[1] as unknown as ReportMetric[],daily,partnerships:rows[3].slice(0,100) as unknown as ReportPartnership[],balances:rows[4] as unknown as ReportBalance[],options:rows[5].slice(0,200) as unknown as ReportOption[],
+      metrics:rows[1] as unknown as ReportMetric[],daily,partnerships:rows[3].slice(0,partnershipLimit) as unknown as ReportPartnership[],balances:rows[4] as unknown as ReportBalance[],options:rows[5].slice(0,200) as unknown as ReportOption[],
       sources:rows[6].slice(0,100).map(({workspace_id:_,...row})=>row) as unknown as ReportSource[],
-      truncated:{partnerships:rows[3].length>100,options:rows[5].length>200,sources:rows[6].length>100}};
-  }};
+      truncated:{partnerships:rows[3].length>partnershipLimit,options:rows[5].length>200,sources:rows[6].length>100}};
+  }
+  return {get:(input:unknown,clock?:Date)=>read(input,clock),getExport:(input:unknown,clock?:Date)=>read(input,clock,true)};
 }
 
 export function reportCsv(report:Report){
