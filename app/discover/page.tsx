@@ -9,13 +9,14 @@ import {mediaPlatforms} from '../../lib/media-catalog';
 import {industries} from '../../lib/application-profile';
 import {Shell,PageHeading,Card,Empty,Badge,Icon} from '../ui';
 import {DiscoveryButton} from './actions';
+import {portalReturnPath} from '../../lib/portal-return-path';
 export const dynamic='force-dynamic';
 export const metadata={title:'Discover partnerships | Affimaro',robots:{index:false,follow:false}};
 export const discoveryPath=(p:Portal)=>({brand:'/workspace/discover',affiliate:'/partner/discover',creator:'/creator/discover',agency:'/agency/discover'})[p];
 export default async function DiscoveryPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){return DiscoveryView({searchParams});}
 export async function DiscoveryView({searchParams,expected}:{searchParams:Promise<Record<string,string|string[]|undefined>>;expected?:Portal}){
- const user=expected?await requirePortalUser(expected,discoveryPath(expected)):await requireChatGPTUser('/discover'),db=getRawDb(),portal=(await accountPortal(db,user.userId))||'affiliate',api=discovery(db,user),params=await searchParams,get=(key:string,max=100)=>typeof params[key]==='string'?(params[key] as string).slice(0,max):'',tab=['saved','invitations','listing'].includes(get('tab'))?get('tab'):'all',path=discoveryPath(portal),page=Math.min(10000,Math.max(1,Number.parseInt(get('page'),10)||1)),sort=get('sort')==='name'?'name':'newest';
- if(tab==='invitations'){const query=new URLSearchParams({tab:'invitations'});if(get('q'))query.set('q',get('q'));if(['all','pending','accepted','declined','withdrawn'].includes(get('invitationStatus')))query.set('invitationStatus',get('invitationStatus'));redirect(relationshipsPath(portal)+'?'+query);}
+ const params=await searchParams,returnTo=portalReturnPath(expected?discoveryPath(expected):'/discover',params,{tab:12,invitationStatus:12,page:10,sort:6,q:100,industry:80,country:80,platform:80}),user=expected?await requirePortalUser(expected,returnTo):await requireChatGPTUser(returnTo),db=getRawDb(),portal=(await accountPortal(db,user.userId))||'affiliate',api=discovery(db,user),get=(key:string,max=100)=>typeof params[key]==='string'?(params[key] as string).slice(0,max):'',tab=['saved','invitations','listing'].includes(get('tab'))?get('tab'):'all',path=discoveryPath(portal),page=Math.min(10000,Math.max(1,Number.parseInt(get('page'),10)||1)),sort=get('sort')==='name'?'name':'newest';
+ if(tab==='invitations'){const query=new URLSearchParams({tab:'invitations'});if(get('q'))query.set('q',get('q'));if(['all','pending','accepted','declined','withdrawn'].includes(get('invitationStatus')))query.set('invitationStatus',get('invitationStatus'));if(page>1)query.set('page',String(page));redirect(relationshipsPath(portal)+'?'+query);}
  const listing=await api.listing();
  const result=tab==='listing'?null:await api.browse({q:get('q'),industry:get('industry',80),country:get('country',80),platform:get('platform',80),saved:tab==='saved',sort,page});
  const url=(changes:Record<string,string>)=>{const q=new URLSearchParams();for(const key of ['tab','q','industry','country','platform','sort'])if(get(key))q.set(key,get(key));for(const [k,v] of Object.entries(changes))v?q.set(k,v):q.delete(k);return path+'?'+q;};
