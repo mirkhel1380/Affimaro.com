@@ -40,3 +40,68 @@
 .marketing-page .m-plan-signin{display:inline-flex;margin-top:15px;color:inherit}
 #paid-plans{scroll-margin-top:110px}
 @media(max-width:540px){.m-pricing-roles{grid-template-columns:1fr}.m-pricing-roles a{min-height:70px;padding:15px 18px}}
+
+/* A quiet public header and a single, text-led homepage introduction. */
+.marketing-page .site-header{background:#fbfcf8;backdrop-filter:none}
+.marketing-page .m-header-inner{min-height:80px}
+.marketing-page .m-home-hero-classic{display:block;text-align:center;padding-block:clamp(64px,8vw,110px) clamp(72px,8vw,112px)}
+.m-home-hero-classic .m-hero-copy{max-width:840px;margin-inline:auto}
+.marketing-page .m-home-hero-classic .eyebrow{color:#52634b;font-size:10px;letter-spacing:2px}
+.marketing-page .m-home-hero-classic h1{font-size:clamp(42px,6.7vw,84px);line-height:1.06;letter-spacing:-.045em;margin:24px 0 26px}
+.marketing-page .m-home-hero-classic h1 em{font-style:normal;color:#688447}
+.marketing-page .m-home-hero-classic .m-hero-copy>p{max-width:620px;margin:0 auto;color:#52634b;font-size:17px;line-height:1.8}
+.m-home-hero-classic .m-actions{justify-content:center;gap:14px;margin-top:30px}
+.m-home-hero-classic .btn{min-height:48px;border-radius:6px}
+@media(min-width:1101px){
+ .marketing-page .m-nav-item{position:relative}
+ .marketing-page .m-nav-label{min-height:79px}
+ .marketing-page .m-nav-panel{display:block;left:-18px;right:auto;width:340px;padding:12px;border-radius:0 0 8px 8px;box-shadow:0 12px 28px #193d310f}
+ .marketing-page .m-menu-links{grid-template-columns:minmax(0,1fr);gap:2px}
+ .marketing-page .m-menu-links>a{padding:11px 10px;gap:10px;border-radius:5px}
+ .marketing-page .m-menu-links>a>span{padding:5px;background:transparent}
+ .marketing-page .m-menu-links strong{font-size:13px;margin-bottom:3px}
+ .marketing-page .m-menu-links small{max-width:none;font-size:11px;line-height:1.5}
+ .marketing-page .m-menu-links>a>.icon{width:13px;height:13px;margin-top:6px}
+}
+@media(max-width:1100px){.marketing-page .m-header-inner{min-height:76px}}
+@media(max-width:540px){
+ .marketing-page .m-header-inner{min-height:72px}
+ .marketing-page .m-home-hero-classic{padding-block:58px 68px}
+ .marketing-page .m-home-hero-classic h1{margin:21px 0 23px}
+ .marketing-page .m-home-hero-classic .m-hero-copy>p{font-size:15px;line-height:1.8}
+ .m-home-hero-classic .m-actions{gap:10px;margin-top:26px}
+}
+@media(max-width:360px){.m-home-hero-classic .m-actions{flex-direction:column;align-items:stretch}.m-home-hero-classic .btn{justify-content:center}}
+
+/* Footer links stay available in three compact, expandable groups. */
+.m-footer-compact>.container{padding-top:32px}
+.m-footer-compact .m-footer-intro{align-items:center;gap:24px;padding-bottom:22px}
+.m-footer-compact .m-footer-intro .brand{font-size:28px;letter-spacing:-1px}
+.m-footer-compact .m-footer-intro p{font-size:12px;line-height:1.6;margin:10px 0 0}
+.m-footer-quicklinks{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.m-footer-quicklinks a{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:12px;color:#e6efda}
+.m-footer-quicklinks a:last-child{color:#d1e6ad}
+.m-footer-quicklinks .icon{width:14px;height:14px}
+.m-footer-compact .m-footer-columns{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;gap:28px;padding-block:16px 22px}
+.m-footer-group{min-width:0;border-bottom:1px solid #365749}
+.m-footer-group summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;list-style:none;cursor:pointer;color:#e6efda;font-size:13px;font-weight:500}
+.m-footer-group summary::-webkit-details-marker{display:none}
+.m-footer-group summary>.icon{width:14px;height:14px;flex-shrink:0}
+.m-footer-group[open] summary>.icon{transform:rotate(180deg)}
+.m-footer-compact .m-footer-group nav{gap:0;padding-block:4px 14px}
+.m-footer-compact .m-footer-group a{display:inline-flex;align-items:center;min-height:38px;font-size:12px;color:#b8cbb3}
+.m-footer-compact .m-footer-group a:hover,.m-footer-quicklinks a:hover{color:#d5ec98}
+.m-footer-compact .m-footer-bottom{gap:14px 24px;padding-block:17px 24px}
+.m-footer-compact .m-footer-bottom>nav{flex-wrap:wrap}
+.m-footer-group summary:focus-visible,.m-footer-compact a:focus-visible{outline:2px solid #d5ec98;outline-offset:4px}
+@media(max-width:600px){
+ .m-footer-compact>.container{padding-top:26px}
+ .m-footer-compact .m-footer-intro{flex-direction:row;align-items:flex-start;gap:18px;flex-wrap:wrap;padding-bottom:18px}
+ .m-footer-quicklinks{gap:20px}
+ .m-footer-compact .m-footer-columns{grid-template-columns:minmax(0,1fr);gap:0;padding-block:10px 18px}
+ .m-footer-group summary{min-height:48px}
+ .m-footer-compact .m-footer-group a{min-height:44px}
+ .m-footer-compact .m-footer-bottom{flex-direction:row;align-items:center;gap:10px 20px}
+ .m-footer-compact .m-footer-bottom>nav a{display:inline-flex;align-items:center;min-height:44px}
+ .m-footer-compact .m-pilot-label{width:100%}
+}
