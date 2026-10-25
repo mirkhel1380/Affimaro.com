@@ -141,6 +141,13 @@
       "when": 1792414842364,
       "tag": "0019_big_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792909743841,
+      "tag": "0020_same_sunfire",
+      "breakpoints": true
     }
   ]
 }

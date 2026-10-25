@@ -9,6 +9,7 @@ const navigation=[
  ['reviews','/owner/applications','Application review','shield'],['verifications','/owner/verifications','Channel verification','check'],['programs','/owner/data?table=programs','Programs & partners','store'],
  ['orders','/owner/data?table=orders','Sales & commissions','chart'],['payouts','/owner/data?table=payouts','Partner payouts','shield'],
  ['billing','/owner/data?table=billing','Subscriptions','store'],['activity','/owner/data?table=activity','Platform activity','clock'],
+ ['contact','/owner/contact','Contact inbox','users'],
  ['setup','/owner/settings','Settings & launch','check'],
 ];
 export function OwnerShell({name,email,active,children}:{name:string;email:string;active:string;children:ReactNode}){

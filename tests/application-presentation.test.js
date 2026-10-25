@@ -86,5 +86,5 @@ test('approved prices are consistent and four audience paths link to real pages 
   assert.equal((html.match(/type="button" disabled/g)||[]).length,0);for(const id of ['starter','growth','business'])assert.ok(html.includes('/auth/brand/signup?plan='+id));assert.match(html,/Affiliate and creator accounts are free/);assert.match(html,/Registration and package selection do not charge/);
   const sprite=readFileSync(new URL('../content/icon-sprite.html',import.meta.url),'utf8'),home=renderMarketingDocument('/',sprite);assert.match(home,/class="m-audience-paths"/);for(const path of ['/brands','/creators','/affiliates','/agencies'])assert.ok(home.includes('href="'+path+'"'));
   assert.match(renderMarketingDocument('/creators',sprite),/CREATOR STUDIO|creator studio/);assert.match(renderMarketingDocument('/agencies',sprite),/client directory/);
-  const integration=renderMarketingDocument('/integrations',sprite);assert.match(integration,/FOR BRANDS/);assert.match(integration,/Affiliates use their approved referral links and do not need to connect a store/);
+  const integration=renderMarketingDocument('/integrations',sprite);assert.match(integration,/FOR BRANDS/);assert.match(integration,/Affiliates and creators use their approved referral links and do not need to connect a store/);
 });

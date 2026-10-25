@@ -399,3 +399,8 @@ export const linkClicks=sqliteTable('link_clicks',{
 export const accountPreferences=sqliteTable('account_preferences',{
  userId:text('user_id').primaryKey().references(()=>accounts.id),preferencesJson:text('preferences_json').notNull(),revision:integer('revision').notNull().default(1),updatedAt:text('updated_at').notNull(),
 },t=>[check('account_preferences_valid',sql`json_valid(${t.preferencesJson}) AND ${t.revision}>0`)]);
+
+export const contactMessages=sqliteTable('contact_messages',{
+ id:text('id').primaryKey(),name:text('name').notNull(),email:text('email').notNull(),topic:text('topic').notNull(),message:text('message').notNull(),
+ status:text('status').notNull().default('new'),revision:integer('revision').notNull().default(1),emailHash:text('email_hash').notNull(),networkHash:text('network_hash').notNull(),payloadHash:text('payload_hash').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[index('contact_message_queue').on(t.status,t.createdAt),index('contact_message_email_window').on(t.emailHash,t.createdAt),index('contact_message_network_window').on(t.networkHash,t.createdAt),check('contact_message_status',sql`${t.status} IN ('new','in_progress','closed') AND ${t.revision}>0`),check('contact_message_topic',sql`${t.topic} IN ('general','account','integration','billing','partnership')`)]);

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {emailSignIn} from '../lib/auth-mode';
 import "./account.css";
+import "./store-platform.css";
 import "./start.css";
 import "./owner.css";
 

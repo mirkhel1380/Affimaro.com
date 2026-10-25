@@ -4,6 +4,12 @@ Open `/owner/settings` on the independent deployment. Only a stored `platform_ad
 
 The page checks the current deployment, not a different Site or Cloudflare environment. Refresh checks repeats read-only provider requests. It never changes a provider setting, sends an email, creates a checkout or charges a card. Responses never include credentials or raw provider errors.
 
+## Public contact and private inbox
+
+The homepage and `/contact` send enquiries to the private `/owner/contact` inbox on the independent owner host. Only the current stored owner grant can read or triage messages. Opening a message is read-only; status changes require its current revision. The reply link opens the owner's mail application for a human to compose and send a reply. Form submission does not send email or create a mailing-list subscription, and `noreply@affimaro.com` is not published as a support address.
+
+Migration `0020_same_sunfire.sql` adds only the contact table and its indexes. Public JSON and native HTML submissions enforce same-origin checks, bounded request bodies, field validation, a hidden spam field and atomic per-email/per-network rate limits. The browser keeps the same submission ID for an unchanged retry after an uncertain response; edited content uses a fresh ID. Only a stored submission produces a visible receipt (except intentionally indistinguishable spam-field receipts). No query parameter can manufacture a successful receipt. Isolated API-to-owner tests exercise delivery without creating messages in the production inbox.
+
 ## Email
 
 The public Supabase settings check confirms that email authentication is enabled, signup is open and automatic email confirmation is disabled. Sender verification, SMTP credentials, delivery quotas and receipt of customer mail cannot be inferred from this endpoint. Customer delivery remains explicitly unverified.
@@ -13,6 +19,21 @@ On 2026-10-24 the owner explicitly confirmed the Supabase SMTP sender is `norepl
 Provider settings: https://supabase.com/dashboard/project/bhxzkrypfxdheyjtxwqp/auth/smtp
 
 References: https://supabase.com/docs/guides/auth/auth-smtp and https://resend.com/docs/api-reference/errors
+
+## Website platform entry points
+
+The homepage, integration overview and brand/agency setup use `lib/store-platform-catalog.mjs`. Platform selections open the verified provider sign-in in a separate tab while showing the appropriate Affimaro setup. Self-hosted WordPress instead needs the exact installation URL and retains its subdirectory when opening `wp-admin`. The public WordPress navigation endpoint validates the destination without fetching it or collecting login credentials.
+
+WooCommerce uses the existing plugin, Shopify uses the existing merchant-owned app and explicit dashboard sync, and WordPress.com requires WooCommerce plus plugin installation support. BigCommerce, Wix and Squarespace are developer/backend options: their sign-in links do not create an OAuth connection or native order sync. A developer must establish trusted referral sessions and signed order/refund delivery using the existing custom protocol. Connection verification and a complete referred order/refund walkthrough remain separate checks.
+
+Official sign-in references checked 2026-10-25:
+
+- Shopify: https://www.shopify.com/store-login and https://help.shopify.com/en/manual/your-account/logging-in
+- WordPress installation paths: https://codex.wordpress.org/Customizing_the_Login_Form
+- WordPress.com: https://wordpress.com/log-in/ and https://wordpress.com/support/plugins/install-a-plugin/
+- BigCommerce: https://login.bigcommerce.com/login
+- Wix: https://support.wix.com/en/article/logging-in-to-your-wix-account (links to https://users.wix.com/signin)
+- Squarespace: https://support.squarespace.com/hc/en-us/articles/206537307-Log-in-and-out-of-your-account
 
 ## Subscription billing
 

@@ -155,3 +155,64 @@
 }
 @media(max-width:600px){.m-hero-motion-toggle{min-height:44px;bottom:-8px}}
 @media(prefers-reduced-motion:reduce){.m-partnership-visual .m-hero-connection,.m-partnership-visual .m-hero-role{animation:none!important}.m-hero-motion-toggle{display:none!important}}
+
+/* A public enquiry writes to the private owner inbox. */
+.m-contact-section{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(28px,6vw,86px);align-items:start;scroll-margin-top:100px}
+.marketing-page .m-contact-copy h1,.marketing-page .m-contact-copy h2{margin:17px 0 22px;font-size:clamp(35px,4.4vw,58px);line-height:1.08;letter-spacing:-2px;font-weight:450}
+.m-contact-copy>p{max-width:420px;color:#5d705c;font-size:15px;line-height:1.8}
+.m-contact-routes{display:grid;gap:16px;margin:28px 0;border-block:1px solid #dce5d4;padding-block:22px}
+.m-contact-routes>a{display:block;min-height:44px}
+.m-contact-routes strong{display:block;font-size:14px;font-weight:550;line-height:1.6}
+.m-contact-routes span{display:flex;align-items:center;gap:9px;font-size:12px;color:#577249;line-height:1.7;margin-top:4px}
+.m-contact-routes .icon{width:15px;height:15px}
+.marketing-page .m-contact-note{font-size:11px;line-height:1.8;color:#61705e;margin:15px 0 0}
+.m-contact-panel{min-width:0;padding:clamp(22px,3.5vw,38px);border:1px solid #dce5d4;border-radius:12px;background:#fff}
+.m-contact-form{display:grid;gap:19px;position:relative}
+.m-contact-form label{display:flex;flex-direction:column;gap:9px;font-size:12px;font-weight:550;color:#234735;min-width:0}
+.m-contact-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.m-contact-form input,.m-contact-form select,.m-contact-form textarea{display:block;box-sizing:border-box;width:100%;max-width:100%;min-height:46px;border:1px solid #cedac4;border-radius:6px;background:#fbfcf8;color:#173c30;font:inherit;font-size:14px;font-weight:400;line-height:1.6;padding:11px 12px}
+.m-contact-form textarea{resize:vertical;min-height:150px}
+.m-contact-form input:focus,.m-contact-form select:focus,.m-contact-form textarea:focus{outline:2px solid #638942;outline-offset:2px}
+.m-contact-form small{font-size:11px;line-height:1.7;color:#61705e;margin-top:-10px}
+.m-contact-form>.btn{justify-self:start;border:0;cursor:pointer;font:inherit;font-size:12px}
+.m-contact-form>.btn:disabled{cursor:wait;opacity:.65}
+.m-contact-form>.m-contact-note{margin:0}
+.m-contact-feedback{font-size:13px;line-height:1.8;overflow-wrap:anywhere;margin:0}
+.m-contact-feedback:empty{display:none}
+.m-contact-feedback[data-state=error]{color:#9d332d}
+.m-contact-feedback[data-state=success]{color:#285c37;border-left:3px solid #75964c;padding-left:14px}
+.m-contact-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.marketing-page .m-contact-receipt h2{font-size:30px;letter-spacing:-1px;line-height:1.2;margin:18px 0}
+.m-contact-receipt p{font-size:14px;line-height:1.8;color:#56704e}
+.m-contact-reference{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px!important;background:#eff4e8;border-radius:5px;padding:14px}
+.m-contact-section a:focus-visible{outline:2px solid #638942;outline-offset:4px}
+@media(max-width:1100px){.m-contact-nav{display:flex;align-items:center;min-height:52px}}
+@media(max-width:800px){.m-contact-section{grid-template-columns:minmax(0,1fr);gap:30px}.m-contact-copy>p{max-width:650px}.m-contact-routes{grid-template-columns:1fr 1fr;gap:20px}}
+@media(max-width:540px){.m-contact-fields,.m-contact-routes{grid-template-columns:minmax(0,1fr)}.m-contact-panel{padding:22px}.m-contact-form>.btn{width:100%;justify-content:center}.m-contact-section{scroll-margin-top:85px}}
+
+/* Provider entry points share the real setup catalog used in business portals. */
+.m-platform-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.m-platform-card{display:flex;flex-direction:column;min-width:0;padding:26px;background:#fff;border:1px solid #dce5d4;border-radius:10px}
+.m-platform-card-heading{display:flex;align-items:center;gap:13px}
+.m-platform-mark{display:grid;place-items:center;width:43px;height:43px;flex-shrink:0;background:#edf3e3;border:1px solid #dbe5cf;border-radius:9px;color:#315b27;font-size:18px;font-weight:650;letter-spacing:-1px}
+.marketing-page .m-platform-card h3{font-size:19px;font-weight:550;letter-spacing:-.5px;line-height:1.4;margin:0}
+.m-platform-card-heading>div>span{display:block;font-size:10px;line-height:1.5;color:#687a5b;margin-top:3px}
+.m-platform-card>p{font-size:12px;line-height:1.8;color:#61705e;margin:18px 0 20px}
+.m-platform-actions{display:flex;flex-direction:column;gap:5px;margin-top:auto}
+.m-platform-actions .text-link{display:flex;justify-content:space-between;gap:12px;align-items:center;min-height:42px;font-size:11px}
+.m-platform-card a:focus-visible,.m-wordpress-login button:focus-visible{outline:2px solid #638942;outline-offset:4px}
+.m-wordpress-login{display:grid;gap:10px;margin:0 0 16px;text-align:left}
+.m-wordpress-login label{display:grid;gap:8px;font-size:10px;font-weight:550;color:#294e37;line-height:1.6}
+.m-wordpress-login input{box-sizing:border-box;max-width:100%;min-width:0;width:100%;min-height:44px;border:1px solid #cddac2;border-radius:5px;padding:10px 11px;background:#fbfcf8;color:#153b32;font:inherit;font-size:12px}
+.m-wordpress-login input:focus{outline:2px solid #638942;outline-offset:2px}
+.m-wordpress-login button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:44px;font:inherit;font-size:11px;font-weight:550;background:#edf3e3;border:1px solid #dae5cd;border-radius:5px;padding:10px 12px;color:#315625;cursor:pointer;text-align:left}
+.m-wordpress-login small{font-size:10px;line-height:1.7;color:#687a5b}
+.m-platform-footnote{display:flex;align-items:flex-start;gap:25px;justify-content:space-between;border-top:1px solid #dce5d4;margin-top:28px;padding-top:22px}
+.m-platform-footnote p{max-width:760px;margin:0;font-size:12px;line-height:1.8;color:#61705e}
+.m-platform-footnote .text-link{flex-shrink:0;font-size:11px;min-height:44px}
+.m-wordpress-entry{max-width:520px;padding:26px;border:1px solid #dce5d4;border-radius:10px;background:#fff;margin:0 0 34px}
+.m-page-hero .m-wordpress-entry{margin:28px auto}
+.marketing-page .m-wordpress-entry h2{font-size:25px;letter-spacing:-.7px;margin:0 0 13px}
+.m-wordpress-entry>p{font-size:13px;line-height:1.8;color:#61705e;margin-bottom:20px}
+@media(max-width:1000px){.m-platform-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.m-platform-footnote{flex-direction:column;gap:10px}}
+@media(max-width:600px){.m-platform-grid{grid-template-columns:minmax(0,1fr);gap:15px}.m-platform-card{padding:23px}.m-platform-actions .text-link{min-height:44px;font-size:12px}.m-wordpress-login input{font-size:16px}.m-wordpress-entry{padding:22px}.m-platform-card>p{font-size:13px}}
