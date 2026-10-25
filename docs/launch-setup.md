@@ -6,19 +6,13 @@ The page checks the current deployment, not a different Site or Cloudflare envir
 
 ## Public contact and private inbox
 
-The homepage and `/contact` send enquiries to the private `/owner/contact` inbox on the independent owner host. Only the current stored owner grant can read or triage messages. Opening a message is read-only; status changes require its current revision. The reply link opens the owner's mail application for a human to compose and send a reply. Form submission does not send email or create a mailing-list subscription, and `noreply@affimaro.com` is not published as a support address.
+The homepage and `/contact` record enquiries in the private `/owner/contact` inbox on the independent owner host. All six topics include Other at the end. Only a current stored owner grant can read messages, configure sending or triage their status. The public success message is a short thank-you, without a reference number. The internal UUID remains stable for safe request retries.
 
-Migration `0020_same_sunfire.sql` adds only the contact table and its indexes. Public JSON and native HTML submissions enforce same-origin checks, bounded request bodies, field validation, a hidden spam field and atomic per-email/per-network rate limits. The browser keeps the same submission ID for an unchanged retry after an uncertain response; edited content uses a fresh ID. Only a stored submission produces a visible receipt (except intentionally indistinguishable spam-field receipts). No query parameter can manufacture a successful receipt. Isolated API-to-owner tests exercise delivery without creating messages in the production inbox.
+The owner's Contact receipt emails form accepts a Resend sending-access key for the verified `affimaro.com` domain. It encrypts the key with the existing server data key and a separate purpose binding. The fixed sender is `Affimaro <noreply@affimaro.com>`. Saving settings sends no email and does not change Supabase SMTP, authentication, payment keys or provider setup. No generic sender key is currently available to this checkout or automatically copied from Supabase. The owner must enter it in this private form and enable contact receipts. New enquiries then attempt an acknowledgement to their stored address. The owner can explicitly send a confirmation for an older message. The Reply by email link continues to open the owner's own email client for a human reply.
 
-## Email
+Each acknowledgement receives a durable eight-digit number, starting at10000001. Retries preserve its original number, provider idempotency key and frozen email payload. A delivery lease, one-minute retry interval and conservative23-hour retry window keep uncertain outcomes from producing uncontrolled repeats. Provider acceptance is displayed as acceptance, not inbox delivery. Fixed receipt text contains no submitted message, unverified link or private identifier. Missing configuration or an email-provider failure does not discard the stored enquiry or falsely claim successful email delivery.
 
-The public Supabase settings check confirms that email authentication is enabled, signup is open and automatic email confirmation is disabled. Sender verification, SMTP credentials, delivery quotas and receipt of customer mail cannot be inferred from this endpoint. Customer delivery remains explicitly unverified.
-
-On 2026-10-24 the owner explicitly confirmed the Supabase SMTP sender is `noreply@affimaro.com`. Read-only checks found the domain's published SPF, DMARC, Resend DKIM and sending-subdomain SPF records, and the selected Supabase project was healthy with email enabled, signup open and confirmation required. Published DNS and policy checks do not prove delivery: confirmation and password recovery still need an actual recipient walkthrough. Email confirmation remains required.
-
-Provider settings: https://supabase.com/dashboard/project/bhxzkrypfxdheyjtxwqp/auth/smtp
-
-References: https://supabase.com/docs/guides/auth/auth-smtp and https://resend.com/docs/api-reference/errors
+Immutable migration0020 created the original contact inbox. Migration0021 expands its topic check through a structural table copy preserving every message field, status, revision, hash and index, with foreign-key enforcement left enabled. Migration0022 adds only encrypted email settings and a receipt outbox. Focused tests cover preservation, owner access and closure at writes, numeric reference allocation, duplicate and concurrent requests, exact retry payloads, provider failures and expired retry windows. API-to-owner and API-to-email tests use isolated databases and provider fixtures. No real contact email or production test message is sent by these checks.
 
 ## Website platform entry points
 

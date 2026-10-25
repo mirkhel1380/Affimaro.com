@@ -184,7 +184,6 @@
 .m-contact-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 .marketing-page .m-contact-receipt h2{font-size:30px;letter-spacing:-1px;line-height:1.2;margin:18px 0}
 .m-contact-receipt p{font-size:14px;line-height:1.8;color:#56704e}
-.m-contact-reference{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px!important;background:#eff4e8;border-radius:5px;padding:14px}
 .m-contact-section a:focus-visible{outline:2px solid #638942;outline-offset:4px}
 @media(max-width:1100px){.m-contact-nav{display:flex;align-items:center;min-height:52px}}
 @media(max-width:800px){.m-contact-section{grid-template-columns:minmax(0,1fr);gap:30px}.m-contact-copy>p{max-width:650px}.m-contact-routes{grid-template-columns:1fr 1fr;gap:20px}}

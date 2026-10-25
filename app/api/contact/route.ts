@@ -3,6 +3,8 @@ import {submitContact} from '../../../lib/contact-inbox';
 import {publicMarketingResponse} from '../../../lib/marketing';
 import {readJson} from '../../../lib/request';
 import {AppError} from '../../../lib/service';
+import {queueContactReceipt,deliverContactReceipt} from '../../../lib/contact-email';
+import {paymentDataKey} from '../../../lib/payment-runtime';
 
 const formType='application/x-www-form-urlencoded';
 const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -26,6 +28,10 @@ export async function POST(request:Request){
   const body=native?await readForm(request):await readJson(request,24576);
   if(native)draft=body as Record<string,string>;
   const result=await submitContact(getRawDb(),body,request.headers.get('cf-connecting-ip'));
+  if(!(body&&typeof body==='object'&&'fax' in body&&typeof body.fax==='string'&&body.fax.trim())){
+   await queueContactReceipt(getRawDb(),result.reference);
+   await deliverContactReceipt(getRawDb(),result.reference,paymentDataKey());
+  }
   return native?publicMarketingResponse('/contact',{contactReference:result.reference}):Response.json({ok:true,data:result},{headers});
  }catch(error){
   const status=error instanceof AppError?error.status:500,message=error instanceof AppError?error.message:'Your message could not be saved. Please try again.';

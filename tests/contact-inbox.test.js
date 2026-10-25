@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {database} from './support/db.js';
 import {queueFixture,seedApplicant} from './support/admission-queue.js';
 import {submitContact,contactInbox} from '../lib/contact-inbox.ts';
@@ -17,14 +18,27 @@ async function seed(db,count=26){const ids=[];for(let i=0;i<count;i++){const res
 
 test('the appended contact migration records every supported topic with normalized private data and receipt-only responses',async t=>{
  const db=database(t),before=finance(db);
- for(const topic of contactTopics){const sent=await submitContact(db,{...body,name:'  A visitor  ',email:' VISITOR@Example.com ',topic:topic.id},'203.0.113.20',at);assert.deepEqual(Object.keys(sent),['reference']);assert.match(sent.reference,/^[a-f0-9-]{36}$/);}
- assert.equal(total(db),5);const row=db.sqlite.prepare('SELECT * FROM contact_messages LIMIT 1').get();assert.equal(row.name,'A visitor');assert.equal(row.email,'visitor@example.com');assert.equal(row.status,'new');assert.equal(row.revision,1);assert.equal(row.created_at,new Date(at).toISOString());assert.equal(row.email_hash,sha('contact-email\nvisitor@example.com'));assert.equal(row.network_hash,sha('contact-network\n203.0.113.20'));assert.ok(!JSON.stringify(row).includes('203.0.113.20'));assert.deepEqual(finance(db),before);
+ for(const [i,topic] of contactTopics.entries()){const sent=await submitContact(db,{...body,name:'  A visitor  ',email:' VISITOR@Example.com ',topic:topic.id},'203.0.113.20',at+i*900000);assert.deepEqual(Object.keys(sent),['reference']);assert.match(sent.reference,/^[a-f0-9-]{36}$/);}
+ assert.equal(total(db),contactTopics.length);const row=db.sqlite.prepare('SELECT * FROM contact_messages ORDER BY created_at LIMIT 1').get();assert.equal(row.name,'A visitor');assert.equal(row.email,'visitor@example.com');assert.equal(row.status,'new');assert.equal(row.revision,1);assert.equal(row.created_at,new Date(at).toISOString());assert.equal(row.email_hash,sha('contact-email\nvisitor@example.com'));assert.equal(row.network_hash,sha('contact-network\n203.0.113.20'));assert.ok(!JSON.stringify(row).includes('203.0.113.20'));assert.deepEqual(finance(db),before);
 });
 
 test('invalid public submissions never create messages or accept status, owner or identity fields',async t=>{
  const db=database(t),before=writes(db);
  for(const change of [{name:'x'},{name:'Name\nHeader'},{email:'not an email'},{topic:'owner'},{message:'Too short'},{message:'x'.repeat(4001)},{message:'Invalid\0 control characters in this message.'},{id:'not-a-uuid'},{status:'closed'},{owner_id:'owner'},{fax:'x'.repeat(201)}])await assert.rejects(submitContact(db,{...body,...change},null,at),fails(400));
  for(const network of ['x'.repeat(129),'127.0.0.1\nHeader',42])await assert.rejects(submitContact(db,body,network,at),fails(400));assert.equal(total(db),0);assert.equal(writes(db),before);
+});
+
+test('adding the Other topic preserves existing messages, triage, hashes, indexes and foreign-key enforcement',async t=>{
+ const db=database(t,20),owner={userId:'contact-owner',email:'owner@example.com'};
+ db.sqlite.prepare('INSERT INTO accounts VALUES (?,?,?,?)').run(owner.userId,owner.email,'Owner',new Date(at).toISOString());
+ db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(owner.userId,new Date(at).toISOString());
+ for(const topic of ['general','account','integration','billing','partnership'])await submitContact(db,{...body,topic},'203.0.113.80',at);
+ db.sqlite.exec("UPDATE contact_messages SET status='in_progress',revision=3 WHERE topic='account'; UPDATE contact_messages SET status='closed',revision=5 WHERE topic='billing'");
+ const before=db.sqlite.prepare('SELECT * FROM contact_messages ORDER BY id').all(),financial=finance(db),indexes=db.sqlite.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='contact_messages' ORDER BY name").all();
+ assert.throws(()=>db.sqlite.prepare('UPDATE contact_messages SET topic=? WHERE id=?').run('other',before[0].id),/CHECK/);
+ db.sqlite.exec('BEGIN');try{db.sqlite.exec(readFileSync(new URL('../drizzle/0021_shocking_cardiac.sql',import.meta.url),'utf8'));db.sqlite.exec('COMMIT');}catch(error){db.sqlite.exec('ROLLBACK');throw error;}
+ assert.deepEqual(db.sqlite.prepare('SELECT * FROM contact_messages ORDER BY id').all(),before);assert.deepEqual(finance(db),financial);assert.deepEqual(db.sqlite.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='contact_messages' ORDER BY name").all(),indexes);assert.equal(db.sqlite.prepare('PRAGMA foreign_keys').get().foreign_keys,1);assert.equal(db.sqlite.prepare("SELECT name FROM sqlite_master WHERE name='__new_contact_messages'").get(),undefined);
+ const receipt=await submitContact(db,{...body,email:'other@example.com',topic:'other'},null,at),inbox=await contactInbox(db,owner).list({status:'all',message:receipt.reference});assert.equal(inbox.total,6);assert.equal(inbox.selected.topic,'other');assert.equal(inbox.selected.status,'new');assert.throws(()=>db.sqlite.prepare('UPDATE contact_messages SET topic=? WHERE id=?').run('unlisted',receipt.reference),/CHECK/);
 });
 
 test('the hidden honeypot returns a harmless receipt without reading or writing the database',async()=>{

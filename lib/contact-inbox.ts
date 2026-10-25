@@ -3,7 +3,7 @@ import {AppError,type Identity} from './service.ts';
 import {requirePlatformAdmin} from './admissions.ts';
 import {assertAccountOpen} from './account-state.ts';
 
-const topic=z.enum(['general','account','integration','billing','partnership']);
+const topic=z.enum(['general','account','integration','billing','partnership','other']);
 const status=z.enum(['new','in_progress','closed']);
 export type ContactStatus=z.infer<typeof status>;
 const submission=z.object({
@@ -15,7 +15,7 @@ function parse<S extends z.ZodTypeAny>(schema:S,input:unknown):z.output<S>{const
 const digest=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),byte=>byte.toString(16).padStart(2,'0')).join('');
 const changed=(result:unknown)=>Number((result as {meta?:{changes?:number};changes?:number})?.meta?.changes??(result as {changes?:number})?.changes??0)>0;
 
-// This route records a private support message. It never sends an email.
+// Store the private message first. Receipt email delivery is a separate operation.
 export async function submitContact(db:D1Database,input:unknown,network:string|null,at=Date.now()){
  const value=parse(submission,input),id=value.id||crypto.randomUUID();
  if(value.fax)return {reference:id};

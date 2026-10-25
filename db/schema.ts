@@ -403,4 +403,12 @@ export const accountPreferences=sqliteTable('account_preferences',{
 export const contactMessages=sqliteTable('contact_messages',{
  id:text('id').primaryKey(),name:text('name').notNull(),email:text('email').notNull(),topic:text('topic').notNull(),message:text('message').notNull(),
  status:text('status').notNull().default('new'),revision:integer('revision').notNull().default(1),emailHash:text('email_hash').notNull(),networkHash:text('network_hash').notNull(),payloadHash:text('payload_hash').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
-},t=>[index('contact_message_queue').on(t.status,t.createdAt),index('contact_message_email_window').on(t.emailHash,t.createdAt),index('contact_message_network_window').on(t.networkHash,t.createdAt),check('contact_message_status',sql`${t.status} IN ('new','in_progress','closed') AND ${t.revision}>0`),check('contact_message_topic',sql`${t.topic} IN ('general','account','integration','billing','partnership')`)]);
+},t=>[index('contact_message_queue').on(t.status,t.createdAt),index('contact_message_email_window').on(t.emailHash,t.createdAt),index('contact_message_network_window').on(t.networkHash,t.createdAt),check('contact_message_status',sql`${t.status} IN ('new','in_progress','closed') AND ${t.revision}>0`),check('contact_message_topic',sql`${t.topic} IN ('general','account','integration','billing','partnership','other')`)]);
+
+export const contactEmailSettings=sqliteTable('contact_email_settings',{
+ id:text('id').primaryKey(),encryptedCredential:text('encrypted_credential').notNull(),enabled:integer('enabled').notNull().default(0),revision:integer('revision').notNull().default(1),configuredBy:text('configured_by').notNull().references(()=>accounts.id),updatedAt:text('updated_at').notNull(),
+},t=>[check('contact_email_singleton',sql`${t.id}='resend' AND ${t.enabled} IN (0,1) AND ${t.revision}>0`)]);
+
+export const contactReceipts=sqliteTable('contact_receipts',{
+ number:integer('number').primaryKey({autoIncrement:true}),messageId:text('message_id').notNull().references(()=>contactMessages.id),status:text('status').notNull().default('pending'),payloadJson:text('payload_json'),attempts:integer('attempts').notNull().default(0),firstAttemptAt:text('first_attempt_at'),lastAttemptAt:text('last_attempt_at'),leaseId:text('lease_id'),leaseUntil:text('lease_until'),providerId:text('provider_id'),acceptedAt:text('accepted_at'),
+},t=>[uniqueIndex('contact_receipt_message').on(t.messageId),check('contact_receipt_state',sql`${t.status} IN ('pending','failed','accepted','review') AND ${t.number}>0 AND ${t.number}<90000000 AND ${t.attempts}>=0`)]);

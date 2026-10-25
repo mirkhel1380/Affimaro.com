@@ -148,6 +148,20 @@
       "when": 1792909743841,
       "tag": "0020_same_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1792911588602,
+      "tag": "0021_shocking_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792912122215,
+      "tag": "0022_typical_mentallo",
+      "breakpoints": true
     }
   ]
 }
