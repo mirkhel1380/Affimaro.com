@@ -1,3 +1,4 @@
+import './updates.css';
 import './security.css';
 import type { Metadata } from "next";
 import {emailSignIn} from '../lib/auth-mode';

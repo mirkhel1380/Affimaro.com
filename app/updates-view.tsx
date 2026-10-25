@@ -1,0 +1,18 @@
+import type {ReactNode} from 'react';
+import {requirePortalUser} from './portal-auth';
+import {getRawDb} from '../db';
+import {portalUpdates,updatesQuery} from '../lib/portal-updates';
+import {updateCategories,updatesPath} from '../lib/portal-updates-model';
+import {portalReturnPath,type PortalPageQuery} from '../lib/portal-return-path';
+import type {Portal} from '../lib/portal-policy';
+import {AppError} from '../lib/service';
+import {Shell,PageHeading,Card,Stat} from './ui';
+import {UpdatesFeed} from './updates-feed';
+
+export async function UpdatesView({portal,searchParams}:{portal:Portal;searchParams:Promise<PortalPageQuery>}){
+ const params=await searchParams,path=updatesPath(portal),user=await requirePortalUser(portal,portalReturnPath(path,params,{category:12,range:3,page:6,q:100})),shell=(children:ReactNode)=><Shell name={user.fullName||user.email.split('@')[0]} email={user.email} portal={portal} active="updates">{children}</Shell>;
+ let data:Awaited<ReturnType<typeof portalUpdates>>;
+ try{const input=Object.fromEntries(['category','range','q','page'].filter(k=>params[k]!==undefined).map(k=>[k,params[k]]));data=await portalUpdates(getRawDb(),user,input);}catch(error){if(!(error instanceof AppError)||error.status!==400)throw error;return shell(<><PageHeading title="Check your update filters." description="Choose one supported value for each filter."/><Card><div className="a-card-body"><p role="alert">{error.message}</p><a href={path} className="a-btn a-btn-outline">Reset update filters</a></div></Card></>);}
+ const href=(page:number)=>path+'?'+updatesQuery(data.filters,{page});
+ return shell(<><PageHeading eyebrow="YOUR ACCOUNT UPDATES" title="Stay up to date." description="The latest status of each partnership application, invitation and payment request, ordered by its last saved change."/><div className="a-stats"><Stat label="Partnership updates" value={data.summary.applications} caption="Matching your current filters" icon="users"/><Stat label="Invitation updates" value={data.summary.invitations} caption="Sent or received in your own portal" icon="link"/><Stat label="Payment updates" value={data.summary.payments} caption="Requests and recorded payment states" icon="shield" dark/></div><Card><form className="a-updates-filters" action={path} method="get"><label className="a-field"><span>Search partner or program</span><input type="search" name="q" defaultValue={data.filters.q} maxLength={100}/></label><label className="a-field"><span>Category</span><select name="category" defaultValue={data.filters.category}>{Object.entries(updateCategories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label className="a-field"><span>Last updated</span><select name="range" defaultValue={data.filters.range}>{[['7d','Last 7 UTC days'],['30d','Last 30 UTC days'],['90d','Last 90 UTC days'],['all','All dates']].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><button className="a-btn a-btn-outline">Filter</button><a className="a-text-link" href={path}>Reset</a></form></Card><p className="a-updates-count">{data.summary.total} matching updates · times in {data.preferences.timeZone}</p><UpdatesFeed rows={data.rows} portal={portal} preferences={data.preferences}/>{data.summary.total>0&&<nav className="a-pagination" aria-label="Update pages">{data.filters.page>1&&<a className="a-btn a-btn-outline a-btn-small" href={href(data.filters.page-1)}>Previous</a>}<span>Page {data.filters.page} of {data.pages}</span>{data.filters.page<data.pages&&<a className="a-btn a-btn-outline a-btn-small" href={href(data.filters.page+1)}>Next</a>}</nav>}</>);
+}
