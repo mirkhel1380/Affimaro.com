@@ -1,3 +1,4 @@
+import {seedApprovedIdentity} from './support/identity-approval.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
@@ -15,7 +16,7 @@ const bank={beneficiary:'Example Partner',bank:'Example Bank',country:'US',curre
 async function fixture(t,{testMode=false}={}){
   const db=database(t),owner=service(db,identity('owner')),affiliate=service(db,identity('affiliate'));
   await owner.saveAccount({name:'Example Owner'});await owner.createBusiness({name:'Example Business',website:''});await affiliate.saveAccount({name:'Example Partner'});await affiliate.saveAffiliate({name:'Example Partner',channel:'Blog',website:'',bio:''});
-  const program=(await owner.businessDashboard()).program,application=await affiliate.apply({programId:program.id});await owner.review({applicationId:application.id,status:'approved'});
+  const program=(await owner.businessDashboard()).program,application=await affiliate.apply({programId:program.id});await owner.review({applicationId:application.id,status:'approved'});seedApprovedIdentity(db,'affiliate');
   const configured=await commerce(db,identity('owner')).configure({action:'connect',storeUrl:'https://store.example'});
   const f={db,owner,affiliate,application,connection:configured.connection,signingKey:configured.key,merchant:payments(db,identity('owner'),key),partner:payments(db,identity('affiliate'),key)};
   f.referral=await event(f,{kind:'referral',applicationId:application.id});f.createdAt=new Date().toISOString();await sale(f);await approve(f);await f.partner.saveBank(bank);
@@ -53,6 +54,18 @@ async function ready(f){const r=await request(f);await f.merchant.review({reques
 async function review(f,r){return f.transfers.preview({requestId:r.id});}
 async function send(f,r,preview){const p=preview||await review(f,r);return f.transfers.send({requestId:r.id,reviewToken:p.reviewToken,confirmed:true});}
 const current=(f,r)=>f.db.sqlite.prepare('SELECT * FROM payout_requests WHERE id=?').get(r.id);
+
+test('identity withdrawal blocks new Stripe transfers even with a previously valid signed review',async t=>{
+ const f=await fixture(t),r=await ready(f),preview=await review(f,r);f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");await assert.rejects(send(f,r,preview),fails(403));assert.equal(f.state.created,0);assert.equal(current(f,r).status,'approved');assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM stripe_transfer_attempts').get().n,0);
+});
+test('Stripe checks identity inside the claim and immediately before a new provider transfer',async t=>{
+ for(const phase of ['claim','provider']){const f=await fixture(t),r=await ready(f),preview=await review(f,r);if(phase==='claim'){const batch=f.db.batch;f.db.batch=async statements=>{if(statements.length>=3)f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");return batch(statements);};}else{let balances=0;f.state.fault=call=>{if(call.path==='/v1/balance'&&++balances>=3)f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");return null;};}
+  if(phase==='claim')await assert.rejects(send(f,r,preview),fails(409));else assert.equal((await send(f,r,preview)).outcome,'review');assert.equal(f.state.created,0);assert.ok(!f.state.calls.some(c=>c.path==='/v1/transfers'&&c.method==='POST'));
+ }
+});
+test('identity withdrawal after an accepted transfer permits reconciliation without another POST',async t=>{
+ const f=await fixture(t),r=await ready(f);f.state.loseAfter=true;assert.equal((await send(f,r)).outcome,'review');assert.equal(f.state.created,1);f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");const posts=f.state.calls.filter(c=>c.path==='/v1/transfers'&&c.method==='POST').length;assert.equal((await f.transfers.reconcile({requestId:r.id})).request.status,'transferred');assert.equal(f.state.calls.filter(c=>c.path==='/v1/transfers'&&c.method==='POST').length,posts);assert.equal(f.state.created,1);
+});
 const attempt=(f,r)=>f.db.sqlite.prepare('SELECT * FROM stripe_transfer_attempts WHERE request_id=? ORDER BY rowid DESC LIMIT 1').get(r.id);
 const posts=f=>f.state.calls.filter(c=>c.path==='/v1/transfers'&&c.method==='POST');
 

@@ -1,3 +1,4 @@
+import {seedApprovedIdentity} from './support/identity-approval.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
@@ -19,7 +20,7 @@ async function fixture(t,platform='custom'){
   await owner.saveAccount({name:'Owner'});await owner.createBusiness({name:'Website business',website:home});
   await affiliate.saveAccount({name:'Partner'});await affiliate.saveAffiliate({name:'Partner',channel:'Blog',website:'',bio:''});
   const program=(await owner.businessDashboard()).program,application=await affiliate.apply({programId:program.id});
-  await owner.review({applicationId:application.id,status:'approved'});
+  await owner.review({applicationId:application.id,status:'approved'});seedApprovedIdentity(db,'affiliate');
   const store=commerce(db,identity('owner')),configured=await store.configure({action:'connect',platform,storeUrl:home});
   const f={db,owner,affiliate,application,store,connection:configured.connection,key:configured.key,requests:0};
   const env={DB:db,APP_ORIGIN:origin,SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',AUTH_SESSION_ENCRYPTION_KEY:'dc'.repeat(32)};

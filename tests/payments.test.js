@@ -1,3 +1,4 @@
+import {seedApprovedIdentity} from './support/identity-approval.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
@@ -14,7 +15,7 @@ async function fixture(t){
   const db=database(t),owner=service(db,identity('owner')),affiliate=service(db,identity('affiliate'));
   await owner.saveAccount({name:'Test Owner'});await owner.createBusiness({name:'Test Business',website:'https://store.example'});
   await affiliate.saveAccount({name:'Example Partner'});await affiliate.saveAffiliate({name:'Example Partner',channel:'Blog',website:'',bio:''});
-  const program=(await owner.businessDashboard()).program,application=await affiliate.apply({programId:program.id});await owner.review({applicationId:application.id,status:'approved'});
+  const program=(await owner.businessDashboard()).program,application=await affiliate.apply({programId:program.id});await owner.review({applicationId:application.id,status:'approved'});seedApprovedIdentity(db,'affiliate');
   const configured=await commerce(db,identity('owner')).configure({action:'connect',storeUrl:'https://store.example'});
   const f={db,owner,affiliate,application,connection:configured.connection,signingKey:configured.key,merchant:payments(db,identity('owner'),dataKey),partner:payments(db,identity('affiliate'),dataKey)};
   f.referral=await send(f,{kind:'referral',applicationId:application.id});await f.partner.saveBank(bank);await sale(f);return f;
@@ -32,6 +33,23 @@ async function approve(f,order){order=order||f.db.sqlite.prepare('SELECT * FROM 
 function request(f,override={}){return {requestId:crypto.randomUUID(),applicationId:f.application.id,currency:'USD',decimals:2,...override};}
 const receipt=(reference='TEST-BANK-REFERENCE-1')=>({reference,paidDate:today(),receiptUrl:'https://bank.example/receipt',confirmed:true});
 async function pay(f,req,reference){await f.merchant.review({requestId:req.id,status:'approved',reason:''});return f.merchant.recordPaid({requestId:req.id,receipt:receipt(reference)});}
+
+test('earned commission remains recorded while every new bank or Stripe request needs identity approval',async t=>{
+ const f=await fixture(t);f.db.sqlite.exec('DELETE FROM identity_verifications');await approve(f);const wallet=(await f.partner.partnerDashboard()).wallets[0];assert.equal(wallet.approved,1200);assert.equal(wallet.available,1200);assert.equal(wallet.identity_approved,0);
+ for(const method of ['bank','stripe'])await assert.rejects(f.partner.request(request(f,{method})),fails(403));assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM payout_requests').get().n,0);
+});
+test('unapproved recipient identity blocks business approval, unpaid destination access and new bank recording',async t=>{
+ const f=await fixture(t);await approve(f);const req=await f.partner.request(request(f));f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");await assert.rejects(f.merchant.review({requestId:req.id,status:'approved',reason:''}),fails(403));await assert.rejects(f.merchant.details({requestId:req.id}),fails(403));assert.equal((await f.partner.details({requestId:req.id})).destination.account,bank.account);assert.equal((await f.partner.request({...request(f),requestId:req.id})).id,req.id);
+ f.db.sqlite.exec("UPDATE identity_verifications SET status='approved'");await f.merchant.review({requestId:req.id,status:'approved',reason:''});f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");await assert.rejects(f.merchant.recordPaid({requestId:req.id,receipt:receipt()}),fails(403));assert.equal(f.db.sqlite.prepare('SELECT status,encrypted_receipt FROM payout_requests').get().encrypted_receipt,null);await f.merchant.review({requestId:req.id,status:'rejected',reason:'Identity review is needed.'});assert.equal((await f.partner.partnerDashboard()).wallets[0].available,1200);
+});
+test('already completed bank evidence and idempotent receipts remain accessible after identity withdrawal',async t=>{
+ const f=await fixture(t);await approve(f);const req=await f.partner.request(request(f));await pay(f,req);f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");assert.equal((await f.merchant.details({requestId:req.id})).receipt.reference,'TEST-BANK-REFERENCE-1');assert.equal((await f.merchant.recordPaid({requestId:req.id,receipt:receipt()})).status,'paid');assert.equal((await f.partner.partnerDashboard()).wallets[0].paid,1200);
+});
+test('identity approval is checked again inside request, review and bank-recording transactions',async t=>{
+ for(const operation of ['request','review','recordPaid']){const f=await fixture(t);await approve(f);let req;if(operation!=='request')req=await f.partner.request(request(f));if(operation==='recordPaid')await f.merchant.review({requestId:req.id,status:'approved',reason:''});const batch=f.db.batch;f.db.batch=async statements=>{f.db.sqlite.exec("UPDATE identity_verifications SET status='revoked'");return batch(statements);};
+  await assert.rejects(operation==='request'?f.partner.request(request(f)):operation==='review'?f.merchant.review({requestId:req.id,status:'approved',reason:''}):f.merchant.recordPaid({requestId:req.id,receipt:receipt()}),fails(409));const row=f.db.sqlite.prepare('SELECT status FROM payout_requests').get();assert.equal(row?.status,operation==='request'?undefined:operation==='review'?'requested':'approved');
+ }
+});
 
 test('bank and receipt encryption is randomized, authenticated and bound to its owner/context',async()=>{
   const a=await sealPayment(bank,dataKey,'bank/affiliate'),b=await sealPayment(bank,dataKey,'bank/affiliate');assert.notEqual(a,b);assert.ok(!a.includes(bank.account));assert.deepEqual(await openPayment(a,dataKey,'bank/affiliate'),bank);
@@ -127,7 +145,7 @@ test('a refund arriving immediately before payment commit is checked inside the 
 test('request coverage is calculated per partner, never across other partners’ reservations',async t=>{
   const f=await fixture(t);await approve(f);await f.partner.request(request(f));
   const second=service(f.db,identity('second'));await second.saveAccount({name:'Second Partner'});await second.saveAffiliate({name:'Second Partner',channel:'Blog',website:'',bio:''});const program=(await f.owner.businessDashboard()).program,application=await second.apply({programId:program.id});await f.owner.review({applicationId:application.id,status:'approved'});
-  const f2={...f,application,partner:payments(f.db,identity('second'),dataKey),referral:await send(f,{kind:'referral',applicationId:application.id})};await f2.partner.saveBank(bank);const o=await sale(f2,{orderId:'124',basis:100000});await approve(f,o);await f2.partner.request(request(f2));
+  seedApprovedIdentity(f.db,'second');const f2={...f,application,partner:payments(f.db,identity('second'),dataKey),referral:await send(f,{kind:'referral',applicationId:application.id})};await f2.partner.saveBank(bank);const o=await sale(f2,{orderId:'124',basis:100000});await approve(f,o);await f2.partner.request(request(f2));
   const dashboard=await f.merchant.merchantDashboard();assert.equal(dashboard.requests.length,2);assert.ok(dashboard.requests.every(r=>r.covered===1));
 });
 

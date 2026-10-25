@@ -7,7 +7,7 @@ import {ThemeControl} from '../theme-control';
 
 const navigation=[
  ['overview','/owner','Overview','grid'],['users','/owner/users','All accounts','users'],
- ['reviews','/owner/applications','Application review','shield'],['verifications','/owner/verifications','Channel verification','check'],['programs','/owner/data?table=programs','Programs & partners','store'],
+ ['identity','/owner/identity','Identity review','shield'],['reviews','/owner/applications','Application review','shield'],['verifications','/owner/verifications','Channel verification','check'],['programs','/owner/data?table=programs','Programs & partners','store'],
  ['orders','/owner/data?table=orders','Sales & commissions','chart'],['payouts','/owner/data?table=payouts','Partner payouts','shield'],
  ['billing','/owner/data?table=billing','Subscriptions','store'],['activity','/owner/data?table=activity','Platform activity','clock'],
  ['contact','/owner/contact','Contact inbox','users'],

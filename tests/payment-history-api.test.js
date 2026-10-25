@@ -1,3 +1,4 @@
+import {seedApprovedIdentity} from './support/identity-approval.js';
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdirSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs';
@@ -29,7 +30,7 @@ test('four actual history pages retain filters through pagination and show only 
 });
 
 test('an old selected request uses existing guarded actions and remains visible after explicit review changes its filtered status',async t=>{
- const f=await partnerFixture(t);for(let i=0;i<131;i++)seedPayout(f);const order=seedOrder(f),id=seedPayout(f,undefined,undefined,undefined,{status:'requested',at:'2026-01-01T00:00:00.000Z'}).id;f.db.sqlite.prepare('INSERT INTO commission_approvals VALUES (?,?,?,?,?)').run(order.id,1000,1,f.brand.userId,new Date().toISOString());set(f,f.brand);const query={status:'requested',request:id};let html=await htmlOf(api.BrandPage({searchParams:Promise.resolve(query)}));assert.ok(html.includes('Selected payment request'));assert.ok(html.includes('Approve request'));assert.ok(html.includes('View destination and receipt'));assert.ok(!html.includes('PRIVATE_DESTINATION_CIPHERTEXT'));
+ const f=await partnerFixture(t);seedApprovedIdentity(f.db,f.affiliate.userId);for(let i=0;i<131;i++)seedPayout(f);const order=seedOrder(f),id=seedPayout(f,undefined,undefined,undefined,{status:'requested',at:'2026-01-01T00:00:00.000Z'}).id;f.db.sqlite.prepare('INSERT INTO commission_approvals VALUES (?,?,?,?,?)').run(order.id,1000,1,f.brand.userId,new Date().toISOString());set(f,f.brand);const query={status:'requested',request:id};let html=await htmlOf(api.BrandPage({searchParams:Promise.resolve(query)}));assert.ok(html.includes('Selected payment request'));assert.ok(html.includes('Approve request'));assert.ok(html.includes('View destination and receipt'));assert.ok(!html.includes('PRIVATE_DESTINATION_CIPHERTEXT'));
  await payments(f.db,f.brand).review({requestId:id,status:'approved',reason:''});html=await htmlOf(api.BrandPage({searchParams:Promise.resolve(query)}));assert.ok(html.includes('outside the current filters'));assert.ok(html.includes('Record completed transfer'));assert.ok(!html.includes('Approve request'));assert.ok(html.includes('Approved · awaiting payment'));
  set(f,f.affiliate);html=await htmlOf(api.AffiliatePage({searchParams:Promise.resolve({request:id})}));assert.ok(!html.includes('Record completed transfer'));assert.ok(!html.includes('Approve request'));
 });

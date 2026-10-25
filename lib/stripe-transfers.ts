@@ -1,3 +1,4 @@
+import {recipientIdentityApproved,requireRecipientIdentity} from './identity-policy.ts';
 import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {sealPayment,openPayment,referenceHash} from './payment-crypto.ts';
@@ -44,6 +45,7 @@ export function stripeTransfers(db:D1Database,identity:Identity,key?:string,fetc
     if(!account.success||!balance.success||account.data.id!==d.platformId||account.data.country!==d.country)throw new AppError(409,'Stripe business identity or live environment could not be confirmed.');const usd=balance.data.available.filter(item=>item.currency==='usd');if(usd.length>1)throw new AppError(502,'Stripe returned an ambiguous USD balance.');return {c,secret,available:usd[0]?.amount||0};
   }
   async function eligible(row:RequestRow,d:StripeDestination){
+    await requireRecipientIdentity(db,row.affiliate_user_id);
     await stripeConnect(db,identity,key,fetcher).check({recipientId:d.recipientId});
     const recipient=await one(db,"SELECT r.id FROM stripe_recipients r WHERE r.id=? AND r.workspace_id=? AND r.application_id=? AND r.affiliate_user_id=? AND r.account_id=? AND r.platform_id=? AND r.mode='live' AND r.country=? AND r.state='ready' AND r.last_checked_at>=?",d.recipientId,row.workspace_id,row.application_id,row.affiliate_user_id,d.accountId,d.platformId,d.country,new Date(Date.now()-300000).toISOString());if(!recipient)throw new AppError(409,'The original Stripe receiving account is not ready.');
     const funding=await source(row,d);if(funding.available<row.amount)throw new AppError(409,'The business Stripe account has insufficient available USD balance.');
@@ -79,7 +81,7 @@ export function stripeTransfers(db:D1Database,identity:Identity,key?:string,fetc
       if(row.status==='approved'){
         const funding=await eligible(row,d);if(funding.c.id!==review.connectionId)throw new AppError(409,'The Stripe connection changed. Open a new review.');const candidate=crypto.randomUUID(),at=now();
         await db.batch([
-          db.prepare(`INSERT INTO stripe_transfer_attempts (id,request_id,workspace_id,recipient_id,platform_id,account_id,amount,state,first_submitted_at,created_at,updated_at) SELECT ?,pr.id,pr.workspace_id,?,?,?,pr.amount,'processing',?,?,? FROM payout_requests pr JOIN payment_connections c ON c.workspace_id=pr.workspace_id AND c.provider='stripe' WHERE pr.id=? AND pr.method='stripe' AND pr.status='approved' AND pr.encrypted_destination=? AND c.id=? AND c.mode='live' AND c.external_id=? AND ${coverageFor('pr')} AND ${sourceReady('pr.application_id')}`).bind(candidate,d.recipientId,d.platformId,d.accountId,at,at,at,row.id,row.encrypted_destination,review.connectionId,d.platformId),
+          db.prepare(`INSERT INTO stripe_transfer_attempts (id,request_id,workspace_id,recipient_id,platform_id,account_id,amount,state,first_submitted_at,created_at,updated_at) SELECT ?,pr.id,pr.workspace_id,?,?,?,pr.amount,'processing',?,?,? FROM payout_requests pr JOIN payment_connections c ON c.workspace_id=pr.workspace_id AND c.provider='stripe' WHERE pr.id=? AND pr.method='stripe' AND pr.status='approved' AND pr.encrypted_destination=? AND c.id=? AND c.mode='live' AND c.external_id=? AND ${coverageFor('pr')} AND ${sourceReady('pr.application_id')} AND ${recipientIdentityApproved('pr.affiliate_user_id')}`).bind(candidate,d.recipientId,d.platformId,d.accountId,at,at,at,row.id,row.encrypted_destination,review.connectionId,d.platformId),
           db.prepare("UPDATE payout_requests SET status='processing',reason=NULL,updated_at=? WHERE id=? AND status='approved' AND EXISTS(SELECT 1 FROM stripe_transfer_attempts WHERE id=?)").bind(at,row.id,candidate),
           db.prepare('INSERT INTO audit_events (id,workspace_id,actor_id,action,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM stripe_transfer_attempts WHERE id=?)').bind(crypto.randomUUID(),row.workspace_id,identity.userId,'stripe_transfer_started',at,candidate),
         ]);row=await owned(row.id);
@@ -89,6 +91,7 @@ export function stripeTransfers(db:D1Database,identity:Identity,key?:string,fetc
         const funding=await source(row,d),existing=await lookup(a,funding.secret);if(existing)return await settle(row,a,existing);
         if(Date.now()-Date.parse(a.first_submitted_at)>23*3600000)throw new AppError(409,'This unknown transfer is older than the safe retry window. Use status checks and business review; a new transfer will not be sent.');
         const current=await eligible(row,d);if(current.c.id!==review.connectionId)throw new AppError(409,'The Stripe connection changed. Open a new transfer review.');
+        await requireRecipientIdentity(db,row.affiliate_user_id);
         const body=new URLSearchParams({amount:String(a.amount),currency:'usd',destination:a.account_id,transfer_group:`affimaro_${a.id}`,'metadata[affimaro_attempt]':a.id,'metadata[affimaro_request]':row.id,'metadata[affimaro_workspace]':row.workspace_id});
         return await settle(row,a,await api(fetcher,'/v1/transfers',current.secret,body,`affimaro-transfer-${a.id}`));
       }catch(e){if(e instanceof AppError)return await hold(row,a,lease,e);throw e;}

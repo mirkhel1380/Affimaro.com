@@ -30,6 +30,8 @@ export async function closeAccount(db:D1Database,identity:Identity,reason:string
   db.prepare("UPDATE programs SET active=0 WHERE workspace_id IN (SELECT id FROM workspaces WHERE owner_id=?) AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)").bind(identity.userId,identity.userId),
   db.prepare("UPDATE applications SET status='suspended',updated_at=? WHERE (affiliate_user_id=? OR program_id IN (SELECT p.id FROM programs p JOIN workspaces w ON w.id=p.workspace_id WHERE w.owner_id=?)) AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)").bind(at,identity.userId,identity.userId,identity.userId),
   db.prepare("UPDATE media_properties SET status='revoked',verified_at=NULL,revision=revision+1,updated_at=? WHERE user_id=? AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)").bind(at,identity.userId,identity.userId),
+  db.prepare('DELETE FROM identity_documents WHERE user_id=? AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)').bind(identity.userId,identity.userId),
+  db.prepare('DELETE FROM identity_verifications WHERE user_id=? AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)').bind(identity.userId,identity.userId),
   db.prepare('DELETE FROM auth_sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)').bind(identity.userId,identity.userId),
   db.prepare("INSERT INTO platform_review_events(id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,'account_closed',revision,?,? FROM platform_applications WHERE user_id=? AND EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)").bind(crypto.randomUUID(),identity.userId,'Account access closed; financial and review records retained.',at,identity.userId,identity.userId),
  ]);

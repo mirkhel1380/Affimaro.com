@@ -1,3 +1,4 @@
+import {recipientIdentityApproved} from './identity-policy.ts';
 import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {accountPortal,businessPortal} from './portal-policy.ts';
@@ -24,7 +25,7 @@ async function context(db:D1Database,user:Identity,input:unknown,clock:Date){
  if(!user.userId||!user.email)throw new AppError(401,'Sign in to view payment records.');const filters=parsePaymentHistoryFilters(input),portal=await accountPortal(db,user.userId);if(!portal)throw new AppError(403,'Complete your account setup first.');const business=businessPortal(portal),today=Date.parse(clock.toISOString().slice(0,10)+'T00:00:00Z'),from=filters.range==='all'?'':new Date(today-(Number(filters.range.slice(0,-1))-1)*86400000).toISOString(),until=filters.range==='all'?'':new Date(today+86400000).toISOString();
  const status=filters.status==='all'?'1=1':filters.status==='open'?"status IN ('requested','approved','processing')":filters.status==='partly_reversed'?"status='transferred' AND reversed_amount>0 AND reversed_amount<amount":filters.status==='reversed'?"status='transferred' AND reversed_amount>=amount":'status=?';
  const prefix=`WITH visible AS (
-  SELECT ${payoutPublicFields.split(',').map(f=>'pr.'+f).join(',')},w.name AS business_name,COALESCE(f.display_name,'Partner') AS partner_name
+  SELECT ${payoutPublicFields.split(',').map(f=>'pr.'+f).join(',')},${recipientIdentityApproved('pr.affiliate_user_id')} AS identity_approved,w.name AS business_name,COALESCE(f.display_name,'Partner') AS partner_name
   FROM payout_requests pr JOIN applications a ON a.id=pr.application_id AND a.affiliate_user_id=pr.affiliate_user_id
   JOIN programs p ON p.id=a.program_id AND p.workspace_id=pr.workspace_id JOIN workspaces w ON w.id=pr.workspace_id
   LEFT JOIN affiliate_profiles f ON f.user_id=pr.affiliate_user_id WHERE ${business?'w.owner_id=?':'pr.affiliate_user_id=?'}

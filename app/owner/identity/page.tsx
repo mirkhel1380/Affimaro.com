@@ -1,0 +1,14 @@
+import {ownerContext} from '../context';
+import {OwnerShell} from '../shell';
+import {identityReviewQueue} from '../../../lib/identity-verification';
+import {identityStatusLabels} from '../../../lib/identity-catalog';
+import {PageHeading,Card,Note} from '../../ui';
+import {emailSignIn} from '../../../lib/auth-mode';
+import {IdentityReviews} from './review-panel';
+export const dynamic='force-dynamic';
+export const metadata={title:'Private identity review | Affimaro',robots:{index:false,follow:false}};
+export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
+ const {user,db}=await ownerContext('/owner/identity'),params=await searchParams,queue=await identityReviewQueue(db,user,{...(params.status!==undefined?{status:params.status}:{}),...(params.q!==undefined?{q:params.q}:{}),...(params.page!==undefined?{page:params.page}:{})});
+ const href=(page:number)=>'/owner/identity?'+new URLSearchParams({q:queue.filters.q,status:queue.filters.status,page:String(page)});
+ return <OwnerShell name={user.fullName||'Owner'} email={user.email} active="identity"><PageHeading eyebrow="PRIVATE RECIPIENT VERIFICATION" title="Identity review" description="Review affiliate and creator identity before new commission payments. Brands and agencies keep their separate business application review."/>{!emailSignIn&&<Note>Open this queue on admin.affimaro.com to access private evidence.</Note>}<Card title="Find a submission"><div className="a-card-body"><form className="a-form a-form-grid" method="get"><label className="a-field"><span>Account name or email</span><input name="q" maxLength={100} defaultValue={queue.filters.q}/></label><label className="a-field"><span>Identity status</span><select name="status" defaultValue={queue.filters.status}><option value="all">All submitted identities</option>{Object.entries(identityStatusLabels).filter(([s])=>s!=='not_started').map(([s,label])=><option key={s} value={s}>{label}</option>)}</select></label><div className="a-inline-actions"><button className="a-btn a-btn-dark">Filter</button><a href="/owner/identity" className="a-text-link">Reset</a></div></form></div></Card><IdentityReviews queue={queue} enabled={emailSignIn}/>{queue.pages>1&&<nav className="a-inline-actions" aria-label="Identity review pages">{queue.filters.page>1&&<a className="a-btn a-btn-outline" href={href(queue.filters.page-1)}>Previous</a>}<span>Page {queue.filters.page} of {queue.pages}</span>{queue.filters.page<queue.pages&&<a className="a-btn a-btn-outline" href={href(queue.filters.page+1)}>Next</a>}</nav>}<Note>Approving identity unlocks eligibility for new payout requests. The business must still approve commission and complete its normal payment checks. No money is moved by an identity decision.</Note></OwnerShell>;
+}

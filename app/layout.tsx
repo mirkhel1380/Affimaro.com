@@ -1,3 +1,4 @@
+import './identity.css';
 import './updates.css';
 import './security.css';
 import type { Metadata } from "next";

@@ -1,3 +1,4 @@
+import {requireFreshSecurity} from './auth-assurance.ts';
 import {factorSchema,authenticatedAssurance,requiresSecondFactor} from './auth-assurance.ts';
 import {securityMethods} from './auth-security.ts';
 import {isAccountClosed,assertAccountOpen} from '../lib/account-state.ts';
@@ -151,6 +152,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
   const security=securityMethods({db,config,provider,session,rate,random,issue,checkedUser});
   return {
     ...security,
+    async assertFresh(request:Request){const current=await session(request,false,true);if(!current)throw new AppError(401,'Sign in again to open private identity verification.');try{requireFreshSecurity(current);}catch{throw new AppError(403,'Sign in again, including your second factor if enabled, before opening or changing private identity verification.');}},
     async inspect(request:Request){const current=await session(request,false,true);return current?{user:current.user,requiresMfa:current.requiresMfa}:null;},
     async saveFlow(flow:AuthFlow){return authCookie(FLOW_COOKIE,await sealAuth(flowSchema.parse(flow),config.encryptionKey,`auth-flow/${config.origin}`),900);},
     async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding,plan?:'starter'|'growth'|'business',ownerOnly=false){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:accountReturnTo(portal,safeReturnTo(returnTo)),...(email?{email}:{}),...(portal?{portal}:{}),...(ownerOnly?{ownerOnly:true}:{}),...(onboarding?{onboarding}:{}),...(plan?{plan}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},

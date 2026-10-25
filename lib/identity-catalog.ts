@@ -1,0 +1,10 @@
+import {z} from 'zod';
+export const identityDocumentTypes={passport:'Passport',national_id:'National identity card',driving_licence:'Driving licence'} as const;
+export const identityStatusLabels={not_started:'Not submitted',pending:'Under review',approved:'Identity approved',changes_requested:'Changes requested',rejected:'Not approved',revoked:'Approval withdrawn'} as const;
+export type IdentityStatus=keyof typeof identityStatusLabels;
+export const identityProfileSchema=z.object({fullName:z.string().trim().min(2).max(120).refine(v=>!/[\u0000-\u001f\u007f]/.test(v)),country:z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).refine(v=>{try{return !['ZZ','EU','UN'].includes(v)&&new Intl.DisplayNames(['en'],{type:'region'}).of(v)!==v;}catch{return false;}},'Enter a valid two-letter country or territory code.'),documentType:z.enum(['passport','national_id','driving_licence'])}).strict();
+export type IdentityProfile=z.infer<typeof identityProfileSchema>;
+export const identityPath=(portal:string)=>portal==='creator'?'/creator/identity':'/partner/identity';
+export const identitySlots=(type:IdentityProfile['documentType'])=>type==='passport'?['front','selfie'] as const:['front','back','selfie'] as const;
+export const identityMaxImageBytes=512000,identityMaxRequestBytes=1560000;
+export type IdentitySnapshot={status:IdentityStatus;revision:number;submittedAt:string|null;reviewedAt:string|null;reason:string|null;evidenceAvailable:boolean;canResubmit:boolean};
