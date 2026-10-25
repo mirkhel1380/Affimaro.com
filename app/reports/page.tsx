@@ -8,6 +8,7 @@ import {ReportFiltersForm} from '../report-filters';
 import {Shell,PageHeading,Card,Icon,Note,Stat,Empty,formatDate} from '../ui';
 import {money} from '../tracking';
 import {ReportExportButton} from './export-button';
+import {portalReturnPath} from '../../lib/portal-return-path';
 
 export const dynamic='force-dynamic';
 export const metadata={title:'Reports | Affimaro',robots:{index:false,follow:false}};
@@ -23,7 +24,7 @@ function CurrentBalances({report,portal}:{report:Report;portal:Portal}){
 }
 export default async function ReportsPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const queryInput=await searchParams,requestedPortal=portalForView(queryInput.view);
-  const returnTo='/reports'+(requestedPortal?'?view='+portalView(requestedPortal):'');
+  const returnTo=portalReturnPath('/reports',{...queryInput,view:requestedPortal?portalView(requestedPortal):undefined},{view:9,applicationId:36,range:6,from:10,to:10});
   const user=await requireChatGPTUser(returnTo),db=getRawDb(),account=await service(db,user).account();
   if(!account)redirect('/account');
   const portal=await accountPortal(db,user.userId);if(!portal)redirect('/get-started');

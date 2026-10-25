@@ -1,4 +1,5 @@
 import {requirePortalUser} from './portal-auth';
+import {portalReturnPath} from '../lib/portal-return-path';
 import {getRawDb} from '../db';
 import {commissionReview,commissionReviewQuery,commissionReviewSearchParams,commissionReviewStates,type CommissionReviewFilters} from '../lib/commission-review';
 import {commissionReviewPath,paymentsPath,programHome,portalName,type Portal} from '../lib/portal-policy';
@@ -10,7 +11,7 @@ import {Shell,PageHeading,Card,Stat,Empty,Note,Badge,Icon} from './ui';
 import {PaymentAction} from './payment-controls';
 
 export async function CommissionReviewView({portal,searchParams}:{portal:Extract<Portal,'brand'|'agency'>;searchParams:Promise<Record<string,string|string[]|undefined>>}){
- const path=commissionReviewPath(portal),user=await requirePortalUser(portal,path),raw=await searchParams,query=new URLSearchParams();for(const [key,value] of Object.entries(raw)){if(typeof value==='string')query.append(key,value);else if(Array.isArray(value))for(const item of value)query.append(key,item);}
+ const path=commissionReviewPath(portal),raw=await searchParams,user=await requirePortalUser(portal,portalReturnPath(path,raw,{order:36,state:13,currency:3,range:3,page:7,q:100})),query=new URLSearchParams();for(const [key,value] of Object.entries(raw)){if(typeof value==='string')query.append(key,value);else if(Array.isArray(value))for(const item of value)query.append(key,item);}
  const shell={portal,name:user.fullName||user.email.split('@')[0],email:user.email,active:'commission-approvals'};let data:Awaited<ReturnType<typeof commissionReview>>;
  try{data=await commissionReview(getRawDb(),user,commissionReviewSearchParams(query));}catch(error){if(!(error instanceof AppError)||![400,404].includes(error.status))throw error;return <Shell {...shell}><PageHeading title="Check your commission review filters." description="Only referred orders belonging to your business are available here."/><Card><div className="a-card-body"><p role="alert">{error.message}</p><a className="a-btn a-btn-outline" href={path}>Reset commission filters</a></div></Card></Shell>;}
  const {filters}=data,href=(changes:Partial<CommissionReviewFilters>={})=>path+(commissionReviewQuery(filters,changes)?'?'+commissionReviewQuery(filters,changes):'');

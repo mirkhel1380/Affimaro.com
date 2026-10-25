@@ -5,9 +5,10 @@ import {ordersPath,portalName,type Portal} from '../lib/portal-policy';
 import {AppError} from '../lib/service';
 import {OrderTable} from './tracking';
 import {Shell,PageHeading,Card,Stat,Empty,Note,Icon} from './ui';
+import {portalReturnPath} from '../lib/portal-return-path';
 
 export async function OrdersView({portal,searchParams}:{portal:Portal;searchParams:Promise<Record<string,string|string[]|undefined>>}){
- const path=ordersPath(portal),user=await requirePortalUser(portal,path),params=await searchParams,query=new URLSearchParams();
+ const path=ordersPath(portal),params=await searchParams,user=await requirePortalUser(portal,portalReturnPath(path,params,{state:10,currency:3,range:3,page:7,q:100})),query=new URLSearchParams();
  for(const key of orderQueryKeys){const value=params[key];if(typeof value==='string')query.set(key,value);else if(Array.isArray(value))for(const item of value)query.append(key,item);}
  const shell={portal,name:user.fullName||user.email.split('@')[0],email:user.email,active:'orders'};
  let data:Awaited<ReturnType<typeof orderHistory>>;

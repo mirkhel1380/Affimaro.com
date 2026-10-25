@@ -1,4 +1,5 @@
 import {requirePortalUser} from './portal-auth';
+import {portalReturnPath} from '../lib/portal-return-path';
 import {getRawDb} from '../db';
 import {paymentHistory,paymentHistoryQuery,paymentHistorySearchParams,paymentHistoryQueryKeys,paymentHistoryStatuses,paymentHistoryExportLimit,type PaymentHistoryFilters} from '../lib/payment-history';
 import {paymentHistoryPath,paymentsPath,portalName,type Portal} from '../lib/portal-policy';
@@ -10,7 +11,7 @@ import {Shell,PageHeading,Card,Stat,Empty,Note,Badge,Icon} from './ui';
 import {PayoutCard} from './payment-cards';
 import {PaymentHistoryExportButton} from './payment-history-export-button';
 export async function PaymentHistoryView({portal,searchParams}:{portal:Portal;searchParams:Promise<Record<string,string|string[]|undefined>>}){
- const path=paymentHistoryPath(portal),user=await requirePortalUser(portal,path),raw=await searchParams,query=new URLSearchParams();for(const key of paymentHistoryQueryKeys){const value=raw[key];if(typeof value==='string')query.set(key,value);else if(Array.isArray(value))for(const part of value)query.append(key,part);}
+ const path=paymentHistoryPath(portal),raw=await searchParams,user=await requirePortalUser(portal,portalReturnPath(path,raw,{request:36,status:15,method:6,currency:3,range:3,page:7,q:120})),query=new URLSearchParams();for(const key of paymentHistoryQueryKeys){const value=raw[key];if(typeof value==='string')query.set(key,value);else if(Array.isArray(value))for(const part of value)query.append(key,part);}
  const shell={portal,name:user.fullName||user.email.split('@')[0],email:user.email,active:'payment-history'};let data:Awaited<ReturnType<typeof paymentHistory>>;
  try{data=await paymentHistory(getRawDb(),user,paymentHistorySearchParams(query));}catch(error){if(!(error instanceof AppError)||![400,404].includes(error.status))throw error;return <Shell {...shell}><PageHeading title="Check your payment history filters." description="Only your own partner commission requests are available here."/><Card><div className="a-card-body"><p role="alert">{error.message}</p><a className="a-btn a-btn-outline" href={path}>Reset history filters</a></div></Card></Shell>;}
  const {filters}=data,href=(changes:Partial<PaymentHistoryFilters>={})=>path+(paymentHistoryQuery(filters,changes)?'?'+paymentHistoryQuery(filters,changes):''),exportQuery=new URLSearchParams(paymentHistoryQuery(filters,{page:1,requestId:undefined}));exportQuery.set('view',data.business?'merchant':'partner');

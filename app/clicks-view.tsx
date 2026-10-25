@@ -7,8 +7,9 @@ import {ClickExportButton} from './click-export-button';
 import {AppError} from '../lib/service';
 import {portalName,type Portal} from '../lib/portal-policy';
 import {Shell,PageHeading,Card,Stat,Empty,Note} from './ui';
+import {portalReturnPath} from '../lib/portal-return-path';
 export async function ClicksView({portal,searchParams}:{portal:Portal;searchParams:Promise<Record<string,string|string[]|undefined>>}){
- const path=({brand:'/workspace/clicks',agency:'/agency/clicks',affiliate:'/partner/clicks',creator:'/creator/clicks'})[portal],user=await requirePortalUser(portal,path),q=await searchParams,query=new URLSearchParams();
+ const path=({brand:'/workspace/clicks',agency:'/agency/clicks',affiliate:'/partner/clicks',creator:'/creator/clicks'})[portal],q=await searchParams,user=await requirePortalUser(portal,portalReturnPath(path,q,{application:36,days:2,page:5,country:7,device:7,q:100})),query=new URLSearchParams();
  // Framework and campaign query keys do not select report authority. Known
  // repeated or invalid filter values still receive a recoverable error state.
  for(const key of clickQueryKeys){const value=q[key];if(typeof value==='string')query.set(key,value);else if(Array.isArray(value))for(const item of value)query.append(key,item);}

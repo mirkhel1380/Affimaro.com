@@ -26,10 +26,11 @@ export async function relationshipWorkspace(db:D1Database,user:Identity,input:un
  if(v.tab==='invitations'&&v.invitationStatus!=='all'){conditions.push('i.status=?');args.push(v.invitationStatus);}else if(v.tab!=='invitations'&&v.tab!=='all'){conditions.push('a.status=?');args.push(v.tab);}
  if(v.tab!=='invitations'&&v.type!=='all'){conditions.push(`${targetRole}=?`);args.push(v.type);}
  const queryJoins=v.tab==='invitations'?invitationJoins:joins,where=conditions.join(' AND '),total=(await db.prepare(`SELECT count(*) n ${queryJoins} WHERE ${where}`).bind(...args).first<{n:number}>())?.n||0;
+ const pages=Math.ceil(total/12),page=Math.min(v.page,Math.max(1,pages));
  let rows:Relationship[]=[],invitations:ProgramInvitation[]=[];
- if(v.tab==='invitations')invitations=(await db.prepare(`SELECT ${invitationFields} ${invitationJoins} WHERE ${where} ORDER BY i.created_at DESC,i.id LIMIT 12 OFFSET ?`).bind(...args,(v.page-1)*12).all<ProgramInvitation>()).results;
- else rows=(await db.prepare(`SELECT a.id,a.program_id,${name} AS name,p.name AS program_name,${targetId} AS target_id,${targetRole} AS target_portal,a.status,p.rate_bps,p.window_days,p.active AS program_active,EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=${targetId}) AS target_closed,a.created_at,a.updated_at ${joins} WHERE ${where} ORDER BY a.updated_at DESC,a.id LIMIT 12 OFFSET ?`).bind(...args,(v.page-1)*12).all<Relationship>()).results;
+ if(v.tab==='invitations')invitations=(await db.prepare(`SELECT ${invitationFields} ${invitationJoins} WHERE ${where} ORDER BY i.created_at DESC,i.id LIMIT 12 OFFSET ?`).bind(...args,(page-1)*12).all<ProgramInvitation>()).results;
+ else rows=(await db.prepare(`SELECT a.id,a.program_id,${name} AS name,p.name AS program_name,${targetId} AS target_id,${targetRole} AS target_portal,a.status,p.rate_bps,p.window_days,p.active AS program_active,EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=${targetId}) AS target_closed,a.created_at,a.updated_at ${joins} WHERE ${where} ORDER BY a.updated_at DESC,a.id LIMIT 12 OFFSET ?`).bind(...args,(page-1)*12).all<Relationship>()).results;
  let ownershipReady=true;
  if(v.tab==='invitations'&&!business){let profile:Record<string,unknown>={};try{const parsed=JSON.parse(admission.profile_json);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))profile=parsed;}catch{}ownershipReady=profileVerificationSummary(await mediaPropertiesFor(db,user.userId),profile).ready;}
- return {portal,business,rows,invitations,counts,invitationCounts,total,page:v.page,pages:Math.ceil(total/12),filters:v,ownershipReady};
+ return {portal,business,rows,invitations,counts,invitationCounts,total,page,pages,filters:{...v,page},ownershipReady};
 }
