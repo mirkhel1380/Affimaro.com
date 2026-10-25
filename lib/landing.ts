@@ -1,4 +1,5 @@
 import {trustedPublicOrigin} from './public-origin.ts';
+import {decorateMarketingHero} from './marketing-media.mjs';
 
 const installHead='<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Affimaro"><script src="/install-app.js" defer></script>';
 export function marketingPage(html:string,independent:boolean,independentOrigin:string){
@@ -15,7 +16,7 @@ export function pricingPage(landing:string,section:string){
   const header=homeLinks(part(/<header class="site-header"[\s\S]*?<\/header>/)).replace(/(<a\b[^>]*\bhref="\/pricing")([^>]*>)/,'$1 aria-current="page"$2');
   const footer=homeLinks(part(/<footer class="site-footer [^"]*"[\s\S]*?<\/footer>/));
   const sprite=part(/<svg class="icon-sprite"[\s\S]*?<\/svg>/),install=part(/<a class="corner-install"[\s\S]*?<\/a>/);
-  return `<!doctype html><html lang="en">${head}<body class="marketing-page pricing-page">${sprite}<a class="skip-link" href="#main">Skip to content</a>${header}<main id="main" tabindex="-1">${section}<div class="pricing-note container"><p>Brand subscriptions and affiliate commissions are separate. Brands pay their partners directly. You do not need a brand subscription to join a program as an affiliate.</p><a class="text-link" href="/resources">Follow your setup guide <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div></main>${footer}${install}</body></html>`;
+  return `<!doctype html><html lang="en">${head}<body class="marketing-page pricing-page">${sprite}<a class="skip-link" href="#main">Skip to content</a>${header}<main id="main" tabindex="-1">${decorateMarketingHero('/pricing',section)}<div class="pricing-note container"><p>Brand subscriptions and affiliate commissions are separate. Brands pay their partners directly. You do not need a brand subscription to join a program as an affiliate.</p><a class="text-link" href="/resources">Follow your setup guide <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div></main>${footer}${install}</body></html>`;
 }
 
 // Native preview navigation must leave its frame for independent email sign-in.

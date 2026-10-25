@@ -19,7 +19,7 @@ export default function InstallPage(){
           <div className="m-actions"><button type="button" data-install-button hidden>Install Affimaro</button><a href="/account">Open workspace ↗</a></div>
           <span className="m-status" data-install-status role="status" aria-live="polite">If an install button is not shown, follow the steps for your browser below.</span>
         </div>
-        <div className="m-app-card"><img src="/app-icons/icon-512.png" alt="" width="112" height="112"/><h2>affimaro.</h2><p>One account.<br/>A home for your partnerships.</p><ul><li>Business workspace</li><li>Affiliate portal</li><li>Commissions and payment records</li></ul></div>
+        <div className="m-app-card"><img className="m-install-photo" src="/images/page-technology.webp" width="1104" height="736" alt="A professional working on a laptop"/><img src="/app-icons/icon-512.png" alt="" width="112" height="112"/><h2>affimaro.</h2><p>One account.<br/>A home for your partnerships.</p><ul><li>Business workspace</li><li>Affiliate portal</li><li>Commissions and payment records</li></ul></div>
       </section>
       <section className="m-guide" aria-labelledby="install-guide">
         <div className="m-guide-head"><h2 id="install-guide">A few taps. You’re in.</h2><p>Install from your browser, then sign in with your Affimaro email and password.</p></div>

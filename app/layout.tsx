@@ -4,6 +4,8 @@ import "./account.css";
 import "./store-platform.css";
 import "./start.css";
 import "./owner.css";
+import "./appearance.css";
+import "./analytics.css";
 
 export const metadata: Metadata = {
   title: "Affimaro — Your partner workspace",
