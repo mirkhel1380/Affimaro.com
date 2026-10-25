@@ -11,6 +11,7 @@ const navigation=[
  ['orders','/owner/data?table=orders','Sales & commissions','chart'],['payouts','/owner/data?table=payouts','Partner payouts','shield'],
  ['billing','/owner/data?table=billing','Subscriptions','store'],['activity','/owner/data?table=activity','Platform activity','clock'],
  ['contact','/owner/contact','Contact inbox','users'],
+ ['security','/owner/security','Account security','shield'],
  ['setup','/owner/settings','Settings & launch','check'],
 ];
 export function OwnerShell({name,email,active,children}:{name:string;email:string;active:string;children:ReactNode}){

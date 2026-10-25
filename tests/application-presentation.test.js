@@ -62,7 +62,7 @@ test('pending navigation exposes only the application, while approval controls a
   assert.ok(!html.includes('<img'));assert.match(html,/&lt;img/);assert.ok(!html.includes('PRIVATE_NOT_A_PROFILE_FIELD'));assert.match(html,/rel="noopener noreferrer"/);
 });
 test('auth pages use the brand SVG and green palette, with a progressive password control and a self-only script policy',async t=>{
-  const config={origin:'https://affimaro.example',supabaseUrl:'https://fixture.supabase.co',publishableKey:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',encryptionKey:'df'.repeat(32)},api=emailAuth(database(t),config,()=>{throw new Error('Rendering a form must not contact the provider.');});
+  const config={origin:'https://affimaro.example',supabaseUrl:'https://fixture.supabase.co',publishableKey:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',encryptionKey:'df'.repeat(32)},api=emailAuth(database(t),config,async(url,init)=>{assert.equal(new URL(url).pathname,'/auth/v1/settings');assert.equal(init.method,'GET');return Response.json({external:{email:true},disable_signup:false,mailer_autoconfirm:false});});
   for(const portal of ['brand','affiliate'])for(const kind of ['login','signup']){
     const response=await authPage(new Request(config.origin+'/auth/'+portal+'/'+kind),api,config.origin),html=await response.text();
     assert.equal(response.status,200);assert.match(html,/aria-label="Affimaro home"/);assert.match(html,/<svg viewBox="0 0 32 32"/);assert.ok(!html.includes('<span class="mark">a</span>'));assert.ok(!/Highlink|#2f5178|#dce7fa|#33577d/.test(html));
@@ -77,7 +77,7 @@ test('password eyes reveal and hide only the associated input, update accessible
     const input={type:'password'};Object.defineProperty(input,'value',{get(){throw new Error('Password value was read.');},set(){throw new Error('Password value was replaced.');}});inputs.set(id,input);
     const status={textContent:''},attrs={'aria-controls':id,'aria-pressed':'false','aria-label':'Show password'},button={hidden:true,parentElement:{querySelector:()=>status},getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;},addEventListener(name,callback){this[name]=callback;},attrs,status};buttons.push(button);
   }
-  runInNewContext(readFileSync(new URL('../public/auth-form.js',import.meta.url),'utf8'),{document:{querySelectorAll:()=>buttons,getElementById:id=>inputs.get(id)}});
+  runInNewContext(readFileSync(new URL('../public/auth-form.js',import.meta.url),'utf8'),{document:{querySelector:()=>null,querySelectorAll:()=>buttons,getElementById:id=>inputs.get(id)}});
   for(const button of buttons){const input=inputs.get(button.attrs['aria-controls']);assert.equal(button.hidden,false);button.click();assert.equal(input.type,'text');assert.equal(button.attrs['aria-label'],'Hide password');assert.equal(button.attrs['aria-pressed'],'true');assert.match(button.status.textContent,/visible/);button.click();assert.equal(input.type,'password');assert.equal(button.attrs['aria-label'],'Show password');assert.equal(button.attrs['aria-pressed'],'false');}
 });
 test('approved prices are consistent and four audience paths link to real pages without borrowed award claims',()=>{

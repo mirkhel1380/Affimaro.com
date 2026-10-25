@@ -54,7 +54,7 @@ test('password recovery preserves the selected program or paid package through v
 test('authentication package labels use the selected brand or agency monthly catalog without starting a provider operation',async t=>{
  const f=await fixture(t);for(const portal of ['brand','agency'])for(const [plan,amount] of Object.entries(portal==='agency'?{starter:39,growth:79,business:149}:{starter:19,growth:49,business:99}))for(const kind of ['login','signup']){
   const page=await authPage(request('/auth/'+portal+'/'+kind+'?plan='+plan),f.api,config.origin),html=await page.text();assert.equal(page.status,200);assert.ok(html.includes('· $'+amount+' USD / month'),portal+' '+plan+' '+kind);
- }assert.equal(f.state.calls.length,0);assert.equal(count(f,'accounts'),0);assert.equal(count(f,'billing_checkouts'),0);
+ }assert.equal(f.state.calls.length,12);assert.ok(f.state.calls.every(c=>c.path==='/settings'&&c.method==='GET'));assert.equal(count(f,'accounts'),0);assert.equal(count(f,'billing_checkouts'),0);
 });
 
 test('a verified recovery flow stays bound to its portal and cannot replace recovery-session or CSRF checks',async t=>{
@@ -87,14 +87,14 @@ test('the separate owner host exposes its own login, rejects customer pages and 
  assert.equal((await independentFetch(new Request(ownerOrigin+'/auth/owner/signup'),env,app,f.fetcher)).status,404);
  const moved=await independentFetch(request('/owner/users?role=affiliate'),env,app,f.fetcher);assert.equal(moved.headers.get('location'),ownerOrigin+'/owner/users?role=affiliate');
  for(const path of ['/auth/owner/login','/api/admin/applications'])assert.equal((await independentFetch(request(path,'',{method:'POST'}),env,app,f.fetcher)).status,403);
- assert.equal(f.state.calls.length,0);
+ assert.equal(f.state.calls.length,1);assert.equal(f.state.calls[0].path,'/settings');assert.equal(f.state.calls[0].method,'GET');
 });
 
 test('the owner hostname requires the stored owner grant for every private page and API',async t=>{
  const f=await fixture(t),ownerOrigin='https://admin.affimaro.example',env={DB:f.db,APP_ORIGIN:config.origin,OWNER_ORIGIN:ownerOrigin,SUPABASE_URL:config.supabaseUrl,SUPABASE_PUBLISHABLE_KEY:config.publishableKey,AUTH_SESSION_ENCRYPTION_KEY:config.encryptionKey},signed=await login(f);
  let calls=0;const app=async req=>{calls++;return Response.json({id:req.headers.get('oai-authenticated-user-id')});},req=(path,cookies='')=>new Request(ownerOrigin+path,{headers:{Cookie:cookies,'oai-authenticated-user-id':'forged-owner'}});
  const anonymous=await independentFetch(req('/owner'),env,app,f.fetcher);assert.equal(anonymous.status,307);assert.equal(anonymous.headers.get('location'),'/auth/owner/login?return_to=%2Fowner');assert.equal((await independentFetch(req('/api/admin/applications'),env,app,f.fetcher)).status,401);
- assert.equal((await independentFetch(req('/owner',cookie(signed.cookie)),env,app,f.fetcher)).status,403);assert.equal(calls,0);
+ assert.equal((await independentFetch(req('/owner',cookie(signed.cookie)),env,app,f.fetcher)).status,307);assert.equal(calls,0);
  f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run(signed.user.userId,new Date().toISOString());
  const ownerAuth=emailAuth(f.db,{...config,origin:ownerOrigin},f.fetcher),ownerSession=await ownerAuth.login({email,password},'owner-host-fixture',null,undefined,true);
  for(const path of ['/owner','/api/admin/applications']){const response=await independentFetch(req(path,cookie(ownerSession.cookie)),env,app,f.fetcher);assert.equal(response.status,200);assert.equal((await response.json()).id,signed.user.userId);assert.match(response.headers.get('X-Robots-Tag'),/noindex/);}

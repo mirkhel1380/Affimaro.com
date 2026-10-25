@@ -74,7 +74,7 @@ test('actual password login returns all four saved roles to their invitation sel
   const request=(path,cookie='',body)=>new Request(origin+path,body?{method:'POST',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}:{headers:{Cookie:cookie}});
   const page=await authPage(request('/auth/'+role+'/login?'+new URLSearchParams({return_to:target})),auth,origin),cookie=page.headers.getSetCookie()[0].split(';')[0],flow=await auth.flow(request('/',cookie));assert.equal(page.status,200);assert.equal(flow.returnTo,target);
   const result=await authPage(request('/auth/'+role+'/login?return_to=https%3A%2F%2Fforeign.example',cookie,{nonce:flow.nonce,email:user.email,password:'Fixture password 123456!'}),auth,origin);
-  assert.equal(result.status,303);assert.equal(result.headers.get('Location'),target);assert.equal(calls.length,3);
+  assert.equal(result.status,303);assert.equal(result.headers.get('Location'),target);assert.equal(calls.length,4);
   const session=result.headers.getSetCookie().find(c=>c.startsWith(SESSION_COOKIE+'='));assert.ok(session);const resolved=await auth.resolve(request(target,session.split(';')[0]));assert.equal(resolved.userId,user.userId);set(f.db,resolved);
   const beforeRead=f.db.sqlite.prepare('SELECT total_changes() n').get().n,html=renderToStaticMarkup(await relationships(role,query));assert.ok(html.includes('Invitations'));assert.equal(f.db.sqlite.prepare('SELECT total_changes() n').get().n,beforeRead);
  }

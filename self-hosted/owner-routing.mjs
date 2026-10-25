@@ -7,7 +7,7 @@ export function ownerRouting(publicOrigin,value){
 }
 
 export const ownerPath=path=>/^\/(owner|admin|auth\/owner|api\/(admin|owner))(\/|$)/.test(path);
-export const ownerAsset=path=>path.startsWith('/_next/static/')||['/auth-form.js','/demo/favicon.svg','/demo/styles.css','/app.css','/marketing.css','/favicon.ico'].includes(path);
+export const ownerAsset=path=>path.startsWith('/_next/static/')||/^\/images\/page-(?:partnerships|creators|technology|support|v2-[a-z-]+)(?:-small)?\.webp$/.test(path)||['/portal-theme.js','/auth-icons/google.svg','/auth-icons/apple.svg','/auth-icons/sso.svg','/auth-form.js','/demo/favicon.svg','/demo/styles.css','/app.css','/marketing.css','/favicon.ico'].includes(path);
 
 export function ownerHostRoute(request,publicOrigin,ownerOrigin){
   if(!ownerOrigin)return null;

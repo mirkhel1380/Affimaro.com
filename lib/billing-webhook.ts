@@ -6,7 +6,7 @@ import {subscriptionEvents} from './platform-billing-catalog.ts';
 import {billingSelection} from './billing-selection.ts';
 import type {Plan} from './plan-requests.ts';
 const encoder=new TextEncoder(),now=()=>new Date().toISOString();
-const eventSchema=z.object({id:z.string().regex(/^evt_[A-Za-z0-9]{6,200}$/),object:z.literal('event'),livemode:z.boolean(),type:z.string().max(120),account:z.string().optional(),data:z.object({object:z.record(z.unknown())})});
+const eventSchema=z.object({id:z.string().regex(/^evt_[A-Za-z0-9]{6,200}$/),object:z.literal('event'),livemode:z.boolean(),type:z.string().max(120),account:z.string().optional(),data:z.object({object:z.record(z.string(),z.unknown())})});
 const id=(value:unknown,prefix:string)=>typeof value==='string'&&new RegExp('^'+prefix+'[A-Za-z0-9]{6,200}$').test(value)?value:null;
 export async function verifyBillingSignature(bytes:Uint8Array,header:string,secret:string,clock=Date.now()){
  if(header.length>4096)throw new AppError(400,'Invalid subscription signature.');

@@ -1,3 +1,4 @@
+const providerLink=document.querySelector('a[data-auth-redirect]');if(providerLink)try{const target=new URL(providerLink.href);if(target.protocol==='https:'&&!target.username&&!target.password)location.assign(target.href);}catch{}
 // Progressive password visibility only. No values are read, stored or sent.
 document.querySelectorAll('[data-password-toggle]').forEach(button=>{
   const input=document.getElementById(button.getAttribute('aria-controls'));

@@ -1,3 +1,5 @@
+import {factorSchema,authenticatedAssurance,requiresSecondFactor} from './auth-assurance.ts';
+import {securityMethods} from './auth-security.ts';
 import {isAccountClosed,assertAccountOpen} from '../lib/account-state.ts';
 import {closeAccount} from '../lib/account-closure.ts';
 import {z} from 'zod';
@@ -11,18 +13,18 @@ import {accountReturnTo} from '../lib/account-journey.mjs';
 export type AuthConfig={origin:string;supabaseUrl:string;publishableKey:string;encryptionKey:string};
 export type AuthUser={userId:string;email:string;fullName:string|null};
 type Fetcher=(url:string,init:RequestInit)=>Promise<Response>;
-type ProviderUser={id:string;email:string;email_confirmed_at:string;user_metadata?:{display_name?:string}};
-type Tokens={access_token:string;refresh_token:string;expires_at:number};
-type Session={id:string;token_hash:string;provider_id:string;user_id:string;encrypted_tokens:string;recovery_only:number;expires_at:number;lease_id:string|null;lease_until:number|null};
+export type ProviderUser=z.infer<typeof userSchema>;
+export type Tokens={access_token:string;refresh_token:string;expires_at:number;origin?:string};
+export type Session={created_at:string;id:string;token_hash:string;provider_id:string;user_id:string;encrypted_tokens:string;recovery_only:number;expires_at:number;lease_id:string|null;lease_until:number|null};
 type Onboarding={name:string;plan?:'starter'|'growth'|'business';businessName?:string;channel?:'Content creator'|'Newsletter'|'Community'|'Blog'|'Other'};
-export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number;portal?:Portal;ownerOnly?:boolean;onboarding?:Onboarding;plan?:'starter'|'growth'|'business'};
+export type AuthFlow={nonce:string;purpose:string;returnTo:string;email?:string;expires:number;portal?:Portal;ownerOnly?:boolean;onboarding?:Onboarding;plan?:'starter'|'growth'|'business';provider?:'google'|'apple'|'sso';verifier?:string;factorId?:string;challengeId?:string};
 export const SESSION_COOKIE='__Host-affimaro_session',FLOW_COOKIE='__Host-affimaro_flow';
-const userSchema=z.object({id:z.string().uuid(),email:z.string().email().max(254).regex(/^[\x21-\x7e]+$/),email_confirmed_at:z.string().datetime(),user_metadata:z.object({display_name:z.string().max(200).optional()}).optional()});
-const tokenSchema=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_in:z.number().int().positive().max(86400),token_type:z.literal('bearer'),user:z.unknown()});
-const storedTokens=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_at:z.number().int().positive()}).strict();
+const userSchema=z.object({factors:z.array(factorSchema).max(20).default([]),id:z.string().uuid(),email:z.string().email().max(254).regex(/^[\x21-\x7e]+$/),email_confirmed_at:z.string().datetime(),user_metadata:z.object({display_name:z.string().max(200).optional()}).optional()});
+export const tokenSchema=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_in:z.number().int().positive().max(86400),token_type:z.literal('bearer'),user:z.unknown()});
+const storedTokens=z.object({access_token:z.string().min(20).max(10000),refresh_token:z.string().min(10).max(10000),expires_at:z.number().int().positive(),origin:z.string().url().optional()}).strict();
 const channelSchema=z.enum(['Content creator','Newsletter','Community','Blog','Other']);
 const onboardingSchema=z.object({name:z.string().trim().min(2).max(60),businessName:z.string().trim().min(2).max(60).optional(),channel:channelSchema.optional(),plan:z.enum(['starter','growth','business']).optional()}).strict();
-const flowSchema=z.object({nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int(),portal:z.enum(['brand','affiliate','creator','agency']).optional(),ownerOnly:z.boolean().optional(),onboarding:onboardingSchema.optional(),plan:z.enum(['starter','growth','business']).optional()}).strict();
+const flowSchema=z.object({provider:z.enum(['google','apple','sso']).optional(),verifier:z.string().regex(/^[a-f0-9]{64}$/).optional(),factorId:z.string().uuid().optional(),challengeId:z.string().uuid().optional(),nonce:z.string().regex(/^[a-f0-9]{64}$/),purpose:z.string().min(1).max(30),returnTo:z.string().max(500),email:z.string().email().max(254).optional(),expires:z.number().int(),portal:z.enum(['brand','affiliate','creator','agency']).optional(),ownerOnly:z.boolean().optional(),onboarding:onboardingSchema.optional(),plan:z.enum(['starter','growth','business']).optional()}).strict();
 const hex=(data:Uint8Array)=>Array.from(data,byte=>byte.toString(16).padStart(2,'0')).join('');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const stamp=()=>new Date().toISOString();
@@ -49,8 +51,8 @@ function parse<S extends z.ZodTypeAny>(schema:S,value:unknown):z.output<S>{const
 
 export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetch){
   const config=validateAuthConfig(settings);
-  async function provider(path:string,method:'GET'|'POST'|'PUT',body?:unknown,token?:string):Promise<unknown>{
-    const allowed=method==='GET'?['/user','/settings'].includes(path):method==='PUT'?path==='/user':['/signup','/token?grant_type=password','/token?grant_type=refresh_token','/verify','/recover','/resend','/logout?scope=local','/logout?scope=global'].includes(path);
+  async function provider(path:string,method:'GET'|'POST'|'PUT'|'DELETE',body?:unknown,token?:string):Promise<unknown>{
+    const allowed=method==='GET'?['/user','/settings'].includes(path):method==='PUT'?path==='/user':method==='DELETE'?/^\/factors\/[a-f0-9-]{36}$/.test(path):['/signup','/token?grant_type=password','/token?grant_type=refresh_token','/verify','/recover','/resend','/logout?scope=local','/logout?scope=global','/factors','/sso','/token?grant_type=pkce'].includes(path)||method==='POST'&&/^\/factors\/[a-f0-9-]{36}\/(challenge|verify)$/.test(path);
     if(!allowed)throw new AppError(500,'Unsupported authentication endpoint.');
     let response:Response;try{response=await fetcher(config.supabaseUrl+'/auth/v1'+path,{method,redirect:'manual',signal:AbortSignal.timeout(10000),headers:{apikey:config.publishableKey,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});}catch{throw new AppError(503,'Sign-in is temporarily unavailable. Please try again.');}
     if(!response.ok){await response.body?.cancel();if(response.status===429)throw new AppError(429,'Too many attempts. Wait before trying again.');if(response.status>=500||response.status<400)throw new AppError(503,'Sign-in is temporarily unavailable. Please try again.');throw new AppError(401,'The credentials or verification code could not be confirmed.');}
@@ -77,17 +79,17 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
   }
   async function rate(purpose:string,email:string,ip:string,maximum:number,seconds=900){
     const at=Math.floor(Date.now()/1000),window=Math.floor(at/seconds),key=await crypto.subtle.importKey('raw',Uint8Array.from(config.encryptionKey.match(/../g)!,byte=>parseInt(byte,16)),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-    for(const part of ['email/'+email.toLowerCase(),'ip/'+ip]){
+    for(const part of [...(email?['email/'+email.toLowerCase()]:[]),'ip/'+ip]){
       const id=hex(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(`auth-limit/${purpose}/${part}/${window}`))));
       await db.prepare('INSERT INTO auth_rate_limits (id,count,expires_at) VALUES (?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1').bind(id,(window+1)*seconds).run();
       if((await one<{count:number}>(db,'SELECT count FROM auth_rate_limits WHERE id=?',id))!.count>maximum)throw new AppError(429,'Too many attempts. Wait before trying again.');
     }
     await db.prepare('DELETE FROM auth_rate_limits WHERE id IN (SELECT id FROM auth_rate_limits WHERE expires_at<? LIMIT 100)').bind(at).run();
   }
-  async function issue(raw:unknown,expectedEmail:string,recoveryOnly=false,previousCookie?:string|null,portal?:Portal,onboarding?:Onboarding,ownerOnly=false){
+  async function issue(raw:unknown,expectedEmail:string|null,recoveryOnly=false,previousCookie?:string|null,portal?:Portal,onboarding?:Onboarding,ownerOnly=false){
     const response=tokenSchema.safeParse(raw);if(!response.success)throw new AppError(503,'The sign-in session could not be verified.');
     const user=checkedUser(await provider('/user','GET',undefined,response.data.access_token)),claimed=checkedUser(response.data.user);
-    if(user.id!==claimed.id||user.email.toLowerCase()!==claimed.email.toLowerCase()||user.email.toLowerCase()!==expectedEmail.toLowerCase())throw new AppError(403,'The sign-in identity could not be verified.');
+    if(user.id!==claimed.id||user.email.toLowerCase()!==claimed.email.toLowerCase()||expectedEmail!==null&&user.email.toLowerCase()!==expectedEmail.toLowerCase())throw new AppError(403,'The sign-in identity could not be verified.');
     // Owner access comes from the migrated provider mapping and stored grant.
     // Never create an account or trust email/provider metadata for this entry.
     if(ownerOnly){
@@ -95,10 +97,11 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
       if(!mapped||!await isPlatformAdmin(db,mapped.user_id))throw new AppError(403,'This sign-in is reserved for the Affimaro owner.');
     }
     const userId=await identity(user);await assertAccountOpen(db,userId);
+    const needsMfa=requiresSecondFactor(user.factors,authenticatedAssurance(response.data.access_token,user.id,config.supabaseUrl+'/auth/v1').level);
     if(portal){
       const actual=await accountPortal(db,userId);
       if(actual&&actual!==portal)throw new AppError(403,`This email belongs to a ${actual} account. Use its own sign-in page.`);
-      if(!actual&&!recoveryOnly&&onboarding){
+      if(!actual&&!recoveryOnly&&!needsMfa&&onboarding){
         const registration=admissions(db,{userId,email:user.email});
         if(businessPortal(portal)){
           if(!onboarding.businessName)throw new AppError(400,'Enter your business name on brand registration.');
@@ -109,13 +112,13 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
         }
       }
     }
-    const id=crypto.randomUUID(),token=random(),tokenHash=await hash(token),at=Math.floor(Date.now()/1000),expires=at+(recoveryOnly?600:30*86400);
-    const credentials:Tokens={access_token:response.data.access_token,refresh_token:response.data.refresh_token,expires_at:at+response.data.expires_in};
+    const id=crypto.randomUUID(),token=random(),tokenHash=await hash(token),at=Math.floor(Date.now()/1000),lifetime=recoveryOnly?600:ownerOnly?43200:30*86400,expires=at+lifetime;
+    const credentials:Tokens={origin:config.origin,access_token:response.data.access_token,refresh_token:response.data.refresh_token,expires_at:at+response.data.expires_in};
     const encrypted=await sealAuth(credentials,config.encryptionKey,`auth-session/${id}`);
     await db.batch([db.prepare('INSERT INTO auth_sessions (id,token_hash,provider_id,user_id,encrypted_tokens,recovery_only,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?)').bind(id,tokenHash,user.id,userId,encrypted,recoveryOnly?1:0,expires,stamp()),...(previousCookie&&/^[a-f0-9]{64}$/.test(previousCookie)?[db.prepare('DELETE FROM auth_sessions WHERE token_hash=?').bind(await hash(previousCookie))]:[])]);
-    return {cookie:authCookie(SESSION_COOKIE,token,recoveryOnly?600:30*86400),user:{userId,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
+    return {cookie:authCookie(SESSION_COOKIE,token,lifetime),needsMfa,needsProfile:!await accountPortal(db,userId),user:{userId,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
-  async function session(request:Request,recoveryAllowed=false){
+  async function session(request:Request,recoveryAllowed=false,allowMfa=false){
     const value=cookieValue(request,SESSION_COOKIE);if(!value||!/^[a-f0-9]{64}$/.test(value))return null;
     const row=await one<Session>(db,'SELECT * FROM auth_sessions WHERE token_hash=?',await hash(value)),at=Math.floor(Date.now()/1000);
     if(!row)return null;
@@ -123,6 +126,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     if(row.expires_at<=at){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}
     if(row.recovery_only&&!recoveryAllowed)return null;
     let tokens:Tokens;try{tokens=storedTokens.parse(await openAuth(row.encrypted_tokens,config.encryptionKey,`auth-session/${row.id}`));}catch{throw new AppError(503,'Your session could not be opened. Sign in again.');}
+    if(tokens.origin&&tokens.origin!==config.origin)return null;
     if(tokens.expires_at<=at+60){
       const lease=crypto.randomUUID();await db.prepare('UPDATE auth_sessions SET lease_id=?,lease_until=? WHERE id=? AND (lease_until IS NULL OR lease_until<=?)').bind(lease,at+45,row.id,at).run();
       const locked=await one<Session>(db,'SELECT * FROM auth_sessions WHERE id=?',row.id);
@@ -131,7 +135,7 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
         tokens=storedTokens.parse(await openAuth(locked.encrypted_tokens,config.encryptionKey,`auth-session/${row.id}`));
         if(tokens.expires_at<=at+60){
           const fresh=tokenSchema.safeParse(await provider('/token?grant_type=refresh_token','POST',{refresh_token:tokens.refresh_token}));if(!fresh.success||checkedUser(fresh.data.user).id!==row.provider_id)throw new AppError(403,'Your session could not be refreshed. Sign in again.');
-          tokens={access_token:fresh.data.access_token,refresh_token:fresh.data.refresh_token,expires_at:Math.floor(Date.now()/1000)+fresh.data.expires_in};
+          tokens={origin:config.origin,access_token:fresh.data.access_token,refresh_token:fresh.data.refresh_token,expires_at:Math.floor(Date.now()/1000)+fresh.data.expires_in};
           await db.prepare('UPDATE auth_sessions SET encrypted_tokens=? WHERE id=? AND lease_id=?').bind(await sealAuth(tokens,config.encryptionKey,`auth-session/${row.id}`),row.id,lease).run();
         }
       }catch(error){if(error instanceof AppError&&[401,403].includes(error.status)){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}throw error;}
@@ -140,9 +144,15 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     let user:ProviderUser;try{user=checkedUser(await provider('/user','GET',undefined,tokens.access_token));}catch(error){if(error instanceof AppError&&[401,403].includes(error.status)){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}throw error;}
     const mapped=await one<{user_id:string}>(db,'SELECT user_id FROM auth_identities WHERE provider_id=?',row.provider_id);
     if(await isAccountClosed(db,row.user_id)||user.id!==row.provider_id||mapped?.user_id!==row.user_id){await db.prepare('DELETE FROM auth_sessions WHERE id=?').bind(row.id).run();return null;}
-    return {row,tokens,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
+    const assurance=authenticatedAssurance(tokens.access_token,user.id,config.supabaseUrl+'/auth/v1'),requiresMfa=requiresSecondFactor(user.factors,assurance.level);
+    if(requiresMfa&&!allowMfa)return null;
+    return {row,tokens,providerUser:user,assurance,requiresMfa,user:{userId:row.user_id,email:user.email,fullName:user.user_metadata?.display_name?.slice(0,60)||null}};
   }
+  const security=securityMethods({db,config,provider,session,rate,random,issue,checkedUser});
   return {
+    ...security,
+    async inspect(request:Request){const current=await session(request,false,true);return current?{user:current.user,requiresMfa:current.requiresMfa}:null;},
+    async saveFlow(flow:AuthFlow){return authCookie(FLOW_COOKIE,await sealAuth(flowSchema.parse(flow),config.encryptionKey,`auth-flow/${config.origin}`),900);},
     async newFlow(purpose:string,returnTo?:string,email?:string,portal?:Portal,onboarding?:Onboarding,plan?:'starter'|'growth'|'business',ownerOnly=false){const flow:AuthFlow=flowSchema.parse({nonce:random(),purpose,returnTo:accountReturnTo(portal,safeReturnTo(returnTo)),...(email?{email}:{}),...(portal?{portal}:{}),...(ownerOnly?{ownerOnly:true}:{}),...(onboarding?{onboarding}:{}),...(plan?{plan}:{}),expires:Math.floor(Date.now()/1000)+900});return {flow,cookie:authCookie(FLOW_COOKIE,await sealAuth(flow,config.encryptionKey,`auth-flow/${config.origin}`),900)};},
     async flow(request:Request){const value=cookieValue(request,FLOW_COOKIE);if(!value||value.length>4096)return null;try{const data=flowSchema.parse(await openAuth(value,config.encryptionKey,`auth-flow/${config.origin}`));return data.expires>Math.floor(Date.now()/1000)&&data.expires<=Math.floor(Date.now()/1000)+905?{...data,returnTo:accountReturnTo(data.portal,safeReturnTo(data.returnTo))}:null;}catch{return null;}},
     async login(input:unknown,ip:string,previousCookie?:string|null,portal?:Portal,ownerOnly=false){const value=parse(z.object({email:emailSchema,password:z.string().min(1).max(128)}).strict(),input);await rate('login',value.email,ip,8);await emailProvider();return issue(await provider('/token?grant_type=password','POST',{email:value.email,password:value.password}),value.email,false,previousCookie,portal,undefined,ownerOnly);},
@@ -157,8 +167,8 @@ export function emailAuth(db:D1Database,settings:AuthConfig,fetcher:Fetcher=fetc
     async resend(flow:AuthFlow,ip:string){if(!flow.email||!['verify-signup','verify-recovery'].includes(flow.purpose))throw new AppError(400,'Start email verification again.');await rate('resend',flow.email,ip,4,3600);await provider(flow.purpose==='verify-signup'?'/resend':'/recover','POST',flow.purpose==='verify-signup'?{type:'signup',email:flow.email}:{email:flow.email});},
     async verify(flow:AuthFlow,input:unknown,ip:string,previousCookie?:string|null){const value=parse(z.object({code:z.string().trim().regex(/^[0-9]{6,10}$/)}).strict(),input);if(!flow.email||!['verify-signup','verify-recovery'].includes(flow.purpose))throw new AppError(400,'Start email verification again.');await rate('verify',flow.email,ip,8);await emailProvider();return issue(await provider('/verify','POST',{type:flow.purpose==='verify-signup'?'signup':'recovery',email:flow.email,token:value.code}),flow.email,flow.purpose==='verify-recovery',previousCookie,flow.portal,flow.onboarding,flow.ownerOnly);},
     async resolve(request:Request){return (await session(request))?.user||null;},
-    async canReset(request:Request,ownerOnly=false){const current=await session(request,true);return Boolean(current?.row.recovery_only&&(!ownerOnly||await isPlatformAdmin(db,current.row.user_id)));},
-    async reset(request:Request,input:unknown,ownerOnly=false){const value=parse(z.object({password:z.string().min(12).max(128)}).strict(),input),current=await session(request,true);if(!current?.row.recovery_only)throw new AppError(403,'Verify a password-recovery code first.');if(ownerOnly&&!await isPlatformAdmin(db,current.row.user_id))throw new AppError(403,'This recovery is reserved for the Affimaro owner.');const result=checkedUser(await provider('/user','PUT',{password:value.password},current.tokens.access_token));if(result.id!==current.row.provider_id)throw new AppError(403,'Password update identity could not be verified.');await db.prepare('DELETE FROM auth_sessions WHERE provider_id=?').bind(current.row.provider_id).run();try{await provider('/logout?scope=global','POST',{},current.tokens.access_token);}catch{}return clearAuthCookie(SESSION_COOKIE);},
+    async canReset(request:Request,ownerOnly=false){const current=await session(request,true,true);return Boolean(current?.row.recovery_only&&(!ownerOnly||await isPlatformAdmin(db,current.row.user_id)));},
+    async reset(request:Request,input:unknown,ownerOnly=false){const value=parse(z.object({password:z.string().min(12).max(128)}).strict(),input),current=await session(request,true,true);if(!current?.row.recovery_only)throw new AppError(403,'Verify a password-recovery code first.');if(ownerOnly&&!await isPlatformAdmin(db,current.row.user_id))throw new AppError(403,'This recovery is reserved for the Affimaro owner.');const result=checkedUser(await provider('/user','PUT',{password:value.password},current.tokens.access_token));if(result.id!==current.row.provider_id)throw new AppError(403,'Password update identity could not be verified.');await db.prepare('DELETE FROM auth_sessions WHERE provider_id=?').bind(current.row.provider_id).run();try{await provider('/logout?scope=global','POST',{},current.tokens.access_token);}catch{}return clearAuthCookie(SESSION_COOKIE);},
     async closeAccount(request:Request,input:unknown){
       const v=parse(z.object({password:z.string().min(1).max(128),confirmation:z.literal('CLOSE'),acknowledged:z.literal(true),reason:z.string().trim().max(1000).default('')}).strict(),input),current=await session(request);
       if(!current)throw new AppError(401,'Sign in again before closing your account.');

@@ -81,10 +81,10 @@ test('choosing a free account drops a subscription continuation but preserves an
 test('free registration ignores old paid return links and explicitly shows no subscription or card requirement',async t=>{
  const config={origin:'https://affimaro.example',supabaseUrl:'https://fixture.supabase.co',publishableKey:'sb_publishable_FIXTURE_PUBLIC_KEY_1234567890',encryptionKey:'bc'.repeat(32)};
  for(const role of ['affiliate','creator'])for(const target of ['/billing?plan=starter','/agency/billing?plan=business']){
-  let calls=0;const api=emailAuth(database(t),config,async()=>{calls++;throw new Error('No provider call on signup GET');});
+  let calls=0;const api=emailAuth(database(t),config,async(url,init)=>{calls++;assert.equal(new URL(url).pathname,'/auth/v1/settings');assert.equal(init.method,'GET');return Response.json({external:{email:true}});});
   const response=await authPage(new Request(config.origin+'/auth/'+role+'/signup?plan=starter&return_to='+encodeURIComponent(target)),api,config.origin),html=await response.text();
   assert.equal(response.status,200);assert.match(html,new RegExp('Free '+role+' account'));assert.match(html,/No subscription or card required/);assert.ok(!/\$19|Selected package|name="businessName"/.test(html));
-  const cookie=response.headers.get('set-cookie').split(';')[0],flow=await api.flow(new Request(config.origin,{headers:{Cookie:cookie}}));assert.equal(flow.returnTo,portalHome(role));assert.equal(flow.plan,undefined);assert.equal(calls,0);
+  const cookie=response.headers.get('set-cookie').split(';')[0],flow=await api.flow(new Request(config.origin,{headers:{Cookie:cookie}}));assert.equal(flow.returnTo,portalHome(role));assert.equal(flow.plan,undefined);assert.equal(calls,1);
  }
 });
 
