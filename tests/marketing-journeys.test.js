@@ -46,6 +46,15 @@ function node(parent=null){
     closest(selector){return selector==='.site-header'?this.inHeader?this:null:selector==='a'&&this.anchor?this:null;},
     fire(key,details={}){const event={target:this,preventDefault(){this.prevented=true;},...details};listeners[key]?.(event);return event;}};
 }
+test('decorative hero motion starts only with working controls and can be paused and resumed',()=>{
+  const hero=node(),control=node(hero);control.hidden=true;
+  const document={querySelector:selector=>selector==='.m-partnership-visual'?hero:selector==='.m-hero-motion-toggle'?control:null};
+  runInNewContext(read('public/marketing-nav.js'),{document,location:{hash:''}});
+  assert.ok(hero.classList.contains('is-animated'));assert.equal(control.hidden,false);
+  control.fire('click');assert.ok(hero.classList.contains('is-paused'));assert.equal(control.textContent,'Resume motion');assert.equal(control.attributes['aria-label'],'Resume decorative motion');
+  control.fire('click');assert.ok(!hero.classList.contains('is-paused'));assert.equal(control.textContent,'Pause motion');assert.equal(control.attributes['aria-label'],'Pause decorative motion');
+  const staticHero=node();runInNewContext(read('public/marketing-nav.js'),{document:{querySelector:selector=>selector==='.m-partnership-visual'?staticHero:null},location:{hash:''}});assert.ok(!staticHero.classList.contains('is-animated'));
+});
 test('service menus work with desktop hover, keyboard, touch expansion and normal page navigation',()=>{
   const navigation=node(),toggle=node(),document=node();let hover=true;
   const items=Array.from({length:4},()=>{

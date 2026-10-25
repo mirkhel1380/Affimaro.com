@@ -2,6 +2,15 @@
   // Old sample links now open a dedicated, role-specific demo document.
   const legacy=location.hash.match(/^#\/demo\/(merchant|affiliate)(?:\/([a-z-]+))?$/);
   if(legacy){location.replace('/demo/'+(legacy[1]==='merchant'?'brands':'affiliates')+location.hash);return;}
+  const hero=document.querySelector('.m-partnership-visual'),motion=document.querySelector('.m-hero-motion-toggle');
+  if(hero&&motion){
+    hero.classList.add('is-animated');motion.hidden=false;
+    motion.addEventListener('click',()=>{
+      const paused=hero.classList.toggle('is-paused');
+      motion.textContent=paused?'Resume motion':'Pause motion';
+      motion.setAttribute('aria-label',paused?'Resume decorative motion':'Pause decorative motion');
+    });
+  }
   const toggle=document.querySelector('.mobile-nav-toggle'),navigation=document.querySelector('#main-nav');
   if(!toggle||!navigation)return;
   const items=[...navigation.querySelectorAll('.m-nav-item')];
