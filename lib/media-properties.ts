@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {mediaKinds,mediaPlatforms,propertyRelationships,publicMediaUrl,platformMatches,platformKindMatches,propertyCovers,profileMediaUrls} from './media-catalog.ts';
 import {assertAccountOpen} from './account-state.ts';
+import {hasCurrentMediaVerification} from './media-verification.ts';
 export type MediaProperty={id:string;user_id:string;kind:string;platform:string;name:string;url:string;relationship:string;description:string;audience:string;language:string;challenge:string;challenge_expires_at:string;method:'dns_txt'|'public_challenge';status:'unverified'|'review_pending'|'verified'|'changes_requested'|'revoked';proof_url:string;review_note:string;verified_at:string|null;last_checked_at:string|null;revision:number;archived:number;created_at:string;updated_at:string};
 const applied=(r:unknown)=>Number((r as {meta?:{changes?:number};changes?:number})?.meta?.changes??(r as {changes?:number})?.changes??0)>0;
 const now=()=>new Date().toISOString(),uuid=()=>crypto.randomUUID();
@@ -11,7 +12,7 @@ const edit=z.object({id:z.string().uuid(),revision:z.number().int().positive()})
 function parse<T extends z.ZodTypeAny>(schema:T,input:unknown):z.output<T>{const r=schema.safeParse(input);if(!r.success)throw new AppError(400,r.error.issues[0]?.message||'Check the property details.');return r.data;}
 export async function mediaPropertiesFor(db:D1Database,userId:string){return (await db.prepare('SELECT * FROM media_properties WHERE user_id=? AND archived=0 ORDER BY created_at,id').bind(userId).all<MediaProperty>()).results;}
 export function profileVerificationSummary(properties:MediaProperty[],profile:Record<string,unknown>,at=Date.now()){
- const active=properties.filter(p=>!p.archived),fresh=(p:MediaProperty)=>p.status==='verified'&&!!p.verified_at&&Date.parse(p.verified_at)>=at-180*86400000;
+ const active=properties.filter(p=>!p.archived),fresh=(p:MediaProperty)=>hasCurrentMediaVerification(p,at);
  const urls=profileMediaUrls(profile).map(url=>{const matches=active.filter(p=>propertyCovers(p,url));return {url,listed:matches.length>0,verified:matches.some(fresh)};});
  const blockers=active.filter(p=>!fresh(p)).map(p=>({id:p.id,name:p.name,url:p.url,reason:p.status==='verified'?'Verification is out of date':p.status.replaceAll('_',' ')}));
  return {ready:urls.length>0&&urls.every(u=>u.verified)&&!blockers.length,urls,blockers,total:active.length,verified:active.filter(fresh).length};
