@@ -1,12 +1,13 @@
 import type {ReactNode} from 'react';
 import {Badge,Empty,formatDate} from '../ui';
 import {ownerDatasets,ownerRecords} from '../../lib/owner';
+import {ownerUsersPath} from './navigation';
 import {money} from '../../lib/money';
 export function ownerMoney(value:number,currency:string,decimals:number){return money(value,currency,decimals,'code');}
 export function RecordsTable({data}:{data:Awaited<ReturnType<typeof ownerRecords>>}){
  if(!data.rows.length)return <Empty title="No matching records.">{data.q?'Try another search or clear the filters.':'Records appear here as real accounts and activity are added to Affimaro.'}</Empty>;
  return <div className="a-table-wrap"><table className="a-order-table o-table"><caption className="o-sr-only">{data.title}</caption><thead><tr>{data.columns.map(c=><th scope="col" key={c.key}>{c.label}</th>)}</tr></thead><tbody>{data.rows.map(row=><tr key={String(row.id)}>{data.columns.map(c=>{const value=row[c.key];let cell:ReactNode=value===null||value===undefined||value===''?'—':String(value);if(value!==null&&value!==undefined&&value!==''){
- if(c.kind==='account')cell=<a className="o-record-link" href={'/owner/users?user='+encodeURIComponent(String(row.user_id||row.id))}>{String(value)}</a>;
+ if(c.kind==='account')cell=<a className="o-record-link" href={ownerUsersPath({user:String(row.user_id||row.id),...(data.key==='users'?{role:data.role}:{source:data.key,...(data.review?{review:data.review}:{})}),page:String(data.page),q:data.q})}>{String(value)}</a>;
  if(c.kind==='status')cell=<Badge status={String(value).replaceAll('_',' ')}/>;
  if(c.kind==='date')cell=Number.isFinite(Date.parse(String(value)))?formatDate(String(value)):String(value);
  if(c.kind==='rate')cell=Number(value)/100+'%';

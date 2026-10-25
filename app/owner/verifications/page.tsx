@@ -1,4 +1,5 @@
 import {notFound} from 'next/navigation';
+import {portalReturnPath} from '../../../lib/portal-return-path';
 import {AppError} from '../../../lib/service';
 import {ownerContext} from '../context';
 import {OwnerShell} from '../shell';
@@ -9,7 +10,7 @@ import {portals,portalName} from '../../../lib/portal-policy';
 export const dynamic='force-dynamic';
 export const metadata={title:'Ownership verification | Affimaro',robots:{index:false,follow:false}};
 export default async function VerificationQueue({searchParams=Promise.resolve({})}:{searchParams?:Promise<Record<string,string|string[]|undefined>>}={}){
- const {user,db}=await ownerContext('/owner/verifications'),query=await searchParams,input:Record<string,unknown>={};for(const key of ['applicant','status','portal','q','page'])if(query[key]!==undefined)input[key]=query[key];
+ const query=await searchParams,{user,db}=await ownerContext(portalReturnPath('/owner/verifications',query,{applicant:200,status:17,portal:9,page:7,q:120})),input:Record<string,unknown>={};for(const key of ['applicant','status','portal','q','page'])if(query[key]!==undefined)input[key]=query[key];
  let state:Awaited<ReturnType<typeof ownershipReviewQueue>>;
  try{state=await ownershipReviewQueue(db,user,input);}catch(e){if(e instanceof AppError&&e.status===404)notFound();if(!(e instanceof AppError)||e.status!==400)throw e;const selected=typeof query.applicant==='string'&&query.applicant.trim().length<=200?query.applicant.trim():'';return <OwnerShell name={user.fullName||'Owner'} email={user.email} active="verifications"><PageHeading eyebrow="OWNER · CHANNEL OWNERSHIP" title="Check your property filters." description="Choose one supported value for each verification filter."/><Card title="Choose a valid verification view"><div className="a-card-body"><p role="alert">{e.message}</p><a className="a-btn a-btn-outline" href={selected?ownershipReviewPath(selected):'/owner/verifications'}>Reset verification filters</a></div></Card></OwnerShell>;}
  const {status,properties,applicant,account,filters}=state,link=(changes:Partial<OwnershipQueueFilters>={})=>ownershipQueuePath(filters,changes),count=(s:string)=>s==='all'?state.statusCounts.reduce((n,c)=>n+c.total,0):state.statusCounts.find(c=>c.status===s)?.total||0;

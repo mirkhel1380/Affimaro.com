@@ -1,4 +1,5 @@
 import {requireChatGPTUser} from '../../chatgpt-auth';
+import {portalReturnPath} from '../../../lib/portal-return-path';
 import {getRawDb} from '../../../db';
 import {admissions,requirePlatformAdmin} from '../../../lib/admissions';
 import {AppError} from '../../../lib/service';
@@ -14,8 +15,8 @@ import {admissionStatuses,parseAdmissionQueueFilters,admissionQueuePath,type Adm
 export const dynamic='force-dynamic';
 export const metadata={title:'Application review | Affimaro',robots:{index:false,follow:false}};
 export default async function AdminApplicationsPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
-  const user=await requireChatGPTUser('/owner/applications',{allowApplication:true}),db=getRawDb();await requirePlatformAdmin(db,user);
-  const raw=await searchParams,input:Record<string,unknown>={};for(const key of ['status','portal','q','page','applicant'])if(raw[key]!==undefined)input[key]=raw[key];
+  const raw=await searchParams,user=await requireChatGPTUser(portalReturnPath('/owner/applications',raw,{applicant:200,status:17,portal:9,page:7,q:120}),{allowApplication:true}),db=getRawDb();await requirePlatformAdmin(db,user);
+  const input:Record<string,unknown>={};for(const key of ['status','portal','q','page','applicant'])if(raw[key]!==undefined)input[key]=raw[key];
   let filters:AdmissionQueueFilters;
   try{filters=parseAdmissionQueueFilters(input);}catch(error){if(!(error instanceof AppError)||error.status!==400)throw error;return <OwnerShell name={user.fullName||'Owner'} email={user.email} active="reviews"><PageHeading eyebrow="OWNER REVIEW" title="Check your application filters." description="Search submitted customer profiles in your private owner panel."/><Card title="Choose a valid queue"><div className="a-card-body"><p className="a-form-error" role="alert">{error.message}</p><a className="a-btn a-btn-outline" href="/owner/applications">Reset queue filters</a></div></Card></OwnerShell>;}
   const {status,portal}=filters,api=admissions(db,user),queue=await api.queue(status,portal,{q:filters.q,page:filters.page}),query={...filters,page:queue.page};let detail:Awaited<ReturnType<typeof api.inspect>>|undefined,error='';
