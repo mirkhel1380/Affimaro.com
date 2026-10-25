@@ -1,9 +1,13 @@
 import {z} from 'zod';
-export const identityDocumentTypes={passport:'Passport',national_id:'National identity card',driving_licence:'Driving licence'} as const;
+export const identityDocumentTypes={passport:'Passport',national_id:'National identity card / Tazkira',driving_licence:'Driving licence'} as const;
 export const identityStatusLabels={not_started:'Not submitted',pending:'Under review',approved:'Identity approved',changes_requested:'Changes requested',rejected:'Not approved',revoked:'Approval withdrawn'} as const;
 export type IdentityStatus=keyof typeof identityStatusLabels;
 export const identityProfileSchema=z.object({fullName:z.string().trim().min(2).max(120).refine(v=>!/[\u0000-\u001f\u007f]/.test(v)),country:z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).refine(v=>{try{return !['ZZ','EU','UN'].includes(v)&&new Intl.DisplayNames(['en'],{type:'region'}).of(v)!==v;}catch{return false;}},'Enter a valid two-letter country or territory code.'),documentType:z.enum(['passport','national_id','driving_licence'])}).strict();
 export type IdentityProfile=z.infer<typeof identityProfileSchema>;
+export const identityMovements={left:'Slowly turn your head to your left, then face the camera.',right:'Slowly turn your head to your right, then face the camera.',blink:'Blink twice, then look directly at the camera.'} as const;
+export const identityVideoMimes=['video/webm','video/mp4'] as const;
+export const storedIdentityProfileSchema=identityProfileSchema.extend({capture:z.object({mode:z.literal('camera'),mime:z.enum(identityVideoMimes),movement:z.enum(['left','right','blink']),issuedAt:z.string().datetime(),receivedAt:z.string().datetime()}).strict().optional()});
+export type IdentityCapture={ticket:string;expiresAt:string;movement:keyof typeof identityMovements;documentType:IdentityProfile['documentType'];revision:number};
 export const identityPath=(portal:string)=>portal==='creator'?'/creator/identity':'/partner/identity';
 export const identitySlots=(type:IdentityProfile['documentType'])=>type==='passport'?['front','selfie'] as const:['front','back','selfie'] as const;
 export const identityMaxImageBytes=512000,identityMaxRequestBytes=1560000;

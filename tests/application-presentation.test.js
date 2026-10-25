@@ -77,7 +77,7 @@ test('password eyes reveal and hide only the associated input, update accessible
     const input={type:'password'};Object.defineProperty(input,'value',{get(){throw new Error('Password value was read.');},set(){throw new Error('Password value was replaced.');}});inputs.set(id,input);
     const status={textContent:''},attrs={'aria-controls':id,'aria-pressed':'false','aria-label':'Show password'},button={hidden:true,parentElement:{querySelector:()=>status},getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;},addEventListener(name,callback){this[name]=callback;},attrs,status};buttons.push(button);
   }
-  runInNewContext(readFileSync(new URL('../public/auth-form.js',import.meta.url),'utf8'),{document:{querySelector:()=>null,querySelectorAll:()=>buttons,getElementById:id=>inputs.get(id)}});
+  runInNewContext(readFileSync(new URL('../public/auth-form.js',import.meta.url),'utf8'),{document:{querySelector:()=>null,querySelectorAll:selector=>selector==='[data-password-toggle]'?buttons:[],getElementById:id=>inputs.get(id)}});
   for(const button of buttons){const input=inputs.get(button.attrs['aria-controls']);assert.equal(button.hidden,false);button.click();assert.equal(input.type,'text');assert.equal(button.attrs['aria-label'],'Hide password');assert.equal(button.attrs['aria-pressed'],'true');assert.match(button.status.textContent,/visible/);button.click();assert.equal(input.type,'password');assert.equal(button.attrs['aria-label'],'Show password');assert.equal(button.attrs['aria-pressed'],'false');}
 });
 test('approved prices are consistent and four audience paths link to real pages without borrowed award claims',()=>{

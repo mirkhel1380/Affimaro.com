@@ -13,3 +13,10 @@ document.querySelectorAll('[data-password-toggle]').forEach(button=>{
     if(status)status.textContent=visible?'Password is visible.':'Password is hidden.';
   });
 });
+
+// Explain unconfigured providers without leaving the form or losing its fields.
+// The server independently checks availability on every real provider request.
+document.querySelectorAll('form').forEach(form=>{
+ const button=form.querySelector('[data-provider-unavailable]');if(!button)return;
+ form.addEventListener('submit',event=>{event.preventDefault();const provider=button.getAttribute('data-provider-unavailable'),name=provider==='google'?'Google':provider==='apple'?'Apple':'Organization SSO',feedback=document.getElementById('auth-provider-feedback');if(feedback){feedback.textContent=button.getAttribute('data-provider-state')==='unknown'?name+' sign-in availability could not be checked. Use your email below or reload the page to try again.':name+' sign-in is not connected yet. Use the email form below, or try again after the site owner completes setup.';feedback.setAttribute('tabindex','-1');feedback.focus();}});
+});
