@@ -439,3 +439,13 @@ export const accountNumbers=sqliteTable('account_numbers',{
 export const applicationSubmissionContexts=sqliteTable('application_submission_contexts',{
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),applicationRevision:integer('application_revision').notNull(),transitionId:text('transition_id').notNull(),contextJson:text('context_json').notNull(),createdAt:text('created_at').notNull(),expiresAt:text('expires_at').notNull(),
 },t=>[uniqueIndex('application_context_transition').on(t.transitionId),index('application_context_user_time').on(t.userId,t.createdAt),index('application_context_expiry').on(t.expiresAt),check('application_context_valid',sql`${t.applicationRevision}>0 AND json_valid(${t.contextJson}) AND length(${t.contextJson})<=5000`)]);
+
+export const billingCheckoutAcceptances=sqliteTable('billing_checkout_acceptances',{
+ checkoutId:text('checkout_id').notNull().references(()=>billingCheckouts.id),policyVersion:text('policy_version').notNull(),actorId:text('actor_id').notNull().references(()=>accounts.id),portal:text('portal').notNull(),plan:text('plan').notNull(),amount:integer('amount').notNull(),email:text('email').notNull(),acceptedAt:text('accepted_at').notNull(),
+},t=>[uniqueIndex('billing_acceptance_version').on(t.checkoutId,t.policyVersion),check('billing_acceptance_valid',sql`${t.portal} IN ('brand','agency') AND ${t.plan} IN ('starter','growth','business') AND ${t.amount}>0`)]);
+export const billingEmailSettings=sqliteTable('billing_email_settings',{
+ id:text('id').primaryKey(),enabled:integer('enabled').notNull(),revision:integer('revision').notNull(),configuredBy:text('configured_by').notNull().references(()=>accounts.id),updatedAt:text('updated_at').notNull(),
+},t=>[check('billing_email_settings_valid',sql`${t.id}='resend' AND ${t.enabled} IN (0,1) AND ${t.revision}>0`)]);
+export const billingInvoiceEmails=sqliteTable('billing_invoice_emails',{
+ invoiceId:text('invoice_id').primaryKey(),sendingRevision:integer('sending_revision'),accountId:text('account_id').notNull().references(()=>billingAccounts.id),userId:text('user_id').notNull().references(()=>accounts.id),status:text('status').notNull(),encryptedPayload:text('encrypted_payload').notNull(),attempts:integer('attempts').notNull().default(0),firstAttemptAt:text('first_attempt_at'),lastAttemptAt:text('last_attempt_at'),leaseId:text('lease_id'),leaseUntil:text('lease_until'),providerId:text('provider_id'),acceptedAt:text('accepted_at'),createdAt:text('created_at').notNull(),
+},t=>[index('billing_invoice_email_user').on(t.userId,t.createdAt),check('billing_invoice_email_valid',sql`${t.status} IN ('pending','failed','accepted','review') AND ${t.attempts}>=0`)]);

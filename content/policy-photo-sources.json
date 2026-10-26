@@ -1,0 +1,65 @@
+[
+  {
+    "route": "/legal",
+    "name": "legal-hub",
+    "source": "https://www.pexels.com/photo/people-doing-paperwork-at-a-desk-8152735/",
+    "original_image": "https://images.pexels.com/photos/8152735/pexels-photo-8152735.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "Pavel Danilyuk",
+    "alt": "Two people reviewing paperwork at a desk",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/terms-and-conditions",
+    "name": "legal-terms",
+    "source": "https://www.pexels.com/photo/person-signing-a-contract-7875839/",
+    "original_image": "https://images.pexels.com/photos/7875839/pexels-photo-7875839.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "Kaboompics",
+    "alt": "A professional signing a contract at a desk",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/payment-policy",
+    "name": "legal-payment",
+    "source": "https://www.pexels.com/photo/marketing-person-laptop-technology-6801649/",
+    "original_image": "https://images.pexels.com/photos/6801649/pexels-photo-6801649.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "Hanna Pad",
+    "alt": "Financial documents beside a laptop",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/privacy-policy",
+    "name": "legal-privacy",
+    "source": "https://www.pexels.com/photo/notebook-and-clipboard-with-papers-placed-on-desk-with-folders-and-pens-5668469/",
+    "original_image": "https://images.pexels.com/photos/5668469/pexels-photo-5668469.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "Sora Shimazaki",
+    "alt": "An organized desk with folders and a closed planner",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/fraud-policy",
+    "name": "legal-fraud",
+    "source": "https://www.pexels.com/photo/close-up-shot-of-a-laptop-5474301/",
+    "original_image": "https://images.pexels.com/photos/5474301/pexels-photo-5474301.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "cottonbro studio",
+    "alt": "A security key beside a laptop",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/account-policy",
+    "name": "legal-account",
+    "source": "https://www.pexels.com/photo/cozy-morning-scene-with-open-notebook-and-tea-37663846/",
+    "original_image": "https://images.pexels.com/photos/37663846/pexels-photo-37663846.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "Graham Roy",
+    "alt": "An open notebook and tea on a sunlit desk",
+    "license": "https://www.pexels.com/license/"
+  },
+  {
+    "route": "/cookie-policy",
+    "name": "legal-cookies",
+    "source": "https://www.pexels.com/photo/hands-typing-on-a-laptop-keyboard-5483149/",
+    "original_image": "https://images.pexels.com/photos/5483149/pexels-photo-5483149.jpeg?auto=compress&cs=tinysrgb&h=627&fit=crop&w=1200",
+    "photographer": "cottonbro studio",
+    "alt": "Hands typing at a laptop keyboard",
+    "license": "https://www.pexels.com/license/"
+  }
+]

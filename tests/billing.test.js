@@ -1,3 +1,4 @@
+import {legalVersion} from '../lib/legal-catalog.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {database} from './support/db.js';
@@ -30,6 +31,7 @@ async function fixture(t,{mode='live',required=false}={}){
     }else if(u.pathname.endsWith('/expire')&&init.method==='POST'){result=state.sessions.get(u.pathname.split('/').at(-2));if(result)result.status='expired';}
     else if(u.pathname.startsWith('/v1/checkout/sessions/'))result=state.sessions.get(u.pathname.split('/').at(-1));
     else if(u.pathname.startsWith('/v1/subscriptions/')){assert.equal(u.searchParams.get('expand[]'),'latest_invoice');result=state.subs.get(u.pathname.split('/').at(-1));}
+    else if(/^\/v1\/invoices\/in_/.test(u.pathname)){const sub=[...state.subs.values()].at(-1),at=Math.floor(Date.now()/1000);result={id:u.pathname.split('/').at(-1),object:'invoice',livemode:mode==='live',customer:sub.customer,currency:'usd',parent:{type:'subscription_details',subscription_details:{subscription:sub.id}},number:'AFF-FIXTURE-001',created:at,status:'paid',total:state.price.unit_amount,amount_paid:state.price.unit_amount,amount_remaining:0,status_transitions:{paid_at:at},invoice_pdf:'https://pay.stripe.com/invoice/acct_FIXTURE123/PRIVATE_PDF/pdf?s=ap'};}
     else if(u.pathname==='/v1/billing_portal/sessions')result={object:'billing_portal.session',customer:body.get('customer'),livemode:mode==='live',url:'https://billing.stripe.com/p/session/PRIVATE_PORTAL_SECRET'};
     else throw new Error('Unsupported fixture request '+u.pathname);
     if(!result)return Response.json({error:'not found'},{status:404});
@@ -38,7 +40,7 @@ async function fixture(t,{mode='live',required=false}={}){
   const api=billing(db,identity('owner'),config,key,fetcher);
   return {db,workspace,config,state,fetcher,api};
 }
-const start=async f=>{const q=await f.api.preview({});return f.api.checkout({reviewToken:q.reviewToken,confirmed:true});};
+const start=async f=>{const q=await f.api.preview({});return f.api.checkout({reviewToken:q.reviewToken,confirmed:true,policyVersion:legalVersion});};
 const account=f=>f.db.sqlite.prepare('SELECT * FROM billing_accounts WHERE workspace_id=?').get(f.workspace.id);
 const checkout=f=>f.db.sqlite.prepare('SELECT * FROM billing_checkouts WHERE workspace_id=? ORDER BY rowid DESC LIMIT 1').get(f.workspace.id);
 const posts=f=>f.state.calls.filter(call=>call.path==='/v1/checkout/sessions'&&call.method==='POST');
@@ -55,7 +57,7 @@ test('agency checkout uses its own exact amounts through paid confirmation and c
  for(const [plan,expected] of [['starter',3900],['growth',7900],['business',14900]]){
   const f=await fixture(t,{required:true});f.db.sqlite.prepare('INSERT INTO account_portals VALUES (?,?,?)').run('owner','agency',new Date().toISOString());
   await assert.rejects(f.api.preview({}),fails(409));assert.equal(f.state.calls.length,0);setAgencyPrice(f,plan);
-  const quote=await f.api.preview({});assert.equal(quote.amount,expected);await f.api.checkout({reviewToken:quote.reviewToken,confirmed:true});
+  const quote=await f.api.preview({});assert.equal(quote.amount,expected);await f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion});
   assert.equal(checkout(f).amount,expected);assert.equal(posts(f)[0].body.get('line_items[0][price]'),f.config.priceId);assert.equal(posts(f)[0].body.get('amount'),null);
   complete(f);assert.equal((await f.api.confirm({})).status,'active');await f.api.ensureEntitlement();assert.equal(account(f).amount,expected);assert.equal((await getPlanRequest(f.db,'owner')).active_plan,plan);assert.equal(f.state.created,1);
  }
@@ -125,7 +127,7 @@ test('affiliate and creator accounts cannot enter subscription billing even when
   const f=await fixture(t,{required:true}),quote=await f.api.preview({});
   f.db.sqlite.prepare('INSERT INTO account_portals (user_id,portal,created_at) VALUES (?,?,?)').run('owner',role,new Date().toISOString());
   const calls=f.state.calls.length;
-  for(const operation of [()=>f.api.dashboard(),()=>f.api.invoices({}),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),()=>f.api.refresh({}),()=>f.api.confirm({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
+  for(const operation of [()=>f.api.dashboard(),()=>f.api.invoices({}),()=>f.api.preview({}),()=>f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion}),()=>f.api.refresh({}),()=>f.api.confirm({}),()=>f.api.portal({})])await assert.rejects(operation(),fails(403));
   assert.equal(f.state.calls.length,calls);assert.equal(f.state.created,0);
   for(const table of ['billing_accounts','billing_checkouts'])assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM '+table).get().n,0);
  }
@@ -139,8 +141,8 @@ test('independent checkout freezes its return origin so retries keep the origina
 
 test('subscription reviews derive owner/workspace and reject tenant or amount injection',async t=>{
   const f=await fixture(t),quote=await f.api.preview({});
-  const other=billing(f.db,identity('other'),f.config,key,f.fetcher);await assert.rejects(other.checkout({reviewToken:quote.reviewToken,confirmed:true}),fails(400));
-  await assert.rejects(f.api.preview({amount:1}),fails(400));await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,priceId:'price_OTHER123'}),fails(400));
+  const other=billing(f.db,identity('other'),f.config,key,f.fetcher);await assert.rejects(other.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion}),fails(400));
+  await assert.rejects(f.api.preview({amount:1}),fails(400));await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion,priceId:'price_OTHER123'}),fails(400));
   await assert.rejects(billing(f.db,identity('affiliate'),f.config,key,f.fetcher).preview({}),fails(404));assert.equal((await other.dashboard()).account,null);assert.equal(posts(f).length,0);
 });
 
@@ -152,14 +154,14 @@ test('only an active fixed monthly USD licensed price in the correct account/mod
 
 test('checkout requires fresh bound review and explicit confirmation',async t=>{
   const f=await fixture(t),quote=await f.api.preview({});await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:false}),fails(400));
-  const expired=await sealPayment({workspace:f.workspace.id,owner:'owner',platform:f.config.platformId,price:f.config.priceId,amount:1900,mode:'live',at:new Date(Date.now()-360000).toISOString()},key,`billing-review/${f.workspace.id}/owner`);
-  await assert.rejects(f.api.checkout({reviewToken:expired,confirmed:true}),fails(409));
-  const changed=billing(f.db,identity('owner'),{...f.config,priceId:'price_CHANGED12345'},key,f.fetcher);await assert.rejects(changed.checkout({reviewToken:quote.reviewToken,confirmed:true}),fails(409));assert.equal(posts(f).length,0);
+  const expired=await sealPayment({workspace:f.workspace.id,owner:'owner',platform:f.config.platformId,price:f.config.priceId,amount:1900,mode:'live',policyVersion:legalVersion,at:new Date(Date.now()-360000).toISOString()},key,`billing-review/${f.workspace.id}/owner`);
+  await assert.rejects(f.api.checkout({reviewToken:expired,confirmed:true,policyVersion:legalVersion}),fails(409));
+  const changed=billing(f.db,identity('owner'),{...f.config,priceId:'price_CHANGED12345'},key,f.fetcher);await assert.rejects(changed.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion}),fails(409));assert.equal(posts(f).length,0);
 });
 
 test('opening checkout freezes the payload, encrypts the URL, and never activates paid access',async t=>{
   const f=await fixture(t),result=await start(f);assert.equal(result.outcome,'checkout');assert.equal(checkout(f).state,'open');assert.ok(!checkout(f).encrypted_url.includes('PRIVATE_CHECKOUT_SECRET'));assert.equal(account(f).status,'none');assert.equal((await f.api.dashboard()).entitled,false);
-  const body=posts(f)[0].body;assert.equal(body.get('line_items[0][price]'),f.config.priceId);assert.equal(body.get('line_items[0][quantity]'),'1');assert.equal(body.get('client_reference_id'),f.workspace.id);assert.equal(body.get('success_url'),BILLING_ORIGIN+'/billing?checkout_return=1');assert.equal(body.get('automatic_tax[enabled]'),'false');assert.equal(body.get('adaptive_pricing[enabled]'),'false');assert.equal(body.get('customer_email'),null);assert.equal(body.get('amount'),null);
+  const body=posts(f)[0].body;assert.equal(body.get('line_items[0][price]'),f.config.priceId);assert.equal(body.get('line_items[0][quantity]'),'1');assert.equal(body.get('client_reference_id'),f.workspace.id);assert.equal(body.get('success_url'),BILLING_ORIGIN+'/billing?checkout_return=1');assert.equal(body.get('automatic_tax[enabled]'),'false');assert.equal(body.get('adaptive_pricing[enabled]'),'false');assert.equal(body.get('customer_email'),'owner@example.com');assert.equal(body.get('amount'),null);
   await start(f);assert.equal(f.state.created,1);assert.equal(posts(f).length,1);assert.equal(f.db.sqlite.prepare('SELECT COUNT(*) n FROM billing_checkouts').get().n,1);
 });
 
@@ -253,8 +255,8 @@ test('agency billing management returns to the agency portal while checkout retr
 test('a billing lease prevents concurrent checkouts from creating duplicate sessions',async t=>{
   const f=await fixture(t),quote=await f.api.preview({});let release,entered;const gate=new Promise(resolve=>{release=resolve;}),started=new Promise(resolve=>{entered=resolve;});
   f.state.fault=async call=>{if(call.path==='/v1/checkout/sessions'&&call.method==='POST'){entered();await gate;}return null;};
-  const first=f.api.checkout({reviewToken:quote.reviewToken,confirmed:true});await started;
-  await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),fails(409));release();await first;assert.equal(f.state.created,1);assert.equal(posts(f).length,1);assert.equal(account(f).lease_id,null);
+  const first=f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion});await started;
+  await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion}),fails(409));release();await first;assert.equal(f.state.created,1);assert.equal(posts(f).length,1);assert.equal(account(f).lease_id,null);
 });
 
 test('subscription audit failures roll back local activation and recover without another checkout POST',async t=>{
@@ -293,7 +295,7 @@ async function webhookFixture(f){
  return {event,signed,handle};
 }
 test('new Checkout payloads use dynamic methods and a stable integration identifier, while legacy unknown requests are held',async t=>{
- const f=await fixture(t);f.state.lose=true;await assert.rejects(start(f));const attempt=checkout(f);assert.equal(attempt.payload_version,2);assert.match(attempt.integration_suffix,/^[a-z]{8}$/);const first=posts(f)[0].body;assert.equal(first.get('payment_method_types[0]'),null);assert.match(first.get('integration_identifier'),/^affimaro_checkout_[a-z]{8}$/);await start(f);assert.equal(posts(f)[1].body.toString(),first.toString());
+ const f=await fixture(t);f.state.lose=true;await assert.rejects(start(f));const attempt=checkout(f);assert.equal(attempt.payload_version,5);assert.match(attempt.integration_suffix,/^[a-z]{8}$/);const first=posts(f)[0].body;assert.equal(first.get('payment_method_types[0]'),null);assert.match(first.get('integration_identifier'),/^affimaro_checkout_[a-z]{8}$/);await start(f);assert.equal(posts(f)[1].body.toString(),first.toString());
  const before=posts(f).length;f.db.sqlite.prepare("UPDATE billing_checkouts SET payload_version=1,integration_suffix=NULL,session_id=NULL,state='review'").run();await assert.rejects(start(f),e=>e.status===409);assert.equal(posts(f).length,before);
 });
 test('signed subscription notifications fulfill only after paid provider evidence and replay without another write or payment',async t=>{
@@ -323,7 +325,7 @@ test('webhook database failures remain retryable and cannot leave a partially fu
 });
 
 test('signed notifications cannot correlate a checkout from one workspace to another, even when their metadata is forged',async t=>{
- const f=await fixture(t);await start(f);const other=billing(f.db,identity('other'),f.config,key,f.fetcher),q=await other.preview({});await other.checkout({reviewToken:q.reviewToken,confirmed:true});const h=await webhookFixture(f),{session}=complete(f),otherAttempt=f.db.sqlite.prepare('SELECT c.id FROM billing_checkouts c WHERE c.workspace_id<>?').get(f.workspace.id);
+ const f=await fixture(t);await start(f);const other=billing(f.db,identity('other'),f.config,key,f.fetcher),q=await other.preview({});await other.checkout({reviewToken:q.reviewToken,confirmed:true,policyVersion:legalVersion});const h=await webhookFixture(f),{session}=complete(f),otherAttempt=f.db.sqlite.prepare('SELECT c.id FROM billing_checkouts c WHERE c.workspace_id<>?').get(f.workspace.id);
  const forged={...session,metadata:{...session.metadata,affimaro_checkout:otherAttempt.id}};assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',forged)))).status,200);assert.equal((await f.api.dashboard()).entitled,false);assert.equal((await other.dashboard()).entitled,false);assert.equal(f.state.created,2);
 });
 
@@ -334,7 +336,7 @@ test('embedded checkout stays on site, freezes retries, resumes the same session
  f.db.sqlite.prepare("INSERT INTO platform_applications(user_id,portal,status,created_at,updated_at) VALUES ('owner','brand','approved',?,?)").run(at,at);
  f.db.sqlite.prepare("INSERT INTO plan_requests(user_id,requested_plan,active_plan,status,updated_at) VALUES ('owner','starter','starter','pending',?)").run(at);
  const selected=await planRequests(f.db,identity('owner')).choose({plan:'growth',revision:1});assert.equal(selected.status,'approved');assert.equal(selected.active_plan,'starter');
- f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();assert.equal(checkout(f).payload_version,3);
+ f.state.lose=true;await assert.rejects(start(f),fails(502));const first=posts(f)[0].body.toString();assert.equal(checkout(f).payload_version,4);
  f.config.origin='https://different.example';const result=await start(f);assert.equal(result.outcome,'embedded');assert.equal(result.publishableKey,f.config.publishableKey);assert.ok(result.clientSecret.startsWith(checkout(f).session_id+'_secret_'));assert.equal(result.url,undefined);assert.equal(posts(f)[1].body.toString(),first);
  const body=posts(f)[0].body;assert.equal(body.get('ui_mode'),'embedded_page');assert.equal(body.get('redirect_on_completion'),'if_required');assert.equal(body.get('return_url'),'https://affimaro.example/billing?checkout_return=1');assert.equal(body.has('success_url'),false);assert.equal(body.has('cancel_url'),false);
  assert.equal(checkout(f).encrypted_url,null);assert.ok(!JSON.stringify(checkout(f)).includes('FIXTURECLIENT'));assert.equal((await getPlanRequest(f.db,'owner')).active_plan,'starter');
@@ -354,7 +356,7 @@ test('an unpaid owned checkout can be expired, while another workspace or a comp
 
 test('canceling a completed checkout verifies its subscription and never sends an expire request',async t=>{const f=await fixture(t);await start(f);complete(f);await assert.rejects(f.api.cancelCheckout({confirmed:true}),fails(409));assert.equal(checkout(f).state,'completed');assert.equal(account(f).status,'active');assert.equal(f.state.calls.filter(c=>c.path.endsWith('/expire')).length,0);});
 
-test('a stale authenticated checkout request cannot create a provider payment after account closure',async t=>{const f=await fixture(t),quote=await f.api.preview({});const {closeAccount}=await import('../lib/account-closure.ts');await closeAccount(f.db,identity('owner'),'Leaving the fixture platform.');await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true}),/Account is closed/);assert.equal(posts(f).length,0);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,0);});
+test('a stale authenticated checkout request cannot create a provider payment after account closure',async t=>{const f=await fixture(t),quote=await f.api.preview({});const {closeAccount}=await import('../lib/account-closure.ts');await closeAccount(f.db,identity('owner'),'Leaving the fixture platform.');await assert.rejects(f.api.checkout({reviewToken:quote.reviewToken,confirmed:true,policyVersion:legalVersion}),/Account is closed/);assert.equal(posts(f).length,0);assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM billing_checkouts').get().n,0);});
 
 
 test('saved-payment confirmation reports open, processing and verified access without creating another checkout',async t=>{
@@ -431,7 +433,7 @@ test('a replacement brand purchase also fulfills through its own signed checkout
 
 test('reconciliation-only billing cannot create a review or payment using a purchase review token',async t=>{
  const f=await fixture(t),q=await f.api.preview({}),api=billing(f.db,identity('owner'),{...f.config,reconcileOnly:true},key,f.fetcher),before=f.state.calls.length;
- await assert.rejects(api.preview({}),fails(409));await assert.rejects(api.checkout({reviewToken:q.reviewToken,confirmed:true}),fails(409));assert.equal(f.state.calls.length,before);assert.equal(f.state.created,0);
+ await assert.rejects(api.preview({}),fails(409));await assert.rejects(api.checkout({reviewToken:q.reviewToken,confirmed:true,policyVersion:legalVersion}),fails(409));assert.equal(f.state.calls.length,before);assert.equal(f.state.created,0);
 });
 
 test('a replacement after an incomplete-expired agency subscription recovers a lost creation response through its signed event',async t=>{
@@ -445,4 +447,46 @@ test('an old paid invoice event cannot activate an unpaid replacement checkout',
  const {f,h,old}=await closedSubscriptionFixture(t,{legacy:true});setAgencyPrice(f,'growth');await start(f);const current=complete(f,{subscriptionId:'sub_FIXTURESECOND123'});current.session.payment_status='unpaid';current.sub.latest_invoice.status='open';
  assert.equal((await h.handle(await h.signed(h.event('invoice.paid',{object:'invoice',customer:old.sub.customer})))).status,200);assert.equal(account(f).status,'canceled');assert.equal(checkout(f).state,'open');assert.equal((await f.api.dashboard()).entitled,false);assert.equal(f.state.created,2);
  current.session.payment_status='paid';current.sub.latest_invoice.status='paid';assert.equal((await h.handle(await h.signed(h.event('checkout.session.async_payment_succeeded',current.session)))).status,200);assert.equal(account(f).subscription_id,current.sub.id);assert.equal((await f.api.dashboard()).entitled,true);assert.equal(f.state.created,2);
+});
+
+test('new checkouts require current policy acceptance and retain the accepted actor, package, email and amount',async t=>{
+ const f=await fixture(t),q=await f.api.preview({});assert.equal(q.policyVersion,legalVersion);const before=f.state.calls.length;
+ for(const input of [{reviewToken:q.reviewToken,confirmed:true},{reviewToken:q.reviewToken,confirmed:true,policyVersion:'2000-01-01'},{reviewToken:q.reviewToken,confirmed:false,policyVersion:legalVersion}])await assert.rejects(f.api.checkout(input),fails(400));
+ assert.equal(f.state.calls.length,before);assert.equal(f.state.created,0);assert.equal(f.db.sqlite.prepare('SELECT COUNT(*) AS n FROM billing_checkout_acceptances').get().n,0);
+ await f.api.checkout({reviewToken:q.reviewToken,confirmed:true,policyVersion:legalVersion});const row=f.db.sqlite.prepare('SELECT * FROM billing_checkout_acceptances').get();assert.equal(row.actor_id,'owner');assert.equal(row.portal,'brand');assert.equal(row.plan,'starter');assert.equal(row.amount,1900);assert.equal(row.email,'owner@example.com');assert.equal(row.policy_version,legalVersion);assert.equal(row.checkout_id,checkout(f).id);
+ const body=posts(f)[0].body;assert.equal(body.get('customer_email'),'owner@example.com');assert.equal(body.get('metadata[affimaro_policy]'),legalVersion);assert.equal(body.get('subscription_data[metadata][affimaro_policy]'),legalVersion);assert.equal(body.get('payment_method_types[0]'),null);
+ await start(f);assert.equal(f.db.sqlite.prepare('SELECT COUNT(*) AS n FROM billing_checkout_acceptances').get().n,1);assert.equal(f.state.created,1);
+});
+
+test('emailing an invoice requires its saved live customer and subscription and never trusts a form destination',async t=>{
+ const f=await fixture(t);await start(f);complete(f);await f.api.refresh({});const before=f.state.calls.length;
+ await assert.rejects(f.api.emailInvoice({invoiceId:'in_FIXTUREPAID123',email:'attacker@example.com'}),fails(400));assert.equal(f.state.calls.length,before);
+ f.state.mutate=(raw,call)=>call.path.startsWith('/v1/invoices/')?{...raw,customer:'cus_OTHERPRIVATE123'}:raw;
+ await assert.rejects(f.api.emailInvoice({invoiceId:'in_FIXTUREPAID123'}),fails(409));assert.equal(f.db.sqlite.prepare('SELECT COUNT(*) n FROM billing_invoice_emails').get().n,0);
+ f.state.mutate=null;const status=await f.api.emailInvoice({invoiceId:'in_FIXTUREPAID123'});assert.equal(status.status,'pending');assert.equal(status.canSend,false);
+ const row=f.db.sqlite.prepare('SELECT * FROM billing_invoice_emails').get();assert.equal(row.user_id,'owner');assert.ok(!row.encrypted_payload.includes('PRIVATE_PDF'));assert.ok(!row.encrypted_payload.includes('owner@example.com'));assert.equal(row.attempts,0);
+});
+
+test('paid invoice email delivery freezes its payload, deduplicates retries and refuses to retry through a rotated key',async t=>{
+ const {saveBillingEmailSetup,deliverInvoiceEmail}=await import('../lib/billing-email.ts');
+ const f=await fixture(t);await service(f.db,identity('mail-admin')).saveAccount({name:'Mail admin'});f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run('mail-admin',new Date().toISOString());
+ await saveBillingEmailSetup(f.db,identity('mail-admin'),key,{revision:0,enabled:true,apiKey:'re_FIXTURESENDINGONLY123456789'});
+ await start(f);complete(f);await f.api.refresh({});let calls=0,payload,idem;
+ const fetcher=async(url,init)=>{if(url==='https://api.resend.com/emails'){calls++;payload=JSON.parse(init.body);idem=init.headers['Idempotency-Key'];return Response.json({id:'11111111-1111-4111-8111-111111111111'});}return f.fetcher(url,init);};
+ const api=billing(f.db,identity('owner'),f.config,key,fetcher);await api.emailInvoice({invoiceId:'in_FIXTUREEMAIL123'});await api.emailInvoice({invoiceId:'in_FIXTUREEMAIL123'});assert.equal(calls,1);assert.deepEqual(payload.to,['owner@example.com']);assert.match(payload.html,/Download invoice PDF/);assert.match(payload.text,/1900|19\.00/);assert.equal(idem,'affimaro-paid-invoice-in_FIXTUREEMAIL123');assert.equal(f.db.sqlite.prepare('SELECT status FROM billing_invoice_emails').get().status,'accepted');
+ const failing=billing(f.db,identity('owner'),f.config,key,async(url,init)=>url==='https://api.resend.com/emails'?Response.json({error:'unavailable'},{status:503}):f.fetcher(url,init));await failing.emailInvoice({invoiceId:'in_FIXTUREFAILED123'});
+ const failed=f.db.sqlite.prepare("SELECT * FROM billing_invoice_emails WHERE status='failed'").get();assert.equal(failed.attempts,1);assert.equal(failed.sending_revision,1);
+ await saveBillingEmailSetup(f.db,identity('mail-admin'),key,{revision:1,enabled:true,apiKey:'re_FIXTUREROTATEDONLY123456789'});await deliverInvoiceEmail(f.db,failed.invoice_id,key,fetcher,Date.now()+61000);assert.equal(calls,1);assert.equal(f.db.sqlite.prepare('SELECT status FROM billing_invoice_emails WHERE invoice_id=?').get(failed.invoice_id).status,'review');
+});
+
+test('a signed paid invoice queues its verified invoice once and retains payment access independently of email setup',async t=>{
+ const f=await fixture(t);await start(f);const h=await webhookFixture(f),{session,sub}=complete(f);assert.equal((await h.handle(await h.signed(h.event('checkout.session.completed',session)))).status,200);
+ const event=h.event('invoice.paid',{object:'invoice',id:'in_WEBHOOKPAID123',customer:sub.customer});assert.equal((await h.handle(await h.signed(event))).status,200);assert.equal((await h.handle(await h.signed(event))).status,200);assert.equal(f.db.sqlite.prepare('SELECT COUNT(*) n FROM billing_invoice_emails').get().n,1);assert.equal(account(f).invoice_paid,1);assert.equal((await f.api.dashboard()).entitled,true);
+});
+
+test('invoice emails stop safely when the verified recipient changes or the customer account closes',async t=>{
+ const {saveBillingEmailSetup,deliverInvoiceEmail}=await import('../lib/billing-email.ts');const f=await fixture(t);await start(f);complete(f);await f.api.refresh({});await f.api.emailInvoice({invoiceId:'in_CHANGEDDEST123'});
+ await service(f.db,identity('mail-admin')).saveAccount({name:'Mail admin'});f.db.sqlite.prepare('INSERT INTO platform_admins VALUES (?,?)').run('mail-admin',new Date().toISOString());await saveBillingEmailSetup(f.db,identity('mail-admin'),key,{revision:0,enabled:true,apiKey:'re_FIXTURESENDINGONLY123456789'});
+ let sends=0;const fetcher=async()=>{sends++;throw new Error('No send expected');};f.db.sqlite.prepare('UPDATE accounts SET email=? WHERE id=?').run('new-address@example.com','owner');await deliverInvoiceEmail(f.db,'in_CHANGEDDEST123',key,fetcher);assert.equal(sends,0);assert.equal(f.db.sqlite.prepare('SELECT status FROM billing_invoice_emails').get().status,'review');
+ f.db.sqlite.prepare('UPDATE accounts SET email=? WHERE id=?').run('owner@example.com','owner');await f.api.emailInvoice({invoiceId:'in_CLOSEDEST123'});f.db.sqlite.prepare('INSERT INTO account_closures VALUES (?,?,?)').run('owner','Fixture closure',new Date().toISOString());await deliverInvoiceEmail(f.db,'in_CLOSEDEST123',key,fetcher);assert.equal(sends,0);
 });

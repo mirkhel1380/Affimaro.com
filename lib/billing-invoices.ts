@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {AppError} from './service.ts';
 
-export type BillingInvoice={id:string;number:string|null;created:number;status:'draft'|'open'|'paid'|'uncollectible'|'void';total:number;amountPaid:number;balance:number;paidAt:number|null;pdfUrl:string|null};
+export type BillingInvoice={id:string;number:string|null;created:number;status:'draft'|'open'|'paid'|'uncollectible'|'void';total:number;amountPaid:number;balance:number;paidAt:number|null;pdfUrl:string|null;email?:{status:string;label:string;canSend:boolean}};
 export type BillingInvoiceHistory={mode:'live'|'test';invoices:BillingInvoice[];hasMore:boolean};
 const epoch=z.number().int().positive().max(253402300799),minor=z.number().int().safe();
 const invoice=z.object({
