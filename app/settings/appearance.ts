@@ -1,5 +1,22 @@
 import type {AccountPreferences} from '../../lib/account-preferences';
 export type Appearance=Pick<AccountPreferences,'theme'|'density'|'reduceMotion'>;
+type Entry={value:Appearance;serial:number};
+type AppearanceWindow=Window&{__affimaroAppearanceV1?:Record<string,Entry>};
 export function appearanceKey(owner=false){return owner?'affimaro.owner.appearance.v1':'affimaro.appearance.v1';}
-export function readAppearance(owner=false):Appearance{let value:Partial<Appearance>={};try{value=JSON.parse(localStorage.getItem(appearanceKey(owner))||'{}')||{};}catch{}return {theme:['light','dark','system'].includes(value.theme||'')?value.theme!:'system',density:value.density==='compact'?'compact':'comfortable',reduceMotion:value.reduceMotion===true};}
-export function applyAppearance(p:Appearance,owner=false){if(typeof window==='undefined')return;try{localStorage.setItem(appearanceKey(owner),JSON.stringify({theme:p.theme,density:p.density,reduceMotion:p.reduceMotion}));}catch{}document.documentElement.dataset.affimaroThemeChoice=p.theme;document.documentElement.dataset.affimaroTheme=p.theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p.theme;document.documentElement.dataset.affimaroDensity=p.density;document.documentElement.dataset.affimaroMotion=p.reduceMotion?'reduced':'normal';window.dispatchEvent(new Event('affimaro:appearance'));}
+function normalize(value:Partial<Appearance>|null):Appearance{return {theme:value&&['light','dark','system'].includes(value.theme||'')?value.theme!:'system',density:value?.density==='compact'?'compact':'comfortable',reduceMotion:value?.reduceMotion===true};}
+function cache(){if(typeof window==='undefined')return {};const w=window as AppearanceWindow;return w.__affimaroAppearanceV1??(w.__affimaroAppearanceV1={});}
+export function readAppearance(owner=false):Appearance{
+ const values=cache(),key=appearanceKey(owner);if(values[key])return {...values[key].value};
+ let value:Partial<Appearance>|null={};try{value=JSON.parse(localStorage.getItem(key)||'{}');}catch{}
+ const result=normalize(value);values[key]={value:result,serial:0};return {...result};
+}
+export function appearanceSerial(owner=false){return cache()[appearanceKey(owner)]?.serial||0;}
+export function applyAppearance(input:Appearance,owner=false){
+ if(typeof window==='undefined')return false;
+ const value=normalize(input),values=cache(),key=appearanceKey(owner);values[key]={value,serial:(values[key]?.serial||0)+1};
+ let persisted=false;try{localStorage.setItem(key,JSON.stringify(value));persisted=true;}catch{}
+ let dark=false;try{dark=typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches;}catch{}
+ const root=document.documentElement;if(root){root.dataset.affimaroThemeChoice=value.theme;root.dataset.affimaroTheme=value.theme==='system'?(dark?'dark':'light'):value.theme;root.dataset.affimaroDensity=value.density;root.dataset.affimaroMotion=value.reduceMotion?'reduced':'normal';}
+ try{window.dispatchEvent(new CustomEvent('affimaro:appearance',{detail:{owner}}));}catch{}
+ return persisted;
+}
