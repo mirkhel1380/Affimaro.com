@@ -20,7 +20,7 @@ export function profileVerificationSummary(properties:MediaProperty[],profile:Re
 export type ProfileVerificationSummary=ReturnType<typeof profileVerificationSummary>;
 export async function assertVerifiedProfile(db:D1Database,userId:string,profile:Record<string,unknown>){
  const properties=await mediaPropertiesFor(db,userId);
- if(!profileVerificationSummary(properties,profile).ready)throw new AppError(409,'Verify every listed website and channel before this profile can be approved. Open Channels & ownership to complete verification.');
+ if(!profileVerificationSummary(properties,profile).ready)throw new AppError(409,'Verify the listed websites and channels before publishing this profile or starting new partnerships. Account approval is a separate owner decision. Open Channels & ownership to complete verification.');
  return properties;
 }
 async function dnsProof(host:string,challenge:string,fetcher:typeof fetch){

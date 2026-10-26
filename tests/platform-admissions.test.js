@@ -55,9 +55,8 @@ test('only an explicit platform admin can see other profiles, list queues or app
   assert.ok(!JSON.stringify(inspected).includes('transition_id'));assert.ok(!JSON.stringify(inspected).includes('profile_json'));
 });
 
-test('requests for information and rejection need a message; applicants can correct and resubmit without opening a portal',async t=>{
+test('the owner can request changes or decline; applicants can correct and resubmit without opening a portal',async t=>{
   const f=await fixture(t,'brand');let app=await submit(f);
-  await assert.rejects(f.owner.review({userId:f.applicant.userId,revision:app.revision,decision:'rejected',note:''}),fails(400));
   await f.owner.review({userId:f.applicant.userId,revision:app.revision,decision:'changes_requested',note:'Please explain your recruitment strategy and website ownership.'});
   app=await f.api.own();assert.equal(app.status,'changes_requested');assert.match(app.review_note,/recruitment/);await assert.rejects(requireApprovedAccount(f.db,f.applicant),fails(403));
   app=await submit(f,{...applicationProfile('brand'),promotionPlan:'We will invite selected software tutorial publishers and provide accurate program details. We will review each partner before sharing live referral links.'});
@@ -106,4 +105,36 @@ test('bootstrap grants only the established owner mapping, preserves original da
   const settings={accountId:'trusted-account',databaseId:'trusted-database'},fetcher=async(url,init)=>{assert.equal(url,'https://api.cloudflare.com/client/v4/accounts/trusted-account/d1/database/trusted-database/query');assert.equal(init.headers.Authorization,'Bearer FIXTURE_DEPLOY_TOKEN');assert.equal(init.redirect,'error');const body=JSON.parse(init.body);assert.match(body.sql,/^SELECT EXISTS/);return Response.json({success:true,result:[{success:true,results:db.sqlite.prepare(body.sql).all(...body.params)}]});};
   await verifiedAdmissionBootstrap(settings,'FIXTURE_DEPLOY_TOKEN',fetcher);
   db.sqlite.prepare("UPDATE platform_applications SET status='draft' WHERE user_id=?").run(ownerId);await assert.rejects(verifiedAdmissionBootstrap(settings,'FIXTURE_DEPLOY_TOKEN',fetcher),/review access could not be confirmed/);
+});
+
+test('the owner can approve every role with missing or incomplete ownership evidence and no property is falsely verified',async t=>{
+ for(const portal of ['brand','affiliate','creator','agency']){
+  const f=await fixture(t,portal),pending=await submit(f);if(portal==='brand'||portal==='creator'){seedVerifiedProperties(f.db,f.applicant.userId,pending.profile);f.db.sqlite.prepare("UPDATE media_properties SET status='unverified',verified_at=NULL").run();}
+  const properties=f.db.sqlite.prepare('SELECT * FROM media_properties').all();const approved=await f.owner.review({userId:f.applicant.userId,revision:pending.revision,decision:'approved',note:''});
+  assert.equal(approved.status,'approved');assert.equal(await admissionGate(new Request('https://affimaro.example/'+({brand:'workspace',affiliate:'partner',creator:'creator',agency:'agency'})[portal]),f.db,f.applicant),null);assert.deepEqual(f.db.sqlite.prepare('SELECT * FROM media_properties').all(),properties);
+  assert.match((await f.api.history())[0].note,/Owner-approved with outstanding checks/);assert.equal((await f.api.own()).review_note,'');assert.equal(count(f.db,'workspaces'),['brand','agency'].includes(portal)?1:0);assert.equal(count(f.db,'affiliate_profiles'),['affiliate','creator'].includes(portal)?1:0);
+  for(const table of ['billing_accounts','billing_checkouts','store_connections','payment_connections','payout_requests'])assert.equal(count(f.db,table),0);
+ }
+});
+
+test('an owner can decide incomplete legacy profiles without promoting unsafe submitted URLs into a workspace',async t=>{
+ for(const portal of ['brand','affiliate','creator','agency']){
+  const f=await fixture(t,portal),pending=await submit(f);f.db.sqlite.prepare('UPDATE platform_applications SET profile_json=?').run(JSON.stringify({name:'Unreviewed name',primaryUrl:'javascript:alert(1)',plan:'growth'}));
+  const approved=await f.owner.review({userId:f.applicant.userId,revision:pending.revision,decision:'approved'});assert.equal(approved.status,'approved');assert.match((await f.api.history())[0].note,/profile incomplete/);
+  const resource=['brand','agency'].includes(portal)?await service(f.db,f.applicant).workspace():await service(f.db,f.applicant).profile();assert.ok(resource);assert.equal(resource.website,'');assert.ok(!JSON.stringify(resource).includes('javascript:'));
+ }
+});
+
+test('owner decline and request-changes decisions can be saved without mandatory notes or complete profile fields',async t=>{
+ for(const decision of ['rejected','changes_requested']){
+  const f=await fixture(t,'brand'),pending=await submit(f);f.db.sqlite.prepare('UPDATE platform_applications SET profile_json=?').run('{}');const result=await f.owner.review({userId:f.applicant.userId,revision:pending.revision,decision});assert.equal(result.status,decision);assert.equal(result.review_note,'');assert.equal(count(f.db,'workspaces'),0);await assert.rejects(requireApprovedAccount(f.db,f.applicant),fails(403));
+ }
+});
+
+test('owner discretion never reopens a closed applicant or accepts a stale review',async t=>{
+ const f=await fixture(t,'brand'),pending=await submit(f);f.db.sqlite.prepare('INSERT INTO account_closures VALUES (?,?,?)').run(f.applicant.userId,'Fixture closure',new Date().toISOString());await assert.rejects(f.owner.review({userId:f.applicant.userId,revision:pending.revision,decision:'approved'}),fails(403));assert.equal(count(f.db,'workspaces'),0);assert.equal((await f.api.own()).status,'pending');
+});
+
+test('new business application choices are saved for review without inventing a new live commission calculation',async t=>{
+ const f=await fixture(t,'brand'),pending=await submit(f,{...applicationProfile('brand'),industry:'Web hosting & domains',commissionModel:'CPA — cost per action'});assert.equal((await f.owner.inspect(f.applicant.userId)).application.profile.commissionModel,'CPA — cost per action');assert.equal((await f.api.own()).profile.industry,'Web hosting & domains');await f.owner.review({userId:f.applicant.userId,revision:pending.revision,decision:'approved'});assert.equal(f.db.sqlite.prepare('SELECT rate_bps FROM programs').get().rate_bps,1000);assert.equal(count(f.db,'payout_requests'),0);
 });

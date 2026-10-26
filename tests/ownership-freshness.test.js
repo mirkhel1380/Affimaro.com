@@ -67,7 +67,7 @@ test('each role renews stale evidence through real services and still needs sepa
   db.sqlite.prepare('UPDATE media_properties SET verified_at=? WHERE id=?').run(iso(-181),p.id);
   assert.equal(profileVerificationSummary(await mediaPropertiesFor(db,applicant.userId),profile).ready,false);
   const decision={userId:applicant.userId,revision:application.revision,decision:'approved',note:''};
-  await assert.rejects(admissions(db,owner).review(decision),fails(409));
+  assert.equal((await api.own()).status,'pending','outstanding checks leave the owner free to decide');
   const original=p,properties=mediaProperties(db,applicant);p=await properties.renew({id:p.id,revision:p.revision});
   assert.notEqual(p.challenge,original.challenge);assert.equal(p.status,'unverified');assert.equal(p.verified_at,null);
   await assert.rejects(properties.renew({id:original.id,revision:original.revision}),fails(409));

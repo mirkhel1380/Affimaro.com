@@ -16,7 +16,7 @@ test('each account type can complete property review and then its separate profi
   let property=(await mediaPropertiesFor(f.db,f.applicant.userId))[0],properties=mediaProperties(f.db,f.applicant);property=await properties.renew({id:property.id,revision:property.revision});property=await properties.requestReview({id:property.id,revision:property.revision,proofUrl:property.url,note:'My current code appears on this exact public property.'});
   assert.equal((await ownerOverview(f.db,f.owner)).counts.pending_verifications,1);
   const before=await ownershipReviewQueue(f.db,f.owner,{applicant:f.applicant.userId});assert.equal(before.status,'all');assert.ok(before.properties.every(p=>p.user_id===f.applicant.userId));assert.equal(profileVerificationSummary(before.properties,profile).ready,false);
-  await assert.rejects(admissions(f.db,f.owner).review({userId:f.applicant.userId,revision:app.revision,decision:'approved',note:''}),fails(409));
+  assert.equal((await api.own()).status,'pending','Only an explicit account decision grants portal access');
   await reviewMediaProperty(f.db,f.owner,{id:property.id,revision:property.revision,decision:'verified',observedCode:property.challenge,evidenceChecked:true,note:'Exact current proof and authorized management have been checked.'});
   assert.equal((await ownerOverview(f.db,f.owner)).counts.pending_verifications,0);
   const after=await ownershipReviewQueue(f.db,f.owner,{applicant:f.applicant.userId});assert.equal(after.properties.length,before.properties.length);assert.equal(profileVerificationSummary(after.properties,profile).ready,true);assert.equal((await api.own()).status,'pending','Ownership review must not approve the profile');

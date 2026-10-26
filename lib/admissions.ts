@@ -2,7 +2,7 @@ import {applicationContextStatements} from './application-context.ts';
 import type {ApplicationRequestContext} from './application-context-catalog.ts';
 import {accountIdSql} from './account-id.ts';
 import {assertAccountOpen} from './account-state.ts';
-import {assertVerifiedProfile,mediaPropertiesFor} from './media-properties.ts';
+import {profileVerificationSummary,mediaPropertiesFor} from './media-properties.ts';
 import {z} from 'zod';
 import {AppError,type Identity} from './service.ts';
 import {accountPortal,portalFamily,businessPortal,type Portal} from './portal-policy.ts';
@@ -26,7 +26,7 @@ export async function requireApprovedAccount(db:D1Database,identity:Identity){
 }
 function view(row:PlatformApplication):ApplicationView{
   const {profile_json,transition_id:_,reviewed_by:__,...safe}=row;
-  let profile:Partial<ApplicationProfile>={};try{profile=JSON.parse(profile_json);}catch{}
+  let profile:Partial<ApplicationProfile>={};try{const parsed=JSON.parse(profile_json);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))profile=parsed;}catch{}
   return {...safe,profile};
 }
 export function admissions(db:D1Database,identity:Identity){
@@ -104,17 +104,23 @@ export function admissions(db:D1Database,identity:Identity){
     },
     async review(input:unknown){
       await requirePlatformAdmin(db,identity);
-      const parsed=z.object({userId:z.string().min(1).max(200),revision:z.number().int().positive(),decision:z.enum(['approved','changes_requested','rejected']),note:z.string().trim().max(1500)}).strict().safeParse(input);if(!parsed.success)throw new AppError(400,'Check the review decision.');
+      const parsed=z.object({userId:z.string().min(1).max(200),revision:z.number().int().positive(),decision:z.enum(['approved','changes_requested','rejected']),note:z.string().trim().max(1500).default('')}).strict().safeParse(input);if(!parsed.success)throw new AppError(400,'Check the review decision.');
       const value=parsed.data;if(value.userId===identity.userId)throw new AppError(403,'You cannot review your own application.');
-      if(value.decision!=='approved'&&value.note.length<10)throw new AppError(400,'Explain the changes or rejection in at least 10 characters.');
       const app=await getAdmission(db,value.userId);if(!app)throw new AppError(404,'Application not found.');
       if(app.status!=='pending'||app.revision!==value.revision)throw new AppError(409,'This application changed or has already been reviewed. Reload before deciding.');
-      const profile=applicationProfile(app.portal,JSON.parse(app.profile_json));if(!profile.success)throw new AppError(409,'A complete valid profile is required before review.');
-      await assertAccountOpen(db,value.userId);const verified=value.decision==='approved'?await assertVerifiedProfile(db,value.userId,profile.data):[];
-      const p=profile.data,at=now(),token=uuid(),workspaceId=uuid(),programId=uuid();
+      const submitted=view(app).profile as Record<string,unknown>,profile=applicationProfile(app.portal,submitted);
+      await assertAccountOpen(db,value.userId);
+      const ownership=profileVerificationSummary(await mediaPropertiesFor(db,value.userId),submitted);
+      // Approval is the owner's decision. Missing evidence is never converted
+      // into a verified property, and malformed profile data never provisions URLs.
+      const account=await db.prepare('SELECT display_name FROM accounts WHERE id=?').bind(value.userId).first<{display_name:string}>();
+      const fallbackName=account?.display_name?.trim().slice(0,60)||'My account';
+      const p=profile.success?profile.data:{name:fallbackName,businessName:fallbackName,primaryUrl:'',channel:'Other',description:'',plan:submitted.plan==='growth'||submitted.plan==='business'?submitted.plan:'starter'};
+      const auditNote=value.decision==='approved'&&(!ownership.ready||!profile.success)?[value.note,`Owner-approved with outstanding checks: ownership ${ownership.verified}/${ownership.total} current; profile ${profile.success?'complete':'incomplete'}. Property verification records unchanged.`].filter(Boolean).join('\n'):value.note;
+      const at=now(),token=uuid(),workspaceId=uuid(),programId=uuid();
       const statements=[
-        db.prepare(`UPDATE platform_applications SET status=?,revision=revision+1,reviewed_at=?,reviewed_by=?,review_note=?,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status='pending' AND NOT EXISTS(SELECT 1 FROM account_closures WHERE user_id=?) AND (?<>'approved' OR (NOT EXISTS(SELECT 1 FROM media_properties m WHERE m.user_id=platform_applications.user_id AND m.archived=0 AND (m.status<>'verified' OR m.verified_at IS NULL OR m.verified_at<?)) AND NOT EXISTS(SELECT 1 FROM json_each(?) snapshot WHERE NOT EXISTS(SELECT 1 FROM media_properties m WHERE m.id=json_extract(snapshot.value,'$.id') AND m.revision=json_extract(snapshot.value,'$.revision') AND m.archived=0 AND m.status='verified'))))`).bind(value.decision,at,identity.userId,value.note,token,at,value.userId,value.revision,value.userId,value.decision,new Date(Date.now()-180*86400000).toISOString(),JSON.stringify(verified.map(p=>({id:p.id,revision:p.revision})))),
-        db.prepare(`INSERT INTO platform_review_events (id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,?,revision,?,? FROM platform_applications WHERE user_id=? AND transition_id=?`).bind(uuid(),identity.userId,value.decision,value.note,at,value.userId,token),
+        db.prepare(`UPDATE platform_applications SET status=?,revision=revision+1,reviewed_at=?,reviewed_by=?,review_note=?,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status='pending' AND NOT EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)`).bind(value.decision,at,identity.userId,value.note,token,at,value.userId,value.revision,value.userId),
+        db.prepare(`INSERT INTO platform_review_events (id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,?,revision,?,? FROM platform_applications WHERE user_id=? AND transition_id=?`).bind(uuid(),identity.userId,value.decision,auditNote,at,value.userId,token),
       ];
       if(value.decision==='approved'){
         if(businessPortal(app.portal)&&'businessName' in p){
