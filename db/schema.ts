@@ -434,3 +434,8 @@ export const accountNumbers=sqliteTable('account_numbers',{
  userId:text('user_id').notNull().references(()=>accounts.id),
  createdAt:text('created_at').notNull(),
 },t=>[uniqueIndex('account_number_user_unique').on(t.userId),check('account_number_valid',sql`${t.number}>0 AND ${t.number}<=9007199254640991`)]);
+
+// Bounded private request metadata attached to successful platform submissions.
+export const applicationSubmissionContexts=sqliteTable('application_submission_contexts',{
+ id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),applicationRevision:integer('application_revision').notNull(),transitionId:text('transition_id').notNull(),contextJson:text('context_json').notNull(),createdAt:text('created_at').notNull(),expiresAt:text('expires_at').notNull(),
+},t=>[uniqueIndex('application_context_transition').on(t.transitionId),index('application_context_user_time').on(t.userId,t.createdAt),index('application_context_expiry').on(t.expiresAt),check('application_context_valid',sql`${t.applicationRevision}>0 AND json_valid(${t.contextJson}) AND length(${t.contextJson})<=5000`)]);

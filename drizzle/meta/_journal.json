@@ -183,6 +183,13 @@
       "when": 1792978403464,
       "tag": "0025_dark_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1792990699201,
+      "tag": "0026_organic_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

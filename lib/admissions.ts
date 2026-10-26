@@ -1,3 +1,5 @@
+import {applicationContextStatements} from './application-context.ts';
+import type {ApplicationRequestContext} from './application-context-catalog.ts';
 import {accountIdSql} from './account-id.ts';
 import {assertAccountOpen} from './account-state.ts';
 import {assertVerifiedProfile,mediaPropertiesFor} from './media-properties.ts';
@@ -49,7 +51,7 @@ export function admissions(db:D1Database,identity:Identity){
     async save(input:unknown){await assertAccountOpen(db,identity.userId);const v=z.object({revision:z.number().int().positive(),profile:z.unknown()}).strict().safeParse(input);if(!v.success)throw new AppError(400,'Check the draft request.');const app=await own();if(!app||!['draft','changes_requested','rejected'].includes(app.status)||app.revision!==v.data.revision)throw new AppError(409,'This application changed. Reload before saving.');const draft=applicationDraft(app.portal,v.data.profile);if(!draft.success)throw new AppError(400,draft.error.issues[0]?.path.join('.')+': '+draft.error.issues[0]?.message);const token=uuid();await db.prepare("UPDATE platform_applications SET profile_json=?,revision=revision+1,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status IN ('draft','changes_requested','rejected')").bind(JSON.stringify(draft.data),token,now(),identity.userId,app.revision).run();const saved=await own();if(saved?.transition_id!==token)throw new AppError(409,'Your draft changed. Reload before continuing.');return view(saved);},
     async own(){const row=await own();return row?view(row):null;},
     async history(){return (await db.prepare('SELECT action,revision,note,created_at FROM platform_review_events WHERE applicant_id=? ORDER BY rowid DESC LIMIT 20').bind(identity.userId).all<{action:string;revision:number;note:string;created_at:string}>()).results;},
-    async submit(input:unknown){
+    async submit(input:unknown,context?:ApplicationRequestContext){
       const parsed=z.object({revision:z.number().int().positive(),profile:z.unknown()}).strict().safeParse(input);if(!parsed.success)throw new AppError(400,'Check your application request.');
       const app=await own();if(!app)throw new AppError(409,'Choose your account type first.');
       if(app.status==='approved')throw new AppError(409,'Your application is already approved.');
@@ -58,8 +60,9 @@ export function admissions(db:D1Database,identity:Identity){
       const profile=applicationProfile(app.portal,parsed.data.profile);if(!profile.success){const issue=profile.error.issues[0];throw new AppError(400,(issue.path.join('.')||'Profile')+': '+issue.message);}
       const at=now(),token=uuid();
       await db.batch([
-        db.prepare(`UPDATE platform_applications SET status='pending',profile_json=?,revision=revision+1,submitted_at=?,reviewed_at=NULL,reviewed_by=NULL,review_note='',transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status IN ('draft','changes_requested','rejected')`).bind(JSON.stringify(profile.data),at,token,at,identity.userId,app.revision),
+        db.prepare(`UPDATE platform_applications SET status='pending',profile_json=?,revision=revision+1,submitted_at=?,reviewed_at=NULL,reviewed_by=NULL,review_note='',transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND status IN ('draft','changes_requested','rejected') AND NOT EXISTS(SELECT 1 FROM account_closures WHERE user_id=?)`).bind(JSON.stringify(profile.data),at,token,at,identity.userId,app.revision,identity.userId),
         db.prepare(`INSERT INTO platform_review_events (id,applicant_id,actor_id,action,revision,note,created_at) SELECT ?,user_id,?,'submitted',revision,'',? FROM platform_applications WHERE user_id=? AND transition_id=?`).bind(uuid(),identity.userId,at,identity.userId,token),
+        ...(context?applicationContextStatements(db,identity.userId,token,at,context):[]),
       ]);
       const saved=await own();if(saved?.transition_id!==token)throw new AppError(409,'Your application changed. Reload its latest status.');return view(saved);
     },

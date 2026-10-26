@@ -1,3 +1,4 @@
+import {applicationContextHeader,edgeApplicationNetwork} from '../lib/application-context-edge.ts';
 import {assertSameOrigin,readJson} from '../lib/request.ts';
 import {clearAuthCookie,SESSION_COOKIE,FLOW_COOKIE} from './auth-core.ts';
 import {AppError} from '../lib/service.ts';
@@ -16,8 +17,9 @@ export function independentConfig(env:Bindings):AuthConfig{
 }
 export function verifiedRequest(request:Request,user:AuthUser|null){
   const headers=new Headers(request.headers);
-  for(const key of [...headers.keys()])if(key.toLowerCase().startsWith('oai-authenticated-user-'))headers.delete(key);
+  for(const key of [...headers.keys()])if((key.toLowerCase().startsWith('oai-authenticated-user-')||key.toLowerCase()===applicationContextHeader))headers.delete(key);
   if(user){headers.set('oai-authenticated-user-id',user.userId);headers.set('oai-authenticated-user-email',user.email);if(user.fullName){headers.set('oai-authenticated-user-full-name',encodeURIComponent(user.fullName));headers.set('oai-authenticated-user-full-name-encoding','percent-encoded-utf-8');}}
+  if(user&&request.method==='POST'&&new URL(request.url).pathname==='/api/application')headers.set(applicationContextHeader,encodeURIComponent(JSON.stringify(edgeApplicationNetwork(request))));
   return new Request(request,{headers});
 }
 async function independentInner(request:Request,env:Bindings,application:(request:Request)=>Promise<Response>,fetcher:typeof fetch=fetch){
@@ -56,7 +58,7 @@ async function independentInner(request:Request,env:Bindings,application:(reques
       if(!user){if(url.pathname.startsWith('/api/'))throw new AppError(401,'Sign in to the owner portal.');return new Response(null,{status:307,headers:{Location:'/auth/owner/login?return_to='+encodeURIComponent(url.pathname+url.search),'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow'}});}
       await requirePlatformAdmin(env.DB,user);
     }
-    if((request.method==='POST'&&['/api/identity-verification','/api/identity-capture'].includes(url.pathname))||['/api/identity-document','/api/owner/identity','/api/owner/identity-document'].includes(url.pathname)){if(!user)throw new AppError(401,'Sign in to continue.');await auth.assertFresh(request);}
+    if((request.method==='POST'&&['/api/identity-verification','/api/identity-capture','/api/identity-phone'].includes(url.pathname))||['/api/identity-document','/api/owner/identity','/api/owner/identity-document'].includes(url.pathname)){if(!user)throw new AppError(401,'Sign in to continue.');await auth.assertFresh(request);}
     if(url.pathname==='/api/account-closure'){if(request.method!=='POST')throw new AppError(405,'Use the account closure form.');if(!user)throw new AppError(401,'Sign in to continue.');assertSameOrigin(request);const result=await auth.closeAccount(request,await readJson(request));const headers=new Headers({'Cache-Control':'private, no-store','Vary':'Cookie'});headers.append('Set-Cookie',clearAuthCookie(SESSION_COOKIE));headers.append('Set-Cookie',clearAuthCookie(FLOW_COOKIE));return Response.json({ok:true,data:result},{headers});}
     if(user){const blocked=await admissionGate(request,env.DB,user);if(blocked)return blocked;}
     const response=await application(verifiedRequest(request,user)),headers=new Headers(response.headers);
