@@ -1,3 +1,4 @@
+import {OverviewHome} from '../overview-home';
 import {requirePortalUser} from '../portal-auth';
 import {getRawDb} from '../../db';
 import {service} from '../../lib/service';
@@ -11,7 +12,7 @@ import {ClientForm} from '../audience-forms';
 import {Shell,PageHeading,Card,Stat,Empty,Badge,Icon,Note} from '../ui';
 export const dynamic='force-dynamic';
 export const metadata={title:'Agency workspace | Affimaro',robots:{index:false,follow:false}};
-export default function AgencyPage(){return AgencyWorkspace('overview');}
+export default function AgencyPage(props:{searchParams:Promise<{days?:string|string[]}>}){return OverviewHome({...props,portal:'agency'});}
 export async function AgencyWorkspace(view:'overview'|'clients',searchParams:Promise<PortalPageQuery>=Promise.resolve({})){
  const query=await searchParams,path=view==='overview'?'/agency':'/agency/clients',user=await requirePortalUser('agency',portalReturnPath(path,view==='clients'?query:{},{status:8,page:5,q:120})),db=getRawDb(),s=service(db,user),tools=audienceTools(db,user),account=await s.account(),app=await admissions(db,user).own(),dashboard=await s.businessDashboard(),plan=planCatalog[await activePlan(db,user.userId)],p=(app?.profile||{}) as Record<string,unknown>;
  let directory:Awaited<ReturnType<typeof tools.clientDirectory>>|null=null;

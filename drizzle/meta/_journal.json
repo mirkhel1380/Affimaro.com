@@ -169,6 +169,13 @@
       "when": 1792950236356,
       "tag": "0023_brief_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792975674408,
+      "tag": "0024_parched_lily_hollister",
+      "breakpoints": true
     }
   ]
 }

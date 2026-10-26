@@ -1,3 +1,4 @@
+import {OverviewHome} from '../overview-home';
 import {requirePortalUser} from '../portal-auth';
 import {getRawDb} from '../../db';
 import {service} from '../../lib/service';
@@ -12,7 +13,7 @@ import {ProfileDetails} from '../application/profile-details';
 import {Shell,PageHeading,Card,Stat,Empty,Badge,Icon,Note} from '../ui';
 export const dynamic='force-dynamic';
 export const metadata={title:'Creator studio | Affimaro',robots:{index:false,follow:false}};
-export default function CreatorPage(){return CreatorWorkspace('overview');}
+export default function CreatorPage(props:{searchParams:Promise<{days?:string|string[]}>}){return OverviewHome({...props,portal:'creator'});}
 export async function CreatorWorkspace(view:'overview'|'content'|'profile',searchParams:Promise<PortalPageQuery>=Promise.resolve({})){
  const query=await searchParams,path=view==='overview'?'/creator':'/creator/'+view,user=await requirePortalUser('creator',portalReturnPath(path,view==='content'?query:{},{status:9,page:5,platform:40,q:120})),db=getRawDb(),s=service(db,user),tools=audienceTools(db,user),account=await s.account(),dashboard=await s.partnerDashboard(),app=await admissions(db,user).own();
  let planner:Awaited<ReturnType<typeof tools.contentPlanner>>|null=null;

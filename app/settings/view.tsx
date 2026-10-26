@@ -16,5 +16,5 @@ export async function SettingsView({portal,searchParams}:{portal?:Portal;searchP
  const user=portal?await requirePortalUser(portal,path):await requireChatGPTUser(path),db=getRawDb();
  if(await isPlatformAdmin(db,user.userId))redirect('/owner/settings');
  const data=await accountSettings(db,user).snapshot();
- return <Shell portal={data.portal} name={data.name} email={data.email} active="settings"><PageHeading eyebrow={portalName(data.portal).toUpperCase()+' ACCOUNT SETTINGS'} title="Settings" description="Manage your profile, appearance, reporting preferences, privacy and account access."/><SettingsPanel initial={data} initialTab={tab} emailAuth={emailSignIn}/></Shell>;
+ return <Shell portal={data.portal} name={data.name} email={data.email} active="settings"><PageHeading eyebrow={portalName(data.portal).toUpperCase()+' ACCOUNT SETTINGS'} title={tab==='profile'?'User profile':'Account settings'} description="Your account information, profile, security, finance and connected tools."/><SettingsPanel initial={data} initialTab={tab} emailAuth={emailSignIn}/></Shell>;
 }

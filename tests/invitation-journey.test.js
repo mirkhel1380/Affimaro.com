@@ -65,7 +65,7 @@ test('real dashboard shells expose only their matching portal navigation',()=>{
   for(const portal of ['brand','affiliate']){
     const html=renderToStaticMarkup(createElement(Shell,{portal,name:'Example',email:'example@example.com',active:'account'},'Saved account'));
     assert.match(html,new RegExp('data-portal="'+portal+'"'));
-    assert.match(html,new RegExp(portal==='brand'?'BRAND PORTAL':'AFFILIATE PORTAL'));
+    assert.match(html,new RegExp(portal==='brand'?'<small>Brand</small>':'<small>Affiliate</small>'));
     assert.ok(!html.includes('role-select'));assert.ok(!html.includes('Switch role'));
     if(portal==='brand'){
       assert.match(html,/href="\/workspace"/);assert.match(html,/href="\/billing"/);assert.ok(!html.includes('href="/partner"'));assert.ok(!html.includes('?view=affiliate'));

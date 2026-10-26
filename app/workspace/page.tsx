@@ -1,3 +1,4 @@
+import {OverviewHome} from '../overview-home';
 import {storeConnectionProgress} from '../../lib/store-progress';
 import {StoreConnectionProgress} from '../store-progress';
 import {type Portal} from '../../lib/portal-policy';
@@ -18,7 +19,7 @@ import {OrderTable,money} from "../tracking";
 import { ApiForm,ActionButton,CopyButton } from "../forms";
 import { Shell,PageHeading,Card,Icon,Note,Stat,Badge,Empty,formatDate } from "../ui";
 export const dynamic="force-dynamic";
-export default async function WorkspacePage(props:{searchParams:Promise<{tab?:string}>}){return WorkspaceView({...props,portal:'brand',base:'/workspace'});}
+export default async function WorkspacePage(props:{searchParams:Promise<{tab?:string;days?:string|string[]}>}){const q=await props.searchParams;return q.tab?WorkspaceView({...props,portal:'brand',base:'/workspace'}):OverviewHome({...props,portal:'brand'});}
 export async function WorkspaceView({searchParams,portal,base}:{searchParams:Promise<{tab?:string}>;portal:Portal;base:string}){
   const user=await requirePortalUser(portal,base,true),s=service(getRawDb(),user),account=await s.account();if(!account)redirect('/account');
   const dashboard=await s.businessDashboard(),query=await searchParams;

@@ -423,3 +423,7 @@ export const identityDocuments=sqliteTable('identity_documents',{
 export const identityReviewEvents=sqliteTable('identity_review_events',{
  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>accounts.id),submissionId:text('submission_id').notNull(),actorId:text('actor_id').notNull().references(()=>accounts.id),action:text('action').notNull(),documentSlot:text('document_slot'),revision:integer('revision').notNull(),reason:text('reason'),createdAt:text('created_at').notNull(),
 },t=>[index('identity_review_history').on(t.userId,t.createdAt),check('identity_event_valid',sql`${t.action} IN ('submitted','document_viewed','approved','changes_requested','rejected','revoked') AND ${t.revision}>0 AND (${t.documentSlot} IS NULL OR ${t.documentSlot} IN ('front','back','selfie'))`)]);
+
+export const memberProfiles=sqliteTable('member_profiles',{
+ userId:text('user_id').primaryKey().references(()=>accounts.id),firstName:text('first_name').notNull().default(''),lastName:text('last_name').notNull().default(''),jobTitle:text('job_title').notNull().default(''),workPhone:text('work_phone').notNull().default(''),mobilePhone:text('mobile_phone').notNull().default(''),avatarJpeg:text('avatar_jpeg'),revision:integer('revision').notNull(),transitionId:text('transition_id').notNull(),updatedAt:text('updated_at').notNull(),
+},t=>[check('member_profile_valid',sql`${t.revision}>0 AND (${t.avatarJpeg} IS NULL OR length(${t.avatarJpeg})<=60000)`)]);

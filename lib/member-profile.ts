@@ -1,0 +1,23 @@
+import {z} from 'zod';
+import {AppError,type Identity} from './service.ts';
+import {requireApprovedAccount,isPlatformAdmin} from './admissions.ts';
+import {identityJpeg} from './identity-image.ts';
+import {memberDetailsSchema,emptyMemberProfile,type MemberProfile} from './member-profile-catalog.ts';
+type Row={first_name:string;last_name:string;job_title:string;work_phone:string;mobile_phone:string;revision:number;has_avatar:number;updated_at:string};
+const guard="EXISTS(SELECT 1 FROM platform_applications p WHERE p.user_id=? AND p.status='approved') AND NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=?) AND NOT EXISTS(SELECT 1 FROM platform_admins a WHERE a.user_id=?)";
+export function memberProfile(db:D1Database,user:Identity){
+ async function principal(){await requireApprovedAccount(db,user);if(await isPlatformAdmin(db,user.userId))throw new AppError(403,'Use the separate owner account settings.');}
+ async function snapshot():Promise<MemberProfile>{await principal();const row=await db.prepare('SELECT first_name,last_name,job_title,work_phone,mobile_phone,revision,avatar_jpeg IS NOT NULL AS has_avatar,updated_at FROM member_profiles WHERE user_id=?').bind(user.userId).first<Row>();return row?{details:{firstName:row.first_name,lastName:row.last_name,jobTitle:row.job_title,workPhone:row.work_phone,mobilePhone:row.mobile_phone},revision:row.revision,hasAvatar:!!row.has_avatar,updatedAt:row.updated_at}:emptyMemberProfile();}
+ function parse<S extends z.ZodTypeAny>(schema:S,input:unknown):z.output<S>{const r=schema.safeParse(input);if(!r.success)throw new AppError(400,r.error.issues[0]?.message||'Check your profile details.');return r.data;}
+ return {
+  snapshot,
+  async save(input:unknown){await principal();const v=parse(z.object({revision:z.number().int().min(0).safe(),name:z.string().trim().min(2).max(60),details:memberDetailsSchema}).strict(),input),at=new Date().toISOString(),token=crypto.randomUUID(),d=v.details,args=[user.userId,user.userId,user.userId];
+   const change=v.revision===0?db.prepare(`INSERT INTO member_profiles(user_id,first_name,last_name,job_title,work_phone,mobile_phone,revision,transition_id,updated_at) SELECT ?,?,?,?,?,?,1,?,? WHERE ${guard} ON CONFLICT(user_id) DO NOTHING`).bind(user.userId,d.firstName,d.lastName,d.jobTitle,d.workPhone,d.mobilePhone,token,at,...args):db.prepare(`UPDATE member_profiles SET first_name=?,last_name=?,job_title=?,work_phone=?,mobile_phone=?,revision=revision+1,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND ${guard}`).bind(d.firstName,d.lastName,d.jobTitle,d.workPhone,d.mobilePhone,token,at,user.userId,v.revision,...args);
+   const result=await db.batch([change,db.prepare('UPDATE accounts SET display_name=? WHERE id=? AND EXISTS(SELECT 1 FROM member_profiles WHERE user_id=? AND transition_id=?)').bind(v.name,user.userId,user.userId,token)]);if(result[0].meta.changes!==1)throw new AppError(409,'Your profile changed in another tab. Reload before saving.');return {name:v.name,profile:await snapshot()};
+  },
+  async avatar(){await principal();const row=await db.prepare('SELECT avatar_jpeg FROM member_profiles WHERE user_id=?').bind(user.userId).first<{avatar_jpeg:string|null}>();if(!row?.avatar_jpeg)throw new AppError(404,'No profile photo is saved.');return Uint8Array.from(atob(row.avatar_jpeg),c=>c.charCodeAt(0));},
+  async saveAvatar(input:unknown){await principal();const v=parse(z.object({revision:z.number().int().min(0).safe(),image:z.string().max(60000).regex(/^[A-Za-z0-9+/]*={0,2}$/).nullable()}).strict(),input);let image:string|null=null;if(v.image!==null){let raw:Uint8Array;try{raw=Uint8Array.from(atob(v.image),c=>c.charCodeAt(0));}catch{throw new AppError(400,'Choose a valid profile photo.');}const bytes=identityJpeg(raw);if(bytes.length>45000)throw new AppError(413,'Choose a smaller profile photo.');image=btoa(String.fromCharCode(...bytes));}
+   const token=crypto.randomUUID(),at=new Date().toISOString(),args=[user.userId,user.userId,user.userId],change=v.revision===0?db.prepare(`INSERT INTO member_profiles(user_id,first_name,last_name,job_title,work_phone,mobile_phone,avatar_jpeg,revision,transition_id,updated_at) SELECT ?,'','','','','',?,1,?,? WHERE ${guard} ON CONFLICT(user_id) DO NOTHING`).bind(user.userId,image,token,at,...args):db.prepare(`UPDATE member_profiles SET avatar_jpeg=?,revision=revision+1,transition_id=?,updated_at=? WHERE user_id=? AND revision=? AND ${guard}`).bind(image,token,at,user.userId,v.revision,...args);const result=await change.run();if(result.meta.changes!==1)throw new AppError(409,'Your profile changed in another tab. Reload before changing the photo.');return snapshot();
+  },
+ };
+}

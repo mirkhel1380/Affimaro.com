@@ -9,6 +9,7 @@ import "./start.css";
 import "./owner.css";
 import "./appearance.css";
 import "./analytics.css";
+import "./workspace-polish.css";
 
 export const metadata: Metadata = {
   title: "Affimaro — Your partner workspace",

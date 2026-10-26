@@ -1,0 +1,8 @@
+import {getChatGPTUser} from '../../chatgpt-auth';
+import {getRawDb} from '../../../db';
+import {AppError} from '../../../lib/service';
+import {memberProfile} from '../../../lib/member-profile';
+import {assertSameOrigin,readJson} from '../../../lib/request';
+const headers={'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow'};
+export async function GET(request:Request){try{const user=await getChatGPTUser();if(!user)throw new AppError(401,'Sign in to continue.');const q=new URL(request.url).searchParams;if([...q.keys()].some(k=>k!=='v')||q.getAll('v').length>1||q.has('v')&&!/^[0-9]{1,10}$/.test(q.get('v')!))throw new AppError(400,'Open your own account photo.');const bytes=await memberProfile(getRawDb(),user).avatar();return new Response(new Uint8Array(bytes),{headers:{...headers,'Content-Type':'image/jpeg','Content-Security-Policy':"default-src 'none'; sandbox"}});}catch(e){return Response.json({ok:false,error:e instanceof AppError?e.message:'Your profile photo could not be loaded.'},{status:e instanceof AppError?e.status:503,headers});}}
+export async function POST(request:Request){try{const user=await getChatGPTUser();if(!user)throw new AppError(401,'Sign in to continue.');assertSameOrigin(request);if(new URL(request.url).search)throw new AppError(400,'Use your own profile form.');return Response.json({ok:true,data:await memberProfile(getRawDb(),user).saveAvatar(await readJson(request,64000))},{headers});}catch(e){return Response.json({ok:false,error:e instanceof AppError?e.message:'Your profile photo could not be saved.'},{status:e instanceof AppError?e.status:503,headers});}}
