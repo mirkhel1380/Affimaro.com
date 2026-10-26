@@ -1,0 +1,43 @@
+/* Public website preferences are independent of customer and owner workspaces. */
+.p-theme{position:relative;flex-shrink:0;font:500 12px/1.5 Inter,"Segoe UI",Arial,sans-serif;color:var(--public-ink,#163d32)}
+.p-theme>summary{list-style:none;display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:9px 11px;border:1px solid var(--public-line,#dce5d4);border-radius:7px;cursor:pointer;white-space:nowrap;background:var(--public-card,#fff)}
+.p-theme>summary::-webkit-details-marker{display:none}
+.p-theme>summary>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.p-theme[open]>summary{background:var(--public-soft,#edf3e5)}
+.p-theme-panel{position:absolute;z-index:150;right:0;top:calc(100% + 8px);width:218px;max-width:calc(100vw - 28px);padding:14px;border:1px solid var(--public-line,#dce5d4);border-radius:10px;background:var(--public-card,#fff);color:var(--public-ink,#163d32);box-shadow:0 14px 40px #0002;white-space:normal}
+.p-theme-panel fieldset{padding:0;margin:0;border:0}
+.p-theme-panel legend{font-size:11px;font-weight:600;margin:0 0 8px;padding:0;color:var(--public-muted,#596e64)}
+.p-theme-panel label{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px;border:1px solid transparent;border-radius:6px;cursor:pointer}
+.p-theme-panel label:has(input:checked){border-color:var(--public-line,#c7d8b8);background:var(--public-soft,#edf3e5)}
+.p-theme-panel input{width:14px;height:14px;margin:0;accent-color:var(--public-ink,#163d32)}
+.p-theme-dot{width:20px;height:20px;border-radius:50%;border:1px solid #777;flex-shrink:0}
+.p-theme-light{background:#fff}.p-theme-dark{background:#000}.p-theme-device{background:linear-gradient(90deg,#fff 50%,#000 50%)}
+.p-theme-panel [data-theme-status]{font-size:11px;line-height:1.6;white-space:normal;margin:10px 0 0;color:var(--public-muted,#596e64)}
+.p-theme-panel [hidden]{display:none}
+.p-theme :is(summary,input):focus-visible{outline:2px solid #789f4b;outline-offset:4px}
+.a-preview-hub-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:48px}
+.a-preview-hub-header>.a-logo{margin:0}
+.marketing-page .m-header-actions{gap:14px}
+.marketing-page .m-account-choice .m-audience-paths>article:nth-child(n){background:var(--public-card,#fff);color:var(--public-ink,#163d32);border:1px solid var(--public-line,#dce5d4);box-shadow:0 5px 20px #173e3206}
+.marketing-page .m-account-choice .m-audience-paths>article:nth-child(n) :is(h3,p,.eyebrow,a:not(.btn)){color:inherit;opacity:1}
+html[data-affimaro-appearance-scope=public]{color-scheme:light}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark]{color-scheme:dark;background:#000;--public-ink:#f0f0f0;--public-muted:#b0b0b0;--public-card:#101010;--public-soft:#202020;--public-line:#393939;--ink:#f0f0f0;--muted:#b0b0b0;--paper:#000;--line:#393939;--panel:#101010}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page{background:#000;color:#eee}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(h1,h2,h3,.text-link,.m-login,.m-pricing-link,.m-contact-nav,.m-menu-links strong,.m-nav-expand){color:#eee}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(p,.m-menu-links small,.m-account-price,.m-choice-note p,.m-contact-form small){color:#b5b5b5}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.eyebrow,.m-home-hero-classic h1 em){color:#bed69a}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.site-header,.m-nav-panel,.main-nav.open,.m-feature-card,.m-contact-panel,.m-help-search,.m-help-card,.m-faq-list details,.m-platform-card){background:#101010;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-tinted,.m-brand-hero,.m-affiliate-hero,.m-callout,.m-highlight,.m-info-card){background:#171717;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-menu-links>a:hover,.m-nav-item.is-open>.m-nav-label,.m-nav-expand:hover,.m-platform-mark,.m-feature-icon){background:#242424;color:#d7eab6}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .btn-dark{background:#d5ec98;color:#182614;border-color:#d5ec98}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .btn-dark:hover{background:#e2f4b7;color:#182614}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.btn-white,.btn-outline){background:#171717;color:#eee;border-color:#555}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(input,select,textarea){background:#080808;color:#eee;border-color:#444}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(input,textarea)::placeholder{color:#999}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-contact-form label,.m-platform-card-heading h3,.m-platform-card-heading h3 a){color:#eee}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-footer,.m-footer-intro,.m-footer-bottom){background:#080808;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-footer :is(p,a){color:#b8c5ae}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-hero-motion-toggle{background:#171717;color:#eee;border-color:#555}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-account-choice .m-audience-paths .btn-dark{color:#182614}
+@media(max-width:1100px){.marketing-page .m-header-actions{gap:10px}.marketing-page .m-header-inner{gap:18px}}
+@media(max-width:600px){.p-theme>summary{width:44px;padding:10px}.p-theme>summary>span{display:none}.marketing-page .m-header-inner{width:calc(100% - 28px);gap:8px}.marketing-page .m-header-actions{gap:6px}.marketing-page .brand{font-size:24px;gap:6px}.marketing-page .brand-mark{width:30px;height:32px}.a-preview-hub-header{margin-bottom:32px}.a-preview-hub-header .p-theme>summary>span{display:inline}.a-preview-hub-header .p-theme>summary{width:auto}}
