@@ -10,6 +10,8 @@ import "./owner.css";
 import "./appearance.css";
 import "./analytics.css";
 import "./workspace-polish.css";
+import "./application-compact.css";
+import "./dark-neutral.css";
 
 export const metadata: Metadata = {
   title: "Affimaro — Your partner workspace",

@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {build} from 'esbuild';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {partnerFixture} from './support/partner-workspace.js';
+import {accountIdFor} from '../lib/account-id.ts';
 import {memberProfile} from '../lib/member-profile.ts';
 import {syntheticJpeg} from './support/identity-photos.js';
 import {accountSettings} from '../lib/account-settings.ts';
@@ -119,4 +120,9 @@ test('own avatar route enforces authentication, same-origin writes, bounded bodi
 
 test('all four actual portal homes render the compact scoped overview with unique navigation IDs and their own tools',async t=>{
  const f=await partnerFixture(t),homes={brand:views.BrandOverview,affiliate:views.AffiliateOverview,creator:views.CreatorOverview,agency:views.AgencyOverview};for(const role of roles){set(f.db,f[role]);const before=f.db.sqlite.prepare('SELECT total_changes() n').get().n,html=renderToStaticMarkup(await homes[role]({searchParams:Promise.resolve({days:'7'})}));assert.ok(html.includes('Performance overview'));assert.ok(html.includes('Last 7 days'));assert.ok(html.includes('Estimated commission'));assert.ok(html.includes('Find a page'));assert.ok(html.includes('Current partnership status'));assert.ok(!html.includes(f.foreignBrand.email));const ids=[...html.matchAll(/ id="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);assert.equal(f.db.sqlite.prepare('SELECT total_changes() n').get().n,before);if(['brand','agency'].includes(role)){assert.ok(html.includes('Partner payments'));assert.ok(!html.includes('href="/'+(role==='brand'?'partner':'creator')+'/identity"'));}else{assert.ok(html.includes('Verify your identity'));assert.ok(!html.includes('Package &amp; billing'));}if(role==='creator')assert.ok(html.includes('Content planner'));if(role==='agency')assert.ok(html.includes('Client directory'));}
+});
+
+
+test('each role sees its own assigned account ID in the real profile page and account menu',async t=>{
+ const f=await partnerFixture(t);for(const role of roles){set(f.db,f[role]);const id=await accountIdFor(f.db,f[role].userId),html=renderToStaticMarkup(await page(role,{tab:'profile'}));assert.ok(html.includes('Account ID: '+id));assert.ok(html.includes('Your permanent Affimaro account reference.'));assert.ok(html.includes('cannot be edited'));assert.ok(!html.includes(await accountIdFor(f.db,f.foreignBrand.userId)));}
 });

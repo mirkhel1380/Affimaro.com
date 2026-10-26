@@ -7,6 +7,7 @@ import {build} from 'esbuild';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {queueFixture,seedApplicant} from './support/admission-queue.js';
 import {seedVerifiedProperties,applicationProfile} from './support/application-profiles.js';
+import {accountIdFor} from '../lib/account-id.ts';
 import {admissions} from '../lib/admissions.ts';
 const root=fileURLToPath(new URL('../',import.meta.url)),cache=join(root,'node_modules/.cache');mkdirSync(cache,{recursive:true});const temp=mkdtempSync(join(cache,'admission-queue-'));after(()=>{rmSync(temp,{recursive:true,force:true});delete globalThis.__admissionQueueDb;delete globalThis.__admissionQueueUser;});
 const bundle=await build({stdin:{contents:"export {default as OwnerPage} from './app/owner/applications/page';export {default as LegacyPage} from './app/admin/applications/page';",resolveDir:root,loader:'tsx'},write:false,bundle:true,platform:'node',format:'esm',target:'node22',jsx:'automatic',packages:'external',define:{'import.meta.env.AFFIMARO_SELF_HOSTED':'true'},plugins:[{name:'owner-review-queue-fixture',setup(b){b.onResolve({filter:/^(next\/(headers|navigation)|cloudflare:workers)$/},a=>({path:a.path,namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='cloudflare:workers'?"export const env=new Proxy({},{get(_,key){return key==='DB'?globalThis.__admissionQueueDb:undefined;}});":a.path==='next/headers'?"export async function headers(){const u=globalThis.__admissionQueueUser;return new Headers(u?{'oai-authenticated-user-id':u.userId,'oai-authenticated-user-email':u.email}:{});}":"export function redirect(location){throw Object.assign(new Error('Redirect'),{location});}export function notFound(){throw Object.assign(new Error('Not found'),{notFound:true});}",loader:'js'}));}}]});const file=join(temp,'queue.mjs');writeFileSync(file,bundle.outputFiles[0].contents);const views=await import(pathToFileURL(file).href);
@@ -15,7 +16,7 @@ const htmlOf=async(params={},page='OwnerPage')=>renderToStaticMarkup(await views
 
 test('the actual owner and legacy review pages expose older applications without writes or provider activity',async t=>{
  const f=await queueFixture(t);for(let i=0;i<131;i++)seedApplicant(f,'record-'+String(i).padStart(4,'0'));set(f);let fetches=0;t.mock.method(globalThis,'fetch',async()=>{fetches++;throw new Error('Unexpected provider call');});const before=f.db.sqlite.prepare('SELECT total_changes() n').get().n;
- for(const page of ['OwnerPage','LegacyPage']){const html=await htmlOf({page:'3'},page);for(const text of ['Showing 101–131 of 131','Page 3 of 3','Applicant record-0130','Applicant name, email or business','Search applications'])assert.ok(html.includes(text),text);assert.ok(html.includes('href="/owner/applications?status=pending&amp;page=2"'));assert.ok(!html.includes('Showing the oldest 100 applications'));assert.ok(!html.includes('Save review decision'));}
+ for(const page of ['OwnerPage','LegacyPage']){const html=await htmlOf({page:'3'},page);for(const text of ['Showing 101–131 of 131','Page 3 of 3','Applicant record-0130','Account ID, name, email or business','Search applications'])assert.ok(html.includes(text),text);assert.ok(html.includes('href="/owner/applications?status=pending&amp;page=2"'));assert.ok(!html.includes('Showing the oldest 100 applications'));assert.ok(!html.includes('Save review decision'));}
  assert.equal(f.db.sqlite.prepare('SELECT total_changes() n').get().n,before);assert.equal(fetches,0);
 });
 
@@ -42,4 +43,9 @@ test('invalid filters and missing profiles show recoverable states without expos
 test('all customer roles, anonymous visitors and a revoked owner cannot render the owner queue',async t=>{
  const f=await queueFixture(t);for(const role of ['brand','affiliate','creator','agency']){const user=seedApplicant(f,role,role);set(f,{userId:user.userId,email:f.owner.email,role:'owner'});await assert.rejects(views.OwnerPage({searchParams:Promise.resolve({})}),e=>e.status===403||typeof e.location==='string');}
  set(f,null);await assert.rejects(views.OwnerPage({searchParams:Promise.resolve({})}),e=>typeof e.location==='string');f.db.sqlite.prepare('DELETE FROM platform_admins WHERE user_id=?').run(f.owner.userId);set(f);await assert.rejects(views.OwnerPage({searchParams:Promise.resolve({})}),e=>e.status===403||typeof e.location==='string');
+});
+
+
+test('the actual owner request view displays and searches the same immutable account ID beside applicant information',async t=>{
+ const f=await queueFixture(t);seedApplicant(f,'id-target','creator');set(f);const id=await accountIdFor(f.db,'id-target'),before=f.db.sqlite.prepare('SELECT total_changes() n').get().n,html=await htmlOf({q:id,applicant:'id-target'});assert.ok(html.includes('Account ID: '+id));assert.ok(html.includes('id-target@example.com'));assert.ok(html.includes('value="'+id+'"'));assert.ok(html.includes('Save review decision'));assert.equal(f.db.sqlite.prepare('SELECT total_changes() n').get().n,before);
 });

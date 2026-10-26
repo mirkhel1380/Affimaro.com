@@ -1,3 +1,4 @@
+import {accountIdSql} from './account-id.ts';
 import {assertAccountOpen} from './account-state.ts';
 import {assertVerifiedProfile,mediaPropertiesFor} from './media-properties.ts';
 import {z} from 'zod';
@@ -75,12 +76,12 @@ export function admissions(db:D1Database,identity:Identity){
       const filters=parseAdmissionQueueFilters({...options.data,status,portal}),size=admissionQueuePageSize;
       const profileText=(key:string)=>`CASE WHEN json_valid(p.profile_json) THEN CASE WHEN json_type(p.profile_json,'$.${key}')='text' THEN trim(json_extract(p.profile_json,'$.${key}')) ELSE '' END ELSE '' END`;
       const prefix=`WITH visible AS (
-        SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email,
+        SELECT p.user_id,${resolvedPortal} AS portal,p.status,p.revision,p.submitted_at,p.updated_at,a.display_name,a.email,${accountIdSql('account_number')} AS account_id,
           COALESCE(NULLIF(${profileText('agencyName')},''),${profileText('businessName')}) AS organization_name,${profileText('contactName')} AS contact_name
-        FROM platform_applications p JOIN accounts a ON a.id=p.user_id
+        FROM platform_applications p JOIN accounts a ON a.id=p.user_id LEFT JOIN account_numbers account_number ON account_number.user_id=a.id
         WHERE NOT EXISTS(SELECT 1 FROM account_closures c WHERE c.user_id=p.user_id) AND NOT EXISTS(SELECT 1 FROM platform_admins owner WHERE owner.user_id=p.user_id)
-      ), matching AS (SELECT * FROM visible WHERE status=? AND (?='' OR portal=?) AND (?='' OR instr(lower(display_name),lower(?))>0 OR instr(lower(email),lower(?))>0 OR instr(lower(organization_name),lower(?))>0 OR instr(lower(contact_name),lower(?))>0)), stats AS (SELECT COUNT(*) AS total FROM matching)`;
-      const args=[filters.status,filters.portal||'',filters.portal||'',filters.q,filters.q,filters.q,filters.q,filters.q];
+      ), matching AS (SELECT * FROM visible WHERE status=? AND (?='' OR portal=?) AND (?='' OR instr(lower(display_name),lower(?))>0 OR instr(lower(email),lower(?))>0 OR instr(lower(organization_name),lower(?))>0 OR instr(lower(contact_name),lower(?))>0 OR instr(lower(account_id),lower(?))>0)), stats AS (SELECT COUNT(*) AS total FROM matching)`;
+      const args=[filters.status,filters.portal||'',filters.portal||'',filters.q,filters.q,filters.q,filters.q,filters.q,filters.q];
       // The count, selected page and global status cards share one read snapshot.
       const result=await db.batch<Record<string,unknown>>([
         db.prepare(`${prefix} SELECT * FROM stats`).bind(...args),
@@ -88,12 +89,12 @@ export function admissions(db:D1Database,identity:Identity){
         db.prepare(`${prefix} SELECT status,portal,count(*) AS total FROM visible GROUP BY status,portal`).bind(...args),
       ]);
       const total=Number(result[0].results[0].total),pages=Math.ceil(total/size),page=Math.min(filters.page,Math.max(1,pages));
-      type Row={user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string;organization_name:string;contact_name:string};
+      type Row={account_id:string;user_id:string;portal:Portal;status:AdmissionStatus;revision:number;submitted_at:string|null;updated_at:string;display_name:string;email:string;organization_name:string;contact_name:string};
       return {applications:result[1].results as unknown as Row[],counts:result[2].results as unknown as {status:AdmissionStatus;portal:Portal;total:number}[],total,pages,page,pageSize:size,q:filters.q,status:filters.status,portal:filters.portal};
     },
     async inspect(userId:string){
       await requirePlatformAdmin(db,identity);const row=await getAdmission(db,userId);if(!row)throw new AppError(404,'Application not found.');
-      const account=await db.prepare('SELECT display_name,email FROM accounts WHERE id=?').bind(userId).first<{display_name:string;email:string}>();
+      const account=await db.prepare(`SELECT a.display_name,a.email,${accountIdSql('account_number')} AS account_id FROM accounts a LEFT JOIN account_numbers account_number ON account_number.user_id=a.id WHERE a.id=?`).bind(userId).first<{display_name:string;email:string;account_id:string}>();
       const properties=await mediaPropertiesFor(db,userId);
       const history=(await db.prepare('SELECT action,revision,note,created_at FROM platform_review_events WHERE applicant_id=? ORDER BY rowid DESC LIMIT 50').bind(userId).all()).results;
       return {application:view(row),account,history,properties};

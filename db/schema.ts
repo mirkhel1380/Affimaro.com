@@ -427,3 +427,10 @@ export const identityReviewEvents=sqliteTable('identity_review_events',{
 export const memberProfiles=sqliteTable('member_profiles',{
  userId:text('user_id').primaryKey().references(()=>accounts.id),firstName:text('first_name').notNull().default(''),lastName:text('last_name').notNull().default(''),jobTitle:text('job_title').notNull().default(''),workPhone:text('work_phone').notNull().default(''),mobilePhone:text('mobile_phone').notNull().default(''),avatarJpeg:text('avatar_jpeg'),revision:integer('revision').notNull(),transitionId:text('transition_id').notNull(),updatedAt:text('updated_at').notNull(),
 },t=>[check('member_profile_valid',sql`${t.revision}>0 AND (${t.avatarJpeg} IS NULL OR length(${t.avatarJpeg})<=60000)`)]);
+
+// Stable display IDs. Original account, session and financial identifiers stay intact.
+export const accountNumbers=sqliteTable('account_numbers',{
+ number:integer('number').primaryKey({autoIncrement:true}),
+ userId:text('user_id').notNull().references(()=>accounts.id),
+ createdAt:text('created_at').notNull(),
+},t=>[uniqueIndex('account_number_user_unique').on(t.userId),check('account_number_valid',sql`${t.number}>0 AND ${t.number}<=9007199254640991`)]);
