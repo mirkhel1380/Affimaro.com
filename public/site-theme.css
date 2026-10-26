@@ -28,7 +28,16 @@ html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.eyebrow,.m-home-hero-classic h1 em){color:#bed69a}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.site-header,.m-nav-panel,.main-nav.open,.m-feature-card,.m-contact-panel,.m-help-search,.m-help-card,.m-faq-list details,.m-platform-card){background:#101010;border-color:#393939}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-tinted,.m-brand-hero,.m-affiliate-hero,.m-callout,.m-highlight,.m-info-card){background:#171717;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-audience-paths>article:nth-child(n){background:#101010;color:#eee;border:1px solid #393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-downloads>a,.m-wordpress-entry){background:#101010;color:#eee;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-downloads>a strong{color:#eee}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.plan,.corner-install){background:#101010;color:#eee;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .plan-featured{border-color:#8ba65b}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.plan ul,.plan-index){color:#bbb}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .plan-price{color:#eee;border-color:#393939}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .plan-tag{background:#27351e;color:#d5ec98}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.m-menu-links>a:hover,.m-nav-item.is-open>.m-nav-label,.m-nav-expand:hover,.m-platform-mark,.m-feature-icon){background:#242424;color:#d7eab6}
+html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .m-platform-mark{background:#fff}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .btn-dark{background:#d5ec98;color:#182614;border-color:#d5ec98}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page .btn-dark:hover{background:#e2f4b7;color:#182614}
 html[data-affimaro-appearance-scope=public][data-affimaro-theme=dark] .marketing-page :is(.btn-white,.btn-outline){background:#171717;color:#eee;border-color:#555}
